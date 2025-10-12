@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/models/client_model.dart';
-import 'package:nutricare_client_management/screens/client_dashboard_screenv2.dart';
+import 'package:nutricare_client_management/screens/dash/client_dashboard_screenv2.dart';
 import 'package:nutricare_client_management/screens/client_form_screen.dart' hide ClientModel;
 
 import '../services/client_service.dart';

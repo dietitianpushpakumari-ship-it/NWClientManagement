@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:nutricare_client_management/meal_planner/screen/dash/diet_plan_master_dashboard.dart';
+import 'package:nutricare_client_management/meal_planner/screen/master_meal_name_list_page.dart';
 // Core App Screens
 import 'package:nutricare_client_management/screens/package_list_page.dart';
 import 'package:nutricare_client_management/screens/program_feature_master_screen.dart';
@@ -149,11 +151,11 @@ class MasterSetupPage extends StatelessWidget {
             elevation: 3,
             child: ListTile(
               leading: const Icon(Icons.format_list_bulleted, color: Colors.indigo),
-              title: const Text('Diet Plan Template Builder'),
-              subtitle: const Text('Access the integrated module to create reusable diet plans.'),
+              title: const Text('Diet Plan Master Builder'),
+              subtitle: const Text('Access the master data to create reusable diet plans.'),
               trailing: const Icon(Icons.launch),
               // 🎯 Navigates directly to the external library's main screen
-            //  onTap: () => _navigateToModule(context, const DietTemplateBuilderScreen()),
+              onTap: () => _navigateToModule(context, const DietPlanMasterPage()),
             ),
           ),
           const SizedBox(height: 10),

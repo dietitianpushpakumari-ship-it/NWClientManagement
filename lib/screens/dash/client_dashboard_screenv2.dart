@@ -6,10 +6,10 @@ import 'package:nutricare_client_management/screens/vitals_history_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/client_model.dart';
-import '../models/package_assignment_model.dart';
-import '../screens/client_form_screen.dart';
-import '../services/client_service.dart';
+import '../../models/client_model.dart';
+import '../../models/package_assignment_model.dart';
+import '../client_form_screen.dart';
+import '../../services/client_service.dart';
 
 // 🎯 NOTE: Assuming ClientFormSection is now correctly defined and exported
 // from client_form_screen.dart or another shared file.

@@ -189,7 +189,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
     final newPayment = PaymentModel(
       id: '',
       packageAssignmentId: widget.assignment.id,
-    // Assuming assignment model has clientId
+    // Assuming assignment models has clientId
       amount: amount,
       paymentMethod: _selectedMethod,
       paymentDate: _selectedDate!,

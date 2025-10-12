@@ -279,7 +279,7 @@ class PackagePaymentService {
     for (var doc in paymentsSnapshot.docs) {
       try {
         final data = doc.data() as Map<String, dynamic>;
-        // Assuming payment model stores amount as 'amount'
+        // Assuming payment models stores amount as 'amount'
         collectedAmount += (data['amount'] as num?)?.toDouble() ?? 0.0;
       } catch (e) {
         if (kDebugMode) {

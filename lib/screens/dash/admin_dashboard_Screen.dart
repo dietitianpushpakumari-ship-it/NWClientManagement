@@ -3,8 +3,8 @@ import 'package:nutricare_client_management/pages/admin/client_ledger_overview_s
 import 'package:nutricare_client_management/screens/master_client_screen.dart';
 import 'package:nutricare_client_management/screens/payment_ledger_screen.dart';
 
-import '../../models/client_model.dart';
-import '../../services/client_service.dart';
+import '../../../models/client_model.dart';
+import '../../../services/client_service.dart';
 import 'master_Setup_page.dart';
 // Import your module entry points
 

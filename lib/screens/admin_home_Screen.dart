@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:nutricare_client_management/screens/dash/admin_dashboard_Screen.dart';
+import 'package:nutricare_client_management/screens/dash/master_Setup_page.dart';
 import 'package:provider/provider.dart';
 
 // Import your existing screens and the new AuthService
-import 'admin_dashboard_screen.dart';
-import 'master_setup_page.dart';
+
 import '../../services/auth_service.dart';
 
 class AdminHomeScreen extends StatefulWidget {

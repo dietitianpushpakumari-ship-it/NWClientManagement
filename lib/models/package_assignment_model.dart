@@ -87,7 +87,7 @@ class PackageAssignmentModel {
     final expiryDate = parseDate(data['expiryDate']);
 
     return PackageAssignmentModel(
-      id: doc.id, // Always use the document ID for the model's ID
+      id: doc.id, // Always use the document ID for the models's ID
       packageId: data['packageId'] as String,
       packageName: data['packageName'] as String,
       diagnosis: data['diagnosis'] as String?,
