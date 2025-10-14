@@ -55,7 +55,6 @@ class MasterMealNameListPage extends StatelessWidget {
                       item.enName,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text('ID: ${item.id} | Translations: ${item.nameLocalized.length}'),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   ),
                 ),

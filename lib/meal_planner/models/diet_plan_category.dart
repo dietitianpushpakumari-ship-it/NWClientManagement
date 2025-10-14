@@ -20,7 +20,7 @@ class DietPlanCategory {
 
   /// Factory constructor for creating from a Firestore document snapshot.
   factory DietPlanCategory.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final data = doc.data() as Map<String, dynamic> ?? {};
 
     Map<String, String> localizedNames = {};
     if (data['nameLocalized'] is Map) {

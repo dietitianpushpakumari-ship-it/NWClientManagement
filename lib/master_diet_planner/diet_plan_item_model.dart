@@ -1,98 +1,52 @@
-// lib/models/master_diet_plan_models.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nutricare_client_management/master_diet_planner/client_diet_plan_model.dart';
 
-
-
-// --- Placeholder Food Item (Must contain nutritional data for calculations) ---
-class FoodItem {
-  final String id; final String enName; final String servingUnitId;
-  final double standardServingSizeG; // size of the standard serving in grams
-  final double caloriesPerStandardServing;
-  final double proteinG;
-  final double carbsG;
-  final double fatG;
-
-  // NOTE: Mock data in DependencyServices uses a more descriptive enName
-  const FoodItem({
-    required this.id, required this.enName, required this.servingUnitId,
-    this.standardServingSizeG = 100, this.caloriesPerStandardServing = 100,
-    this.proteinG = 0, this.carbsG = 0, this.fatG = 0
-  });
-  FoodItem copyWith({
-    String? id, String? enName, String? servingUnitId,
-    double? standardServingSizeG, double? caloriesPerStandardServing,
-    double? proteinG, double? carbsG, double? fatG,
-  }) {
-    return FoodItem(
-      id: id ?? this.id,
-      enName: enName ?? this.enName,
-      servingUnitId: servingUnitId ?? this.servingUnitId,
-      standardServingSizeG: standardServingSizeG ?? this.standardServingSizeG,
-      caloriesPerStandardServing: caloriesPerStandardServing ?? this.caloriesPerStandardServing,
-      proteinG: proteinG ?? this.proteinG,
-      carbsG: carbsG ?? this.carbsG,
-      fatG: fatG ?? this.fatG,
-    );
-  }
-
-  @override
-  bool operator ==(Object other) {
-    // Check if the other object is a FoodItem and has the same unique ID.
-    return identical(this, other) ||
-        other is FoodItem &&
-            runtimeType == other.runtimeType &&
-            id == other.id;
-  }
-
-  @override
-  int get hashCode => id.hashCode;
-
-  // Helper method to calculate macros for a given quantity
-  Map<String, double> calculateMacros(double quantity) {
-    if (standardServingSizeG == 0) return {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0};
-
-    // Assuming quantity is in the food item's serving unit
-    final ratio = quantity / standardServingSizeG;
-
-    return {
-      'calories': caloriesPerStandardServing * ratio,
-      'protein': proteinG * ratio,
-      'carbs': carbsG * ratio,
-      'fat': fatG * ratio,
-    };
+// --- Utility Extensions ---
+extension IterableExtensions<T> on Iterable<T> {
+  T? firstWhereOrNull(bool Function(T) test) {
+    for (final element in this) {
+      if (test(element)) return element;
+    }
+    return null;
   }
 }
-// --------------------------------------------------------------------------
 
-// 1. Food Item Alternative
+// --- CORE MODELS ---
+
+
 class FoodItemAlternative {
+  final String id;
   final String foodItemId;
   final String foodItemName;
   final double quantity;
   final String unit;
-  // Add reference to the FoodItem object for detailed view calculation
-  final FoodItem? foodItem;
+
+  @override bool operator ==(Object other) => other is FoodItemAlternative && other.id == id;
+  @override int get hashCode => id.hashCode;
+  String get displayQuantity => '${quantity.toStringAsFixed(1)} $unit';
 
   const FoodItemAlternative({
-    required this.foodItemId,
-    required this.foodItemName,
-    required this.quantity,
-    required this.unit,
-    this.foodItem,
+    required this.id, required this.foodItemId, required this.foodItemName,
+    required this.quantity, required this.unit
   });
 
-  FoodItemAlternative copyWith({FoodItem? foodItem}) =>
-      FoodItemAlternative(
-          foodItemId: foodItemId, foodItemName: foodItemName,
-          quantity: quantity, unit: unit,
-          foodItem: foodItem ?? this.foodItem
-      );
-
-
-  @override
-  List<Object?> get props => [foodItemId, quantity, unit];
+  // TO FIREBASE
+  Map<String, dynamic> toFirestore() => {
+    'foodItemId': foodItemId,
+    'foodItemName': foodItemName,
+    'quantity': quantity,
+    'unit': unit,
+  };
+  // FROM FIREBASE
+  factory FoodItemAlternative.fromFirestore(Map<String, dynamic> data, String altId) => FoodItemAlternative(
+    id: altId,
+    foodItemId: data['foodItemId'] as String? ?? '',
+    foodItemName: data['foodItemName'] as String? ?? '',
+    quantity: (data['quantity'] as num?)?.toDouble() ?? 0.0,
+    unit: data['unit'] as String? ?? '',
+  );
 }
 
-// 2. Diet Plan Item Model
 class DietPlanItemModel {
   final String id;
   final String foodItemId;
@@ -101,134 +55,226 @@ class DietPlanItemModel {
   final String unit;
   final String notes;
   final List<FoodItemAlternative> alternatives;
-  final FoodItem? foodItem; // Reference to the actual FoodItem for calculations
 
   const DietPlanItemModel({
-    required this.id,
-    required this.foodItemId,
-    required this.foodItemName,
-    required this.quantity,
-    required this.unit,
-    this.notes = '',
-    this.alternatives = const [],
-    this.foodItem,
+    required this.id, required this.foodItemId, required this.foodItemName,
+    required this.quantity, required this.unit, this.notes = '',
+    this.alternatives = const []
   });
 
-  DietPlanItemModel copyWith({List<FoodItemAlternative>? alternatives, FoodItem? foodItem}) =>
-      DietPlanItemModel(
-          id: id, foodItemId: foodItemId, foodItemName: foodItemName, quantity: quantity,
-          unit: unit, notes: notes, alternatives: alternatives ?? this.alternatives, foodItem: foodItem ?? this.foodItem
-      );
+  DietPlanItemModel copyWith({List<FoodItemAlternative>? alternatives, double? quantity}) => DietPlanItemModel(
+      id: id, foodItemId: foodItemId, foodItemName: foodItemName,
+      quantity: quantity ?? this.quantity, unit: unit, notes: notes,
+      alternatives: alternatives ?? this.alternatives
+  );
 
-  // Method to get the total macros for this item
-  Map<String, double> get itemMacros {
-    if (foodItem == null) return {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0};
-    return foodItem!.calculateMacros(quantity);
+  // TO FIREBASE
+  Map<String, dynamic> toFirestore() => {
+    'foodItemId': foodItemId,
+    'foodItemName': foodItemName,
+    'quantity': quantity,
+    'unit': unit,
+    'notes': notes,
+    'alternatives': {
+      for (var alt in alternatives) alt.id: alt.toFirestore()
+    },
+  };
+  // FROM FIREBASE
+  factory DietPlanItemModel.fromFirestore(Map<String, dynamic> data, String itemId) {
+    final alternativesData = data['alternatives'] as Map<String, dynamic>? ?? {};
+    final alternativesList = alternativesData.entries.map((e) =>
+        FoodItemAlternative.fromFirestore(e.value as Map<String, dynamic>, e.key)
+    ).toList();
+
+    return DietPlanItemModel(
+      id: itemId,
+      foodItemId: data['foodItemId'] as String? ?? '',
+      foodItemName: data['foodItemName'] as String? ?? '',
+      quantity: (data['quantity'] as num?)?.toDouble() ?? 0.0,
+      unit: data['unit'] as String? ?? '',
+      notes: data['notes'] as String? ?? '',
+      alternatives: alternativesList,
+    );
   }
-
-  @override
-  List<Object?> get props => [id, foodItemId, quantity, unit, notes, alternatives];
 }
 
-// 3. Diet Plan Meal Model
-class DietPlanMealModel  {
+class DietPlanMealModel {
+  final String id;
   final String mealNameId;
-  final String mealNameEn;
+  final String mealName;
   final List<DietPlanItemModel> items;
 
-  const DietPlanMealModel({required this.mealNameId, required this.mealNameEn, this.items = const []});
-  DietPlanMealModel copyWith({List<DietPlanItemModel>? items}) => DietPlanMealModel(mealNameId: mealNameId, mealNameEn: mealNameEn, items: items ?? this.items);
+  const DietPlanMealModel({
+    required this.id, required this.mealNameId, required this.mealName,
+    this.items = const []
+  });
 
-  // Method to get the total macros for this meal
-  Map<String, double> get mealMacros {
-    double totalCalories = 0;
-    double totalProtein = 0;
-    double totalCarbs = 0;
-    double totalFat = 0;
-    for (var item in items) {
-      final macros = item.itemMacros;
-      totalCalories += macros['calories']!;
-      totalProtein += macros['protein']!;
-      totalCarbs += macros['carbs']!;
-      totalFat += macros['fat']!;
-    }
-    return {'calories': totalCalories, 'protein': totalProtein, 'carbs': totalCarbs, 'fat': totalFat};
+  DietPlanMealModel copyWith({List<DietPlanItemModel>? items}) => DietPlanMealModel(
+      id: id, mealNameId: mealNameId, mealName: mealName, items: items ?? this.items
+  );
+  // TO FIREBASE
+  Map<String, dynamic> toFirestore() => {
+    'mealNameId': mealNameId,
+    'mealName': mealName,
+    'items': {
+      for (var item in items) item.id: item.toFirestore()
+    },
+  };
+  // FROM FIREBASE
+  factory DietPlanMealModel.fromFirestore(Map<String, dynamic> data, String mealId) {
+    final itemsData = data['items'] as Map<String, dynamic>? ?? {};
+    final itemsList = itemsData.entries.map((e) =>
+        DietPlanItemModel.fromFirestore(e.value as Map<String, dynamic>, e.key)
+    ).toList();
+
+    return DietPlanMealModel(
+      id: mealId,
+      mealNameId: data['mealNameId'] as String? ?? '',
+      mealName: data['mealName'] as String? ?? 'Unknown Meal',
+      items: itemsList,
+    );
   }
-
-  @override
-  List<Object?> get props => [mealNameId, items];
 }
 
-// 4. Master Day Plan Model
-class MasterDayPlanModel  {
-  final String dayNameId;
-  final String dayNameEn;
+class MasterDayPlanModel {
+  final String id;
+  final String dayName;
   final List<DietPlanMealModel> meals;
 
-  const MasterDayPlanModel({required this.dayNameId, required this.dayNameEn, this.meals = const []});
-  MasterDayPlanModel copyWith({List<DietPlanMealModel>? meals}) => MasterDayPlanModel(dayNameId: dayNameId, dayNameEn: dayNameEn, meals: meals ?? this.meals);
+  const MasterDayPlanModel({
+    required this.id, required this.dayName, this.meals = const []
+  });
 
-  // Method to get the total macros for this day
-  Map<String, double> get dayMacros {
-    double totalCalories = 0;
-    double totalProtein = 0;
-    double totalCarbs = 0;
-    double totalFat = 0;
-    for (var meal in meals) {
-      final macros = meal.mealMacros;
-      totalCalories += macros['calories']!;
-      totalProtein += macros['protein']!;
-      totalCarbs += macros['carbs']!;
-      totalFat += macros['fat']!;
-    }
-    return {'calories': totalCalories, 'protein': totalProtein, 'carbs': totalCarbs, 'fat': totalFat};
+  MasterDayPlanModel copyWith({List<DietPlanMealModel>? meals}) => MasterDayPlanModel(
+      id: id, dayName: dayName, meals: meals ?? this.meals
+  );
+
+  // TO FIREBASE (Used for embedding or root)
+  Map<String, dynamic> toFirestore() => {
+    'dayName': dayName,
+    'meals': {
+      for (var meal in meals) meal.id: meal.toFirestore()
+    },
+  };
+
+  // 🎯 NEW: Factory for parsing embedded Map data
+  factory MasterDayPlanModel.fromMap(Map<String, dynamic> data, String id) {
+    final mealsData = data['dayPlan'] ['meals']as Map<String, dynamic>? ?? {};
+    final mealsList = mealsData.entries.map((e) =>
+        DietPlanMealModel.fromFirestore(e.value as Map<String, dynamic>, e.key)
+    ).toList();
+
+    return MasterDayPlanModel(
+      id: id,
+      dayName: data['dayPlan']['dayName'] as String? ?? 'Fixed Day',
+      meals: mealsList,
+    );
   }
 
-  @override
-  List<Object?> get props => [dayNameId, meals];
+  // EXISTING: Factory for parsing DocumentSnapshot
+  factory MasterDayPlanModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    // Reuse the fromMap logic
+    return MasterDayPlanModel.fromMap(data, doc.id);
+  }
 }
-
-// 5. Master Diet Plan Model (The main object)
 class MasterDietPlanModel {
   final String id;
   final String name;
   final String description;
   final List<String> dietPlanCategoryIds;
-  final bool isActive;
-
-  // For a repeating plan, this list will only contain ONE MasterDayPlanModel
   final List<MasterDayPlanModel> days;
+  final bool isActive; // Should contain ONE MasterDayPlanModel
 
   const MasterDietPlanModel({
-    required this.id,
-    required this.name,
-    required this.description,
+    this.id = '',
+    this.name = '',
+    this.description = '',
     this.dietPlanCategoryIds = const [],
+    this.days = const [],
     this.isActive = true,
-    this.days = const []
   });
 
-  MasterDietPlanModel copyWith(
-      {bool? isActive, String? name, String? description, List<
-          MasterDayPlanModel>? days, required String id}) =>
-      MasterDietPlanModel(
-          id: id,
-          name: name ?? this.name,
-          description: description ?? this.description,
-          dietPlanCategoryIds: dietPlanCategoryIds,
-          isActive: isActive ?? this.isActive,
-          days: days ?? this.days
-      );
+  // 🎯 FIX: 'id' is now optional in copyWith to avoid the error
+  MasterDietPlanModel copyWith({
+    String? id,
+    String? name,
+    String? description,
+    List<String>? dietPlanCategoryIds,
+    List<MasterDayPlanModel>? days,
+    bool? isActive,
+  }) => MasterDietPlanModel(
+    id: id ?? this.id, // Defaults to existing id if not provided
+    name: name ?? this.name,
+    description: description ?? this.description,
+    dietPlanCategoryIds: dietPlanCategoryIds ?? this.dietPlanCategoryIds,
+    days: days ?? this.days,
+    isActive: isActive ?? this.isActive ,
+  );
 
-  // Method to get the total macros for the entire plan (Average of all days, but here, just the one day)
-  Map<String, double> get planMacros {
-    if (days.isEmpty)
-      return {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0};
-    // For a single fixed day plan, we just return the day's macros
-    return days.first.dayMacros;
+  /// Creates a deep copy of the plan, resetting the ID for cloning.
+  MasterDietPlanModel clone() {
+    return MasterDietPlanModel(
+      id: '', // Crucial: Reset ID for a new Firestore document
+      name: 'CLONE of ${this.name}',
+      description: this.description,
+      dietPlanCategoryIds: this.dietPlanCategoryIds,
+      isActive: this.isActive,
+      // Assuming all nested model lists/objects are immutable, a shallow copy
+      // of the lists is sufficient for the structure to be identical but independent.
+      days: List.from(this.days.map((day) => day.copyWith(meals: List.from(day.meals)))),
+    );
+  }
+
+  // TO FIREBASE (Used for Set/Update)
+  Map<String, dynamic> toFirestore() {
+    // Only one day is expected per template
+    final dayData = days.isNotEmpty
+        ? days.first.toFirestore()
+        : MasterDayPlanModel(id: 'd1', dayName: 'Fixed Day').toFirestore();
+
+    return {
+      'id' : id,
+      'name': name,
+      'description': description,
+      'dietPlanCategoryIds': dietPlanCategoryIds,
+      // Embed the single day plan directly
+      'dayPlan': dayData,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'isActive' : isActive
+    };
+  }
+
+  // FROM FIREBASE (Used for Get/Stream)
+  factory MasterDietPlanModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>?;
+    if (data == null) throw StateError('MasterDietPlan document data is null for ID: ${doc.id}');
+
+    final dayData = data['dayPlan'] as Map<String, dynamic>? ?? {};
+    final dayPlan = MasterDayPlanModel.fromFirestore(doc); // Use fixed ID 'd1'
+
+    return MasterDietPlanModel(
+      id: doc.id,
+      name: data['name'] as String? ?? 'Untitled Plan',
+      description: data['description'] as String? ?? '',
+      dietPlanCategoryIds: List<String>.from(data['dietPlanCategoryIds'] as List? ?? []),
+      days: [dayPlan],
+      isActive: data['isActive'] ?? true,
+    );
   }
 }
-  class MasterDayName { final String id; final String enName; const MasterDayName({this.id = '', this.enName = ''});}
-  class MasterMealName { final String id; final String enName; const MasterMealName({this.id = '', this.enName = ''}); }
-  class DietPlanCategory { final String id; final String enName; DietPlanCategory({required this.id, required this.enName, required bool isDeleted});}
-// --- Other necessary utility models (placeholders) ---
+
+/*class MasterMealName {
+  final String id;
+  final String enName;
+  const MasterMealName({this.id = '', this.enName = ''});
+
+  factory MasterMealName.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>?;
+    return MasterMealName(
+      id: doc.id,
+      enName: data?['enName'] as String? ?? 'Unknown Meal',
+    );
+  }*/
+//}

@@ -51,4 +51,29 @@ class FoodItemService {
       'deletedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  Future<List<FoodItem>> fetchAllActiveFoodItems() async{
+    try {
+
+      QuerySnapshot<Object?> snapshot = await _collection
+          .where('isDeleted', isEqualTo: false)
+          .orderBy('enName')
+          .get(); // 🎯 Key change: .get() instead of .snapshots()
+
+      // 2. Map the QuerySnapshot documents to a List<FoodItem>
+      return snapshot.docs
+          .map((doc) => FoodItem.fromFirestore(doc))
+          .toList();
+
+    } catch (e) {
+      // Handle errors (e.g., logging, throwing a more specific exception)
+      print('Error fetching food items from Firebase: $e');
+      // Return an empty list on failure to prevent the app from crashing
+      return [];
+    }
+  }
+
+
+
+
 }

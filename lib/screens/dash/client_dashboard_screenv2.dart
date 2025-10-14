@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:nutricare_client_management/master_diet_planner/assigned_diet_plan_list.dart';
+import 'package:nutricare_client_management/master_diet_planner/master_plan_assignment_page.dart' hide ClientModel;
+import 'package:nutricare_client_management/screens/diet_plan_history_card.dart';
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
 import 'package:nutricare_client_management/screens/package_status_card.dart';
 import 'package:nutricare_client_management/screens/payment_ledger_screen.dart';
@@ -477,6 +480,7 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
           isScrollable: true,
           tabs: const [
             Tab(text: 'Profile'),
+            Tab(text: 'Actions'),
             Tab(text: 'Vitals'),
             Tab(text: 'Package/Payment'),
             Tab(text: 'Schedule'),
@@ -487,8 +491,10 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
         controller: _tabController,
         children: [
           _buildProfileTab(_currentClient),
+          _buildActionsTab(),
           Center(child: VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)),
           Center(child: _buildPackageStatusSection(_currentClient.id)),
+          Center(child: _buildDietPlanSection(_currentClient)),
         ],
       ),
     );
@@ -542,6 +548,109 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
         );
       },
     );
+  }
+
+
+  Widget _buildDietPlanSection(ClientModel client) {
+
+    return  MasterPlanSelectionPage(
+      client: client,
+    );
+
+
+
+  }
+
+
+  Widget _buildActionsTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
+      children: [
+        Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 16.0),
+          child: ListTile(
+            leading: const Icon(Icons.monitor_heart, color: Colors.red),
+            title: const Text('Capture/View Vitals'),
+            subtitle: const Text('Record body measurements, blood pressure, etc.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _navigateToVitalsHistory
+          ),
+        ),
+        Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 16.0),
+          child: ListTile(
+            leading: const Icon(Icons.card_membership, color: Colors.purple),
+            title: const Text('Assign/Book Package'),
+            subtitle: const Text('Assign a new subscription or service package.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _navigateToAssignPackage,
+          ),
+        ),
+        const Divider(),
+        Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 16.0),
+          child: ListTile(
+            leading: const Icon(Icons.restaurant_menu, color: Colors.indigo),
+            title: const Text('Assign Master Diet Plan'),
+            subtitle: const Text('Select a template to assign to the client.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _navigateToAssignDietPlan,
+          ),
+        ),
+        Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 16.0),
+          child: ListTile(
+            leading: const Icon(Icons.edit_note, color: Colors.orange),
+            title: const Text('Create/Edit Final Diet Plan'),
+            subtitle: const Text('Customize the currently assigned plan (The Final Plan).'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _navigateToFinalPlanCreation,
+          ),
+        ),
+        const Divider(),
+
+      ],
+    );
+  }
+
+
+  void _navigateToVitalsHistory() {
+    if (_currentClient == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)
+      ),
+    );
+  }
+  void _navigateToAssignPackage() {
+    if (_currentClient == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PackageAssignmentPage(clientId: _currentClient.id, clientName: _currentClient.name),
+      ),
+    ).then((_) => setState(() {}));
+  }
+
+  void _navigateToAssignDietPlan() {
+    if (_currentClient == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MasterPlanSelectionPage(client: _currentClient),
+      ),
+    ).then((_) => setState(() {}));
+  }
+
+  void _navigateToFinalPlanCreation() {
+    if (_currentClient == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AssignedDietPlanListScreen(client: _currentClient),
+      ),
+    ).then((_) => setState(() {}));
   }
 
 }

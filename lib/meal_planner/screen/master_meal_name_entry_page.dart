@@ -1,6 +1,7 @@
 // lib/screens/master_meal_name_entry_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nutricare_client_management/meal_planner/models/meal_master_name.dart';
 import 'package:nutricare_client_management/meal_planner/service/master_meal_name_service.dart';
 import 'package:provider/provider.dart';
@@ -28,6 +29,7 @@ class MasterMealNameEntryPage extends StatefulWidget {
 class _MasterMealNameEntryPageState extends State<MasterMealNameEntryPage> {
   final _formKey = GlobalKey<FormState>();
   final _enNameController = TextEditingController();
+  final _orderController = TextEditingController();
   final Map<String, TextEditingController> _localizedControllers = {};
 
   bool _isLoading = false;
@@ -38,6 +40,9 @@ class _MasterMealNameEntryPageState extends State<MasterMealNameEntryPage> {
     _initializeLocalizedControllers();
     if (widget.itemToEdit != null) {
       _initializeForEdit(widget.itemToEdit!);
+    } else {
+      // 🎯 Initialize for new item: default order to 1 or a sensible starting number
+      _orderController.text = '1';
     }
   }
 
@@ -52,6 +57,7 @@ class _MasterMealNameEntryPageState extends State<MasterMealNameEntryPage> {
 
   void _initializeForEdit(MasterMealName item) {
     _enNameController.text = item.enName;
+    _orderController.text = item.order.toString();
 
     // Populate localized fields
     item.nameLocalized.forEach((code, name) {
@@ -64,6 +70,7 @@ class _MasterMealNameEntryPageState extends State<MasterMealNameEntryPage> {
   @override
   void dispose() {
     _enNameController.dispose();
+    _orderController.dispose();
     _localizedControllers.values.forEach((c) => c.dispose());
     super.dispose();
   }
@@ -80,13 +87,15 @@ class _MasterMealNameEntryPageState extends State<MasterMealNameEntryPage> {
       final text = controller.text.trim();
       if (text.isNotEmpty) localizedNames[code] = text;
     });
-
+    // 🎯 FIX 6: Parse the order safely
+    final int orderValue = int.tryParse(_orderController.text.trim()) ?? 99;
     final itemToSave = MasterMealName(
       id: widget.itemToEdit?.id ?? '',
       enName: _enNameController.text.trim(),
       nameLocalized: localizedNames,
       isDeleted: widget.itemToEdit?.isDeleted ?? false,
       createdDate: widget.itemToEdit?.createdDate,
+      order: orderValue,
     );
 
     try {
@@ -125,6 +134,22 @@ class _MasterMealNameEntryPageState extends State<MasterMealNameEntryPage> {
                   hintText: 'e.g., Breakfast, Mid-Morning Snack',
                 ),
                 validator: (value) => value!.isEmpty ? 'English Name is required' : null,
+              ),
+              const SizedBox(height: 30),
+              TextFormField(
+                controller: _orderController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Display Order *',
+                  border: OutlineInputBorder(),
+                  hintText: 'e.g., 1 for Breakfast, 2 for Lunch',
+                ),
+                validator: (value) {
+                  if (value!.isEmpty) return 'Order is required';
+                  if (int.tryParse(value) == null) return 'Must be a whole number';
+                  return null;
+                },
               ),
               const SizedBox(height: 30),
 

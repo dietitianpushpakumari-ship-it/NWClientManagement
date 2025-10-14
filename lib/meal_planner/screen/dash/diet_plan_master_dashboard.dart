@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/master_diet_planner/master_diet_plan_list%20screen.dart';
+import 'package:nutricare_client_management/master_diet_planner/master_diet_plan_list_screen.dart';
 import 'package:nutricare_client_management/meal_planner/screen/diet_plan_category_list.dart';
 import 'package:nutricare_client_management/meal_planner/screen/diet_plan_history_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/food_category_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/food_item_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/guideline_list_page.dart';
-import 'package:nutricare_client_management/meal_planner/screen/master_diet_plan_entry_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/master_diet_plan_list_page.dart';
+import 'package:nutricare_client_management/meal_planner/screen/master_meal_name_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/serving_unit_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/service/food_item_service.dart';
 
@@ -170,15 +170,7 @@ class DietPlanMasterPage extends StatelessWidget {
             subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
             icon: Icons.no_food,
             iconColor: Colors.blueGrey.shade700,
-            targetPage: const PlaceholderFormPage(title: 'Exclusion Entry'),
-          ),
-          _buildMasterCard(
-            context: context,
-            title: 'Master meal plan',
-            subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
-            icon: Icons.no_food,
-            iconColor: Colors.blueGrey.shade700,
-            targetPage: const MasterDietPlanEntryPage_old(),
+            targetPage: const MasterMealNameListPage(),
           ),
 
           _buildMasterCard(

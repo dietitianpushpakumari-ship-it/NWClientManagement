@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/meal_planner/models/diet_plan_category.dart';
-import 'package:nutricare_client_management/meal_planner/screen/diet_plan_entry_page.dart';
+import 'package:nutricare_client_management/meal_planner/screen/diet_plan_category_entry_page.dart';
 import 'package:nutricare_client_management/meal_planner/service/diet_plan_category_service.dart';
 import 'package:provider/provider.dart';
 

@@ -3,7 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
-import 'package:nutricare_client_management/master_diet_planner/master_diet_plan_service.dart';
+import 'package:nutricare_client_management/master_diet_planner/client_diet_plan_model.dart';
+import 'package:nutricare_client_management/master_diet_planner/client_diet_plan_service.dart';
+import 'package:nutricare_client_management/master_diet_planner/diet_plan_item_model.dart';
 import 'package:nutricare_client_management/meal_planner/models/diet_plan_category.dart';
 import 'package:nutricare_client_management/meal_planner/models/food_item.dart';
 import 'package:nutricare_client_management/meal_planner/models/meal_master_name.dart';
@@ -12,22 +14,20 @@ import 'package:nutricare_client_management/meal_planner/service/food_item_servi
 import 'package:nutricare_client_management/meal_planner/service/master_meal_name_service.dart';
 import 'dart:math';
 
-import 'diet_plan_item_model.dart' hide MasterMealName, DietPlanCategory;
 
-
-class MasterDietPlanEntryPage extends StatefulWidget {
+class ClientDietPlanEntryPage extends StatefulWidget {
   // NEW: Optional ID for editing existing plan
   final String? planId;
   // NEW: Optional plan model for cloning
-  final MasterDietPlanModel? initialPlan;
-  const MasterDietPlanEntryPage({super.key, this.planId, this.initialPlan});
+  final ClientDietPlanModel? initialPlan;
+  const ClientDietPlanEntryPage({super.key, this.planId, this.initialPlan});
 
   @override
-  State<MasterDietPlanEntryPage> createState() => _MasterDietPlanEntryPageState();
+  State<ClientDietPlanEntryPage> createState() => _ClientDietPlanEntryPageState();
 }
 
 // 🎯 FIX: Switched to TickerProviderStateMixin to allow safe re-initialization of TabController.
-class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with TickerProviderStateMixin {
+class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with TickerProviderStateMixin {
   Logger logger = Logger();
   // --- STATE ---
   final _formKey = GlobalKey<FormState>();
@@ -38,16 +38,15 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
   // Template Details
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
-  DietPlanCategory? _selectedCategory;
 
   // Data for the entire screen
-  MasterDietPlanModel _currentPlan = const MasterDietPlanModel();
+  ClientDietPlanModel _currentPlan = const ClientDietPlanModel();
 
   // Future Builders for dependencies
-  Future<(List<FoodItem>, List<MasterMealName>, List<DietPlanCategory>)>? _initialDataFuture;
+  Future<(List<FoodItem>, List<MasterMealName>)>? _initialDataFuture;
   List<FoodItem> _allFoodItems = const [];
   List<MasterMealName> _allMealNames = const [];
-  List<DietPlanCategory> _allCategories = const [];
+  //List<DietPlanCategory> _allCategories = const [];
 
   @override
   void initState() {
@@ -58,20 +57,20 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
     );
   }
 
-  Future<(List<FoodItem>, List<MasterMealName>, List<DietPlanCategory>)> _fetchInitialData(
-      String? planId, MasterDietPlanModel? initialPlan) async {
+  Future<(List<FoodItem>, List<MasterMealName>)> _fetchInitialData(
+      String? planId, ClientDietPlanModel? initialPlan) async {
     // 1. Fetch dependencies
     final foodItems = await FoodItemService().fetchAllActiveFoodItems();
     final mealNames = await MasterMealNameService().fetchAllMealNames();
-    final categories = await DietPlanCategoryService().fetchAllActiveCategories();
+  ///  final categories = await DietPlanCategoryService().fetchAllActiveCategories();
 
-    MasterDietPlanModel planToEdit = const MasterDietPlanModel();
+    ClientDietPlanModel planToEdit = const ClientDietPlanModel();
 
 
 
     if (planId != null) {
       // EDIT MODE: Fetch the existing plan by ID
-      planToEdit = await MasterDietPlanService().fetchPlanById(planId);
+      planToEdit = await ClientDietPlanService().fetchPlanById(planId);
     } else if (initialPlan != null) {
       // CLONE MODE: Use the provided, already-cloned plan
       planToEdit = initialPlan;
@@ -83,7 +82,7 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
         mealName: m.enName,
         items: [],
       )).toList();
-      planToEdit = MasterDietPlanModel(
+      planToEdit = ClientDietPlanModel(
         days: [MasterDayPlanModel(id: 'd1', dayName: 'Fixed Day', meals: initialMeals)]
       );
     }
@@ -91,14 +90,6 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
     // 2. Set up local state from the loaded/cloned/new plan
     _nameController.text = planToEdit.name;
     _descriptionController.text = planToEdit.description;
-
-    // Attempt to find the category if one exists
-    if (planToEdit.dietPlanCategoryIds.isNotEmpty) {
-      _selectedCategory = categories.firstWhereOrNull((c) => c.id == planToEdit.dietPlanCategoryIds.first);
-    } else if (categories.isNotEmpty) {
-      _selectedCategory = categories.first;
-    }
-
 
    if (planToEdit.days.isNotEmpty) {
      final currentDay = planToEdit.days.first;
@@ -136,7 +127,6 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
       _currentPlan = planToEdit;
       _allFoodItems = foodItems;
       _allMealNames = mealNames;
-      _allCategories = categories;
       if (planToEdit.days.isNotEmpty && planToEdit.days.first.meals.isNotEmpty) {
         // Use the length of the meals in the initialized plan
         final mealCount = planToEdit.days.first.meals.length;
@@ -155,12 +145,12 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
           }
         }
       }
-    else{
-    }
+      else{
+      }
     }
     );
 
-    return (foodItems, mealNames, categories);
+    return (foodItems, mealNames);
   }
   @override
   void dispose() {
@@ -283,8 +273,8 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
 
   //[ --- CORE LOGIC: SAVE PLAN ---
   void _savePlan() async {
-    if (!_formKey.currentState!.validate() || _selectedCategory == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all plan details and select a category.')));
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all plan details')));
       return;
     }
 
@@ -293,7 +283,6 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
       id: widget.planId ?? _currentPlan.id,
       name: _nameController.text.trim(),
       description: _descriptionController.text.trim(),
-      dietPlanCategoryIds: [_selectedCategory!.id],
     );
     // Basic validation: Check if any meal has items
     final totalItems = planToSave.days.first.meals.fold(0, (sum, meal) => sum + meal.items.length);
@@ -306,7 +295,7 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
         content: Text('${widget.planId != null ? 'Updating' : 'Saving'} plan...'))
     );
     try {
-      await MasterDietPlanService().savePlan(planToSave);
+      await ClientDietPlanService().savePlan(planToSave);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Diet Plan Template saved successfully!')));
       // Clear or navigate away on success
       // On success, return to the list screen
@@ -340,16 +329,6 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
               maxLines: 3,
             ),
             const SizedBox(height: 10),
-            DropdownButtonFormField<DietPlanCategory>(
-              value: _selectedCategory,
-              decoration: const InputDecoration(labelText: 'Category'),
-              items: _allCategories.map((cat) => DropdownMenuItem(
-                value: cat,
-                child: Text(cat.enName),
-              )).toList(),
-              onChanged: (cat) => setState(() => _selectedCategory = cat),
-              validator: (value) => value == null ? 'Select a category' : null,
-            ),
           ],
         ),
       ),

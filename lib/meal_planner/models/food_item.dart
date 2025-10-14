@@ -77,4 +77,20 @@ class FoodItem {
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
+
+  Map<String, double> calculateMacros(double quantity) {
+    if (standardServingSizeG == 0 || quantity == 0) {
+      return {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0};
+    }
+    final ratio = quantity / standardServingSizeG;
+    return {
+      'calories': caloriesPerStandardServing * ratio,
+      'protein': proteinG * ratio,
+      'carbs': carbsG * ratio,
+      'fat': fatG * ratio,
+    };
+  }
+  @override bool operator ==(Object other) => other is FoodItem && other.id == id;
+  @override int get hashCode => id.hashCode;
+
 }

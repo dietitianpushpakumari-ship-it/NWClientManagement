@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:nutricare_client_management/firebase_options.dart';
+import 'package:nutricare_client_management/master_diet_planner/client_diet_plan_service.dart';
+import 'package:nutricare_client_management/master_diet_planner/diet_plan_item_model.dart' show MasterDietPlanService;
+import 'package:nutricare_client_management/master_diet_planner/master_diet_plan_service.dart';
 import 'package:nutricare_client_management/meal_planner/service/diet_plan_category_service.dart';
 import 'package:nutricare_client_management/meal_planner/service/diet_plan_service.dart';
 import 'package:nutricare_client_management/meal_planner/service/food_category_service.dart';
 import 'package:nutricare_client_management/meal_planner/service/food_item_service.dart';
 import 'package:nutricare_client_management/meal_planner/service/guideline_service.dart';
-import 'package:nutricare_client_management/meal_planner/service/master_diet_plan_service.dart';
 import 'package:nutricare_client_management/meal_planner/service/master_meal_name_service.dart';
 import 'package:nutricare_client_management/meal_planner/service/serving_unit_service.dart';
 import 'package:nutricare_client_management/screens/admin_home_Screen.dart';
@@ -73,6 +75,8 @@ void main() async {
                   create: (_) => MasterDietPlanService()),
               Provider<DietPlanService>(
                   create: (_) => DietPlanService()),
+              Provider<ClientDietPlanService>(
+                  create: (_) => ClientDietPlanService()),
               // Add other necessary providers (e.g., AuthProvider, UserProvider) here
             ],
             child: const MyApp(),

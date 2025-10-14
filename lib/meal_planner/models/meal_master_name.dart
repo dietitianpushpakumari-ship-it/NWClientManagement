@@ -9,6 +9,7 @@ class MasterMealName {
   final Map<String, String> nameLocalized;
   final bool isDeleted;
   final DateTime? createdDate;
+  final int order;
 
   const MasterMealName({
     this.id = '',
@@ -16,7 +17,9 @@ class MasterMealName {
     this.nameLocalized = const {},
     this.isDeleted = false,
     this.createdDate,
-  });
+    this.order = 99,
+  }
+  );
 
   /// Factory constructor for creating from a Firestore document snapshot.
   factory MasterMealName.fromFirestore(DocumentSnapshot doc) {
@@ -33,6 +36,7 @@ class MasterMealName {
       nameLocalized: localizedNames,
       isDeleted: data['isDeleted'] ?? false,
       createdDate: (data['createdDate'] as Timestamp?)?.toDate(),
+      order: (data['order'] as num?)?.toInt() ?? 99,
     );
   }
 
@@ -45,9 +49,10 @@ class MasterMealName {
       // Only set createdDate on initial creation, otherwise use server timestamp for update
       'createdDate': createdDate != null ? Timestamp.fromDate(createdDate!) : FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      'order': order,
     };
   }
 
   @override
-  List<Object?> get props => [id, enName, nameLocalized, isDeleted, createdDate];
+  List<Object?> get props => [id, enName, nameLocalized, isDeleted, createdDate,order];
 }
