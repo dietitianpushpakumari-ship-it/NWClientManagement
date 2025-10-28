@@ -2,10 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/meal_planner/screen/serving_unit_entry_page.dart';
-import 'package:nutricare_client_management/meal_planner/service/serving_unit_service.dart';
+import 'package:nutricare_client_management/modules/master/service/serving_unit_service.dart';
 import 'package:provider/provider.dart';
 
-import '../models/ServingUnit.dart';
+import '../../modules/master/model/ServingUnit.dart';
 
 
 

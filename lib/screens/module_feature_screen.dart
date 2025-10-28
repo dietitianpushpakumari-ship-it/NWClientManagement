@@ -1,7 +1,7 @@
 // lib/screens/module_feature_screen.dart
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/models/feature_config_model.dart';
-import 'package:nutricare_client_management/services/config_service.dart';
+import 'package:nutricare_client_management/helper/config_service.dart';
 
 
 class ModuleFeatureScreen extends StatelessWidget {

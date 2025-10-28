@@ -2,8 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/helper/language_config.dart';
-import 'package:nutricare_client_management/meal_planner/models/ServingUnit.dart';
-import 'package:nutricare_client_management/meal_planner/service/serving_unit_service.dart';
+import 'package:nutricare_client_management/modules/master/model/ServingUnit.dart';
+import 'package:nutricare_client_management/modules/master/service/serving_unit_service.dart';
 import 'package:provider/provider.dart';
 
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/master_diet_planner/assigned_diet_plan_list.dart';
-import 'package:nutricare_client_management/master_diet_planner/master_plan_assignment_page.dart' hide ClientModel;
+import 'package:nutricare_client_management/admin/client_meeting_schedule_tab.dart';
+import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_list.dart';
+import 'package:nutricare_client_management/modules/client/screen/master_plan_assignment_page.dart'
+    hide ClientModel;
 import 'package:nutricare_client_management/screens/diet_plan_history_card.dart';
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
 import 'package:nutricare_client_management/screens/package_status_card.dart';
@@ -9,17 +11,10 @@ import 'package:nutricare_client_management/screens/vitals_history_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../models/client_model.dart';
-import '../../models/package_assignment_model.dart';
-import '../client_form_screen.dart';
-import '../../services/client_service.dart';
-
-// 🎯 NOTE: Assuming ClientFormSection is now correctly defined and exported
-// from client_form_screen.dart or another shared file.
-//enum ClientFormSection { personal, password, agreement } // Placeholder definition for compiler
-
-// NOTE: You must implement the actual ClientService methods.
-
+import '../../modules/client/model/client_model.dart';
+import '../../modules/package/model/package_assignment_model.dart';
+import '../client_form_screen.dart' hide ClientModel, ClientService;
+import '../../modules/client/services/client_service.dart';
 
 // 🎯 WIDGET: SlideToAct for secure deletion
 class SlideToAct extends StatefulWidget {
@@ -56,7 +51,13 @@ class _SlideToActState extends State<SlideToAct> {
           borderRadius: BorderRadius.circular(30),
         ),
         alignment: Alignment.center,
-        child: Text(widget.label, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+        child: Text(
+          widget.label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       );
     }
 
@@ -87,7 +88,10 @@ class _SlideToActState extends State<SlideToAct> {
             Center(
               child: Text(
                 widget.label,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
 
@@ -105,10 +109,7 @@ class _SlideToActState extends State<SlideToAct> {
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Transform.translate(
-                      offset: Offset(
-                        (1 - _dragValue) * -30,
-                        0,
-                      ),
+                      offset: Offset((1 - _dragValue) * -30, 0),
                       child: Container(
                         width: 44,
                         height: 44,
@@ -130,28 +131,28 @@ class _SlideToActState extends State<SlideToAct> {
   }
 }
 
-
 // --- MAIN DASHBOARD SCREEN ---
 
 class ClientDashboardScreen extends StatefulWidget {
   final ClientModel client;
+
   const ClientDashboardScreen({super.key, required this.client});
 
   @override
   State<ClientDashboardScreen> createState() => _ClientDashboardScreenState();
 }
 
-class _ClientDashboardScreenState extends State<ClientDashboardScreen> with SingleTickerProviderStateMixin {
+class _ClientDashboardScreenState extends State<ClientDashboardScreen>
+    with SingleTickerProviderStateMixin {
   late ClientModel _currentClient;
   final ClientService _clientService = ClientService();
   late TabController _tabController;
-
 
   @override
   void initState() {
     super.initState();
     _currentClient = widget.client;
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -162,41 +163,52 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
 
   Future<void> _refreshClientData() async {
     try {
-      final updatedClient = await _clientService.getClientById(_currentClient.id);
+      final updatedClient = await _clientService.getClientById(
+        _currentClient.id,
+      );
       if (mounted) {
         setState(() {
           _currentClient = updatedClient;
         });
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to reload client data: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to reload client data: $e')),
+        );
     }
   }
 
   Future<void> _handleDeleteRequest() async {
-    final hasActivePackage = _currentClient.packageAssignments.values.any((p) => p.isActive);
+    final hasActivePackage = _currentClient.packageAssignments.values.any(
+      (p) => p.isActive,
+    );
 
     if (mounted) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('CONFIRM PROFILE DELETION'),
-            content: Text('Are you absolutely sure you want to permanently delete ${_currentClient.name}? This is irreversible.'),
-            actions: <Widget>[
-              TextButton(
-                child: const Text('Cancel'),
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('DELETE NOW'),
-                onPressed: () => Navigator.of(context).pop(true),
-              ),
-            ],
-          );
-        },
-      ) ?? false;
+      final confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('CONFIRM PROFILE DELETION'),
+                content: Text(
+                  'Are you absolutely sure you want to permanently delete ${_currentClient.name}? This is irreversible.',
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    child: const Text('Cancel'),
+                    onPressed: () => Navigator.of(context).pop(false),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text('DELETE NOW'),
+                    onPressed: () => Navigator.of(context).pop(true),
+                  ),
+                ],
+              );
+            },
+          ) ??
+          false;
 
       if (confirmed) {
         await _attemptClientSoftDelete(context);
@@ -204,7 +216,13 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
     }
   }
 
-  Widget _buildProfileRow(BuildContext context, IconData icon, String label, String value, {Widget? actionWidget}) {
+  Widget _buildProfileRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value, {
+    Widget? actionWidget,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -214,18 +232,24 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
           const SizedBox(width: 10),
           SizedBox(
             width: 100,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
           ),
-          Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 14)),
-          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
           if (actionWidget != null) actionWidget,
         ],
       ),
     );
   }
 
-  Widget _buildSectionCard(BuildContext context, {required String title, required VoidCallback editAction, required List<Widget> children}) {
+  Widget _buildSectionCard(
+    BuildContext context, {
+    required String title,
+    required VoidCallback editAction,
+    required List<Widget> children,
+  }) {
     return Card(
       elevation: 4,
       margin: const EdgeInsets.only(bottom: 16.0),
@@ -251,8 +275,10 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
       ),
     );
   }
+
   Future<void> _attemptClientSoftDelete(BuildContext context) async {
-    final ClientService clientService = ClientService(); // Use your existing instance
+    final ClientService clientService =
+        ClientService(); // Use your existing instance
 
     // 1. Check if deletion is allowed
     final checkResult = await clientService.softDeleteClient(
@@ -265,7 +291,10 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
       await showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Deletion Blocked', style: TextStyle(color: Colors.red)),
+          title: const Text(
+            'Deletion Blocked',
+            style: TextStyle(color: Colors.red),
+          ),
           content: Text(checkResult['message']),
           actions: [
             TextButton(
@@ -283,7 +312,9 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirm Soft Delete'),
-        content: Text('Are you sure you want to soft delete ${widget.client.name}? The client will be marked Inactive.'),
+        content: Text(
+          'Are you sure you want to soft delete ${widget.client.name}? The client will be marked Inactive.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -307,14 +338,17 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
 
       // Show success/failure snackbar and navigate back
       if (deleteResult['canDelete']) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(deleteResult['message'])),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(deleteResult['message'])));
         // Navigate away, as the client is now inactive
         Navigator.of(context).pop();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(deleteResult['message']), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(deleteResult['message']),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -322,20 +356,24 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
 
   Widget _buildProfileTab(ClientModel client) {
     // Function to navigate and refresh, accepting a section to focus on
-    void navigateToEdit({ClientFormSection focusSection = ClientFormSection.personal}) async {
+    void navigateToEdit({
+      ClientFormSection focusSection = ClientFormSection.personal,
+    }) async {
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => ClientFormScreen(
             clientToEdit: client,
             // 🎯 PASSING A NON-NULLABLE VALUE TO A NULLABLE PARAMETER IS VALID
-            focusSection: focusSection,
+            initialFocusSection: focusSection,
           ),
         ),
       );
       _refreshClientData();
     }
 
-    final hasActivePackage = client.packageAssignments.values.any((p) => p.isActive);
+    final hasActivePackage = client.packageAssignments.values.any(
+      (p) => p.isActive,
+    );
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -346,15 +384,33 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
           _buildSectionCard(
             context,
             title: 'Personal & Contact',
-            editAction: () => navigateToEdit(focusSection: ClientFormSection.personal),
+            editAction: () =>
+                navigateToEdit(focusSection: ClientFormSection.personal),
             children: [
               _buildProfileRow(context, Icons.person, 'Name', client.name),
-              _buildProfileRow(context, Icons.phone, 'Mobile (P)', client.mobile),
-              if (client.altMobile != null && client.altMobile!.isNotEmpty) _buildProfileRow(context, Icons.phone_android, 'Mobile (A)', client.altMobile!),
+              _buildProfileRow(
+                context,
+                Icons.phone,
+                'Mobile (P)',
+                client.mobile,
+              ),
+              if (client.altMobile != null && client.altMobile!.isNotEmpty)
+                _buildProfileRow(
+                  context,
+                  Icons.phone_android,
+                  'Mobile (A)',
+                  client.altMobile!,
+                ),
               _buildProfileRow(context, Icons.email, 'Email', client.email),
-              _buildProfileRow(context, Icons.calendar_today, 'DOB', DateFormat('yyyy-MM-dd').format(client.dob)),
+              // _buildProfileRow(context, Icons.calendar_today, 'DOB', DateFormat('yyyy-MM-dd').format(client.dob!)),
               _buildProfileRow(context, Icons.person, 'Gender', client.gender),
-              if (client.address != null && client.address!.isNotEmpty) _buildProfileRow(context, Icons.home, 'Address', client.address!),
+              if (client.address != null && client.address!.isNotEmpty)
+                _buildProfileRow(
+                  context,
+                  Icons.home,
+                  'Address',
+                  client.address!,
+                ),
             ],
           ),
 
@@ -362,9 +418,15 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
           _buildSectionCard(
             context,
             title: 'Security & Login',
-            editAction: () => navigateToEdit(focusSection: ClientFormSection.password),
+            editAction: () =>
+                navigateToEdit(focusSection: ClientFormSection.password),
             children: [
-              _buildProfileRow(context, Icons.vpn_key, 'Login ID', client.loginId),
+              _buildProfileRow(
+                context,
+                Icons.vpn_key,
+                'Login ID',
+                client.loginId,
+              ),
               _buildProfileRow(
                 context,
                 client.hasPasswordSet ? Icons.lock_open : Icons.lock,
@@ -372,7 +434,8 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
                 client.hasPasswordSet ? 'Set' : 'Not Set',
                 actionWidget: IconButton(
                   icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () => navigateToEdit(focusSection: ClientFormSection.password),
+                  onPressed: () =>
+                      navigateToEdit(focusSection: ClientFormSection.password),
                 ),
               ),
             ],
@@ -382,7 +445,8 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
           _buildSectionCard(
             context,
             title: 'Client Agreement',
-            editAction: () => navigateToEdit(focusSection: ClientFormSection.agreement),
+            editAction: () =>
+                navigateToEdit(focusSection: ClientFormSection.agreement),
             children: [
               _buildProfileRow(
                 context,
@@ -391,32 +455,47 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
                 client.agreementUrl != null ? 'Uploaded' : 'Missing',
                 actionWidget: client.agreementUrl != null
                     ? Row(
-                  children: [
-                    // Download/View Button
-                    IconButton(
-                      icon: const Icon(Icons.download, color: Colors.green),
-                      onPressed: () async {
-                        if (await canLaunchUrl(Uri.parse(client.agreementUrl!))) {
-                          launchUrl(Uri.parse(client.agreementUrl!));
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open agreement URL.')));
-                        }
-                      },
-                      tooltip: 'Download/View Agreement',
-                    ),
-                    // Edit Button
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () => navigateToEdit(focusSection: ClientFormSection.agreement),
-                      tooltip: 'Upload New Agreement',
-                    ),
-                  ],
-                )
+                        children: [
+                          // Download/View Button
+                          IconButton(
+                            icon: const Icon(
+                              Icons.download,
+                              color: Colors.green,
+                            ),
+                            onPressed: () async {
+                              if (await canLaunchUrl(
+                                Uri.parse(client.agreementUrl!),
+                              )) {
+                                launchUrl(Uri.parse(client.agreementUrl!));
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Could not open agreement URL.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            tooltip: 'Download/View Agreement',
+                          ),
+                          // Edit Button
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blue),
+                            onPressed: () => navigateToEdit(
+                              focusSection: ClientFormSection.agreement,
+                            ),
+                            tooltip: 'Upload New Agreement',
+                          ),
+                        ],
+                      )
                     : IconButton(
-                  icon: const Icon(Icons.upload, color: Colors.blue),
-                  onPressed: () => navigateToEdit(focusSection: ClientFormSection.agreement),
-                  tooltip: 'Upload Agreement',
-                ),
+                        icon: const Icon(Icons.upload, color: Colors.blue),
+                        onPressed: () => navigateToEdit(
+                          focusSection: ClientFormSection.agreement,
+                        ),
+                        tooltip: 'Upload Agreement',
+                      ),
               ),
             ],
           ),
@@ -432,19 +511,29 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('🛑 DANGER ZONE: Profile Deletion',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
+                  const Text(
+                    '🛑 DANGER ZONE: Profile Deletion',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
                   const Divider(color: Colors.red),
 
                   const Padding(
                     padding: EdgeInsets.only(bottom: 15.0),
-                    child: Text('Deletion is irreversible. Client profiles cannot be deleted if they have a booked package.',
-                        style: TextStyle(color: Colors.black54)),
+                    child: Text(
+                      'Deletion is irreversible. Client profiles cannot be deleted if they have a booked package.',
+                      style: TextStyle(color: Colors.black54),
+                    ),
                   ),
 
                   // Slide-to-Act Widget
                   SlideToAct(
-                    label: hasActivePackage ? 'Cannot Delete (Active Packages)' : 'SLIDE TO DELETE',
+                    label: hasActivePackage
+                        ? 'Cannot Delete (Active Packages)'
+                        : 'SLIDE TO DELETE',
                     icon: const Icon(Icons.delete_forever, color: Colors.red),
                     backgroundColor: Colors.red.shade600,
                     isDisabled: hasActivePackage,
@@ -456,7 +545,10 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
                       padding: const EdgeInsets.only(top: 10.0),
                       child: Text(
                         'Deletion is blocked because the client has ${client.packageAssignments.length} active package${client.packageAssignments.length > 1 ? 's' : ''}.',
-                        style: TextStyle(color: Colors.red.shade700, fontStyle: FontStyle.italic),
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ),
                 ],
@@ -474,16 +566,28 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentClient.name),
+        title: Text('${_currentClient.name} profile'),
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
+          labelStyle: const TextStyle(
+            fontSize: 18.0,
+            fontWeight: FontWeight.bold,
+            color: Colors.white, // Overridden by labelColor below
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 16.0,
+            fontWeight: FontWeight.normal,
+            color: Colors.white70, // Overridden by unselectedLabelColor below
+          ),
           tabs: const [
-            Tab(text: 'Profile'),
+            Tab(text: 'Profile', ),
+            Tab(text: 'Schedule'),
             Tab(text: 'Actions'),
             Tab(text: 'Vitals'),
             Tab(text: 'Package/Payment'),
-            Tab(text: 'Schedule'),
           ],
         ),
       ),
@@ -491,10 +595,15 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
         controller: _tabController,
         children: [
           _buildProfileTab(_currentClient),
+          ClientMeetingScheduleTab(
+            client: _currentClient,
+
+          ),
           _buildActionsTab(),
           Center(child: VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)),
           Center(child: _buildPackageStatusSection(_currentClient.id)),
-          Center(child: _buildDietPlanSection(_currentClient)),
+
+
         ],
       ),
     );
@@ -524,7 +633,7 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
               MaterialPageRoute(
                 builder: (context) => PackageAssignmentPage(
                   clientId: clientId,
-                  clientName: _currentClient.name,
+                  clientName: _currentClient.name, onPackageAssignment: () {  },
                 ),
               ),
             ).then((_) => setState(() {}));
@@ -554,7 +663,7 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
   Widget _buildDietPlanSection(ClientModel client) {
 
     return  MasterPlanSelectionPage(
-      client: client,
+      client: client, onMasterPlanAssigned: () {  },
     );
 
 
@@ -570,11 +679,11 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 16.0),
           child: ListTile(
-            leading: const Icon(Icons.monitor_heart, color: Colors.red),
-            title: const Text('Capture/View Vitals'),
-            subtitle: const Text('Record body measurements, blood pressure, etc.'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _navigateToVitalsHistory
+              leading: const Icon(Icons.monitor_heart, color: Colors.red),
+              title: const Text('Capture/View Vitals'),
+              subtitle: const Text('Record body measurements, blood pressure, etc.'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _navigateToVitalsHistory
           ),
         ),
         Card(
@@ -616,30 +725,11 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
       ],
     );
   }
-
-
-  void _navigateToVitalsHistory() {
-    if (_currentClient == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)
-      ),
-    );
-  }
-  void _navigateToAssignPackage() {
-    if (_currentClient == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PackageAssignmentPage(clientId: _currentClient.id, clientName: _currentClient.name),
-      ),
-    ).then((_) => setState(() {}));
-  }
-
   void _navigateToAssignDietPlan() {
     if (_currentClient == null) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => MasterPlanSelectionPage(client: _currentClient),
+        builder: (context) => MasterPlanSelectionPage(client: _currentClient, onMasterPlanAssigned: () {  },),
       ),
     ).then((_) => setState(() {}));
   }
@@ -648,7 +738,23 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
     if (_currentClient == null) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => AssignedDietPlanListScreen(client: _currentClient),
+        builder: (context) => AssignedDietPlanListScreen(client: _currentClient, onMealPlanSaved: () {  },),
+      ),
+    ).then((_) => setState(() {}));
+  }
+  void _navigateToVitalsHistory() {
+    if (_currentClient == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+          builder: (context) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)
+      ),
+    );
+  }
+  void _navigateToAssignPackage() {
+    if (_currentClient == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PackageAssignmentPage(clientId: _currentClient.id, clientName: _currentClient.name, onPackageAssignment: () {  },),
       ),
     ).then((_) => setState(() {}));
   }

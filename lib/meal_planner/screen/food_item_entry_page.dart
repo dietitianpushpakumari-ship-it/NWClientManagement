@@ -3,11 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nutricare_client_management/helper/language_config.dart';
-import 'package:nutricare_client_management/meal_planner/models/ServingUnit.dart';
-import 'package:nutricare_client_management/meal_planner/models/food_category.dart';
-import 'package:nutricare_client_management/meal_planner/models/food_item.dart';
+import 'package:nutricare_client_management/modules/master/model/ServingUnit.dart';
+import 'package:nutricare_client_management/modules/master/model/food_category.dart';
+import 'package:nutricare_client_management/modules/master/model/food_item.dart';
 import 'package:nutricare_client_management/meal_planner/service/Dependancy_service.dart';
-import 'package:nutricare_client_management/meal_planner/service/food_item_service.dart';
+import 'package:nutricare_client_management/modules/master/service/food_item_service.dart';
 import 'package:provider/provider.dart';
 // For localization fields
 

@@ -4,9 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/package_assignment_model.dart';
-import '../../models/payment_model.dart';
-import '../../services/package_payment_service.dart';
+import '../modules/package/model/package_assignment_model.dart';
+import '../modules/package/model/payment_model.dart';
+import '../modules/package/service/package_payment_service.dart';
 
 class PaymentLedgerScreen extends StatefulWidget {
   final PackageAssignmentModel assignment;

@@ -1,7 +1,7 @@
 // lib/screens/program_feature_master_screen.dart
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/models/programme_feature_model.dart';
-import '../services/program_feature_service.dart';
+import '../modules/package/service/program_feature_service.dart';
 
 // Helper to define feature types
 const List<String> _featureTypes = ['Dietary', 'Workout', 'Support', 'Tracking'];

@@ -1,9 +1,9 @@
 // lib/screens/food_item_list_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/meal_planner/models/food_item.dart';
+import 'package:nutricare_client_management/modules/master/model/food_item.dart';
 import 'package:nutricare_client_management/meal_planner/screen/food_item_entry_page.dart';
-import 'package:nutricare_client_management/meal_planner/service/food_item_service.dart';
+import 'package:nutricare_client_management/modules/master/service/food_item_service.dart';
 import 'package:provider/provider.dart';
 
 

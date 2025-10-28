@@ -1,0 +1,20 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#3949AB;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#283593;stop-opacity:1" />
+        </linearGradient>
+        <linearGradient id="secondaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#26A69A;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#00897B;stop-opacity:1" />
+        </linearGradient>
+    </defs>
+
+    <path d="M128 224.234C128 224.234 32 153.234 32 88.234C32 54.234 60.543 27.234 94.757 27.234C108.536 27.234 121.234 33.734 128 44.734C134.766 33.734 147.464 27.234 161.243 27.234C195.457 27.234 224 54.234 224 88.234C224 153.234 128 224.234 128 224.234Z"
+        fill="url(#primaryGradient)"/>
+
+    <path d="M128 155C128 155 108.7 132 108.7 108C108.7 94 118 84 128 70C138 84 147.3 94 147.3 108C147.3 132 128 155 128 155Z"
+        fill="#F7F9FC"/>
+
+    <circle cx="128" cy="70" r="10" fill="url(#secondaryGradient)"/>
+</svg>

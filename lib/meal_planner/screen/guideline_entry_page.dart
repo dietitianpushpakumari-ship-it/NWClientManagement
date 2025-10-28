@@ -2,9 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/helper/language_config.dart';
-import 'package:nutricare_client_management/meal_planner/models/diet_plan_category.dart';
-import 'package:nutricare_client_management/meal_planner/models/guidelines.dart';
-import 'package:nutricare_client_management/meal_planner/service/guideline_service.dart';
+import 'package:nutricare_client_management/modules/master/model/diet_plan_category.dart';
+import 'package:nutricare_client_management/modules/master/model/guidelines.dart';
+import 'package:nutricare_client_management/modules/master/service/guideline_service.dart';
 import 'package:provider/provider.dart';
 
 import '../service/Dependancy_service.dart';

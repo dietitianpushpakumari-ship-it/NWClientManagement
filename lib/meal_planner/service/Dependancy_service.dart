@@ -1,10 +1,10 @@
 // lib/services/dependency_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:nutricare_client_management/meal_planner/models/ServingUnit.dart';
-import 'package:nutricare_client_management/meal_planner/models/diet_plan_category.dart';
+import 'package:nutricare_client_management/modules/master/model/ServingUnit.dart';
+import 'package:nutricare_client_management/modules/master/model/diet_plan_category.dart';
 // Note: Replace with actual imports for your project structure
-import '../models/food_category.dart';
+import '../../modules/master/model/food_category.dart';
 
 class DependencyService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;

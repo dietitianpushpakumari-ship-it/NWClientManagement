@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nutricare_client_management/models/assigned_package_data.dart';
-import 'package:nutricare_client_management/services/package_Service.dart';
+import 'package:nutricare_client_management/modules/package/service/package_Service.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../models/package_model.dart';
-import '../../models/package_assignment_model.dart';
-import '../../services/package_payment_service.dart';
-import '../../services/client_service.dart';
+import '../modules/package/model/package_model.dart';
+import '../modules/package/model/package_assignment_model.dart';
+import '../modules/package/service/package_payment_service.dart';
+import '../modules/client/services/client_service.dart';
 import 'payment_ledger_screen.dart'; // Import the Ledger Screen
 
 class PackageAssignmentPage extends StatefulWidget {
   final String clientId;
   final String clientName;
+  final VoidCallback onPackageAssignment;
 
   const PackageAssignmentPage({
     super.key,
     required this.clientId,
     required this.clientName,
+    required this.onPackageAssignment
   });
 
   @override
@@ -134,7 +136,8 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
       bookedAmount: _bookedAmount,
       diagnosis: _diagnosisController.text.trim(),
       isActive: true,
-      category: _selectedPackage!.category.displayName
+      category: _selectedPackage!.category.displayName,
+        clientId: widget.clientId, isLocked: false
 
     );
 
@@ -156,6 +159,8 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
           _expiryDate = DateTime.now().add(const Duration(days: 30));
         });
       }
+
+      widget.onPackageAssignment();
       Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {

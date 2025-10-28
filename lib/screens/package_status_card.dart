@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../models/package_assignment_model.dart';
+import '../modules/package/model/package_assignment_model.dart';
 
 class PackageStatusCard extends StatelessWidget {
   final List<PackageAssignmentModel> assignments;

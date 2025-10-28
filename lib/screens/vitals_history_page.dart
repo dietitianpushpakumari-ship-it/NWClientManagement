@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/helper/lab_vitals_data.dart';
-import 'package:nutricare_client_management/screens/vitals_entry_form_screen.dart';
+import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
+import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
+import 'package:nutricare_client_management/screens/vitals_entry_form_screen.dart' hide LabVitalsData;
 
 
-import '../../models/vitals_model.dart';
-import '../../services/vitals_service.dart';
 // Uses the new data
 
 class VitalsHistoryPage extends StatefulWidget {
@@ -15,7 +15,7 @@ class VitalsHistoryPage extends StatefulWidget {
   const VitalsHistoryPage({
     super.key,
     required this.clientId,
-    required this.clientName,
+    required this.clientName
   });
 
   @override
@@ -192,7 +192,7 @@ class _VitalsHistoryPageState extends State<VitalsHistoryPage> {
           _navigateAndRefresh(VitalsEntryPage(
             clientId: widget.clientId,
             clientName: widget.clientName,
-            vitalsToEdit: record,
+            vitalsToEdit: record, onVitalsSaved: () {  }, isFirstConsultation: record.isFirstConsultation,
           ));
         } else if (value == 'delete') {
           _deleteRecord(record);
@@ -238,8 +238,9 @@ class _VitalsHistoryPageState extends State<VitalsHistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Vitals History: ${widget.clientName}'),
+        title: Text('Add vitals for ${widget.clientName}'),
         backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
       ),
       body: FutureBuilder<List<VitalsModel>>(
         future: _vitalsFuture,
@@ -372,7 +373,7 @@ class _VitalsHistoryPageState extends State<VitalsHistoryPage> {
         onPressed: () {
           _navigateAndRefresh(VitalsEntryPage(
             clientId: widget.clientId,
-            clientName: widget.clientName,
+            clientName: widget.clientName, onVitalsSaved: () {  }, isFirstConsultation: false,
           ));
         },
         child: const Icon(Icons.add),

@@ -2,8 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/helper/language_config.dart';
-import 'package:nutricare_client_management/meal_planner/models/diet_plan_category.dart';
-import 'package:nutricare_client_management/meal_planner/service/diet_plan_category_service.dart';
+import 'package:nutricare_client_management/modules/master/model/diet_plan_category.dart';
+import 'package:nutricare_client_management/modules/master/service/diet_plan_category_service.dart';
 import 'package:provider/provider.dart';
 
 class DietPlanCategoryEntryPage extends StatefulWidget {

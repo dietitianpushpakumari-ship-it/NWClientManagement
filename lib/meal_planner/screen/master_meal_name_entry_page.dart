@@ -2,18 +2,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:nutricare_client_management/meal_planner/models/meal_master_name.dart';
-import 'package:nutricare_client_management/meal_planner/service/master_meal_name_service.dart';
+import 'package:nutricare_client_management/helper/language_config.dart';
+import 'package:nutricare_client_management/modules/master/model/meal_master_name.dart';
+import 'package:nutricare_client_management/modules/master/service/master_meal_name_service.dart';
 import 'package:provider/provider.dart';
 
 // NOTE: Assuming this file contains supportedLanguageCodes and supportedLanguages map
 // You should ensure this file exists in your project structure (e.g., lib/config/language_config.dart)
 // Placeholder for demonstration:
-const Map<String, String> supportedLanguages = {
-  'en': 'English',
-  'hi': 'Hindi (हिन्दी)',
-  'od': 'Odia (ଓଡ଼ିଆ)',
-};
+
 final List<String> supportedLanguageCodes = supportedLanguages.keys.toList();
 
 

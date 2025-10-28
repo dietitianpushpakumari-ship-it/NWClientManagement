@@ -1,8 +1,8 @@
 
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/meal_planner/models/meal_master_name.dart';
+import 'package:nutricare_client_management/modules/master/model/meal_master_name.dart';
 import 'package:nutricare_client_management/meal_planner/screen/master_meal_name_entry_page.dart';
-import 'package:nutricare_client_management/meal_planner/service/master_meal_name_service.dart';
+import 'package:nutricare_client_management/modules/master/service/master_meal_name_service.dart';
 import 'package:provider/provider.dart';
 
 

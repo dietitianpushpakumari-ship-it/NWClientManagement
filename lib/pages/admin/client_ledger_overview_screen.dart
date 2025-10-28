@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/assigned_package_data.dart';
-import '../../models/client_model.dart';
-import '../../models/package_assignment_model.dart';
+import '../../modules/client/model/client_model.dart';
+import '../../modules/package/model/package_assignment_model.dart';
 import '../../screens/payment_ledger_screen.dart';
-import '../../services/package_payment_service.dart';
+import '../../modules/package/service/package_payment_service.dart';
 
 
 // Helper class and Enum (Ensure these are at the top level of the file)

@@ -1,9 +1,9 @@
 // lib/screens/diet_plan_category_list_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/meal_planner/models/diet_plan_category.dart';
+import 'package:nutricare_client_management/modules/master/model/diet_plan_category.dart';
 import 'package:nutricare_client_management/meal_planner/screen/diet_plan_category_entry_page.dart';
-import 'package:nutricare_client_management/meal_planner/service/diet_plan_category_service.dart';
+import 'package:nutricare_client_management/modules/master/service/diet_plan_category_service.dart';
 import 'package:provider/provider.dart';
 
 

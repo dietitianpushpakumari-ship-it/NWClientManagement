@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
-import '../../models/package_model.dart';
+import '../modules/package/model/package_model.dart';
 // Assuming the following models/services exist in your structure
-import '../../services/package_payment_service.dart';
-import '../services/package_Service.dart';
+import '../modules/package/service/package_payment_service.dart';
+import '../modules/package/service/package_Service.dart';
 import 'package_entry_page.dart'; // Import for Create/Edit
 
 class PackageListPage extends StatefulWidget {

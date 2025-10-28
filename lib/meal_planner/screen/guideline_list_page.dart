@@ -1,9 +1,9 @@
 // lib/screens/guideline_list_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/meal_planner/models/guidelines.dart';
+import 'package:nutricare_client_management/modules/master/model/guidelines.dart';
 import 'package:nutricare_client_management/meal_planner/screen/guideline_entry_page.dart';
-import 'package:nutricare_client_management/meal_planner/service/guideline_service.dart';
+import 'package:nutricare_client_management/modules/master/service/guideline_service.dart';
 import 'package:provider/provider.dart';
 
 class GuidelineListPage extends StatelessWidget {

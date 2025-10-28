@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart'; // For describeEnum
 import 'package:cloud_firestore/cloud_firestore.dart'; // Only if needed by nested models
-import 'package:nutricare_client_management/models/package_assignment_model.dart'; // Import dependency
+import 'package:nutricare_client_management/modules/package/model/package_assignment_model.dart'; // Import dependency
 
 enum PaymentFilter { all, fullyPaid, pending, partiallyPaid, notPaid }
 

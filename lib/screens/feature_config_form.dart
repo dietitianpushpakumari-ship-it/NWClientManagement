@@ -1,7 +1,7 @@
 // lib/widgets/feature_config_form.dart
 import 'package:flutter/material.dart';
 import '../models/feature_config_model.dart';
-import '../services/config_service.dart';
+import '../helper/config_service.dart';
 
 // Helper to convert title to a safe ID slug (e.g., "Vitals Tracking" -> "vitals_tracking")
 String _slugify(String title) {

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/master_diet_planner/master_diet_plan_list_screen.dart';
+import 'package:nutricare_client_management/meal_planner/screen/InvestigationMasterScreen.dart';
+import 'package:nutricare_client_management/meal_planner/screen/disease_master_list_screen.dart';
+import 'package:nutricare_client_management/modules/client/screen/supplementation_master_screen.dart';
+import 'package:nutricare_client_management/modules/master/screen/diagonosis_master_screen.dart';
+import 'package:nutricare_client_management/modules/master/screen/master_diet_plan_list_screen.dart';
 import 'package:nutricare_client_management/meal_planner/screen/diet_plan_category_list.dart';
 import 'package:nutricare_client_management/meal_planner/screen/diet_plan_history_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/food_category_list_page.dart';
@@ -8,7 +12,7 @@ import 'package:nutricare_client_management/meal_planner/screen/guideline_list_p
 import 'package:nutricare_client_management/meal_planner/screen/master_diet_plan_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/master_meal_name_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/serving_unit_list_page.dart';
-import 'package:nutricare_client_management/meal_planner/service/food_item_service.dart';
+import 'package:nutricare_client_management/modules/master/service/food_item_service.dart';
 
 // 🎯 Placeholder Screens - You will replace these with your actual form pages
 class PlaceholderFormPage extends StatelessWidget {
@@ -126,6 +130,14 @@ class DietPlanMasterPage extends StatelessWidget {
             iconColor: Colors.green.shade600,
             targetPage: const ServingUnitListPage(),
           ),
+          _buildMasterCard(
+            context: context,
+            title: 'Master meal routine',
+            subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
+            icon: Icons.no_food,
+            iconColor: Colors.blueGrey.shade700,
+            targetPage: const MasterMealNameListPage(),
+          ),
 
           // 2. Meal Items Master
           _buildMasterCard(
@@ -156,31 +168,6 @@ class DietPlanMasterPage extends StatelessWidget {
             targetPage: const FoodItemListPage(),
           ),
 
-          _buildMasterCard(
-            context: context,
-            title: 'Guidelines',
-            subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
-            icon: Icons.no_food,
-            iconColor: Colors.blueGrey.shade700,
-            targetPage: const GuidelineListPage(),
-          ),
-          _buildMasterCard(
-            context: context,
-            title: 'Master meal routine',
-            subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
-            icon: Icons.no_food,
-            iconColor: Colors.blueGrey.shade700,
-            targetPage: const MasterMealNameListPage(),
-          ),
-
-          _buildMasterCard(
-            context: context,
-            title: 'Master meal plan history',
-            subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
-            icon: Icons.no_food,
-            iconColor: Colors.blueGrey.shade700,
-            targetPage: const MasterDietPlanListScreen(),
-          ),
 
         ],
       ),

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/models/programme_feature_model.dart';
 import 'package:provider/provider.dart';
-import '../../models/package_model.dart';
-import '../../services/program_feature_service.dart'; // 🎯 NEW
-import '../../services/package_payment_service.dart';
-import '../services/package_Service.dart';
+import '../modules/package/model/package_model.dart';
+import '../modules/package/service/program_feature_service.dart'; // 🎯 NEW
+import '../modules/package/service/package_payment_service.dart';
+import '../modules/package/service/package_Service.dart';
 
 class PackageEntryPage extends StatefulWidget {
   final PackageModel? packageToEdit; // Optional package for editing

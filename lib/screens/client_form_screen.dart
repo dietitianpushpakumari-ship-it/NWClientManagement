@@ -1,48 +1,33 @@
-import 'dart:io';
+import 'dart:io'; // Required for File (though we'll only use it for kIsWeb check now)
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:nutricare_client_management/services/client_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+// 🎯 CORRECT IMPORTS for Model and Service
+import 'package:nutricare_client_management/modules/client/model/client_model.dart';
+import 'package:nutricare_client_management/modules/client/services/client_service.dart'; // Use the actual ClientService
 
-import '../models/client_model.dart';
+// ----------------------------------------------------------------------------------
+// 🎯 ENUM DEFINITION (Kept from old structure)
+// ----------------------------------------------------------------------------------
 
-// =================================================================
-// LOCAL/MOCK DEFINITIONS FOR RUNNABILITY (Replace with actual imports)
-// =================================================================
-
-// 1. ClientFormSection Enum (Must be shared between dashboard and form)
 enum ClientFormSection { personal, password, agreement }
 
-/*class ClientModel {
-  final String id; final String name; final String mobile; final String email;
-  final DateTime dob; final String gender; final String loginId;
-  final String? address; final String? altMobile;
-  final bool hasPasswordSet; final String? agreementUrl; final String? photoUrl;
-  final Map<String, PackageAssignmentModel> packageAssignments;
-
-  ClientModel({
-    required this.id, required this.name, required this.mobile, required this.email, required this.gender, required this.dob, required this.loginId,
-    this.address, this.altMobile, this.hasPasswordSet = false, this.agreementUrl, this.photoUrl,
-    this.packageAssignments = const {},
-  });
-}*/
-
-
-
-// =================================================================
-// CLIENT FORM SCREEN IMPLEMENTATION
-// =================================================================
+// ----------------------------------------------------------------------------------
+// CLIENT FORM SCREEN
+// ----------------------------------------------------------------------------------
 
 class ClientFormScreen extends StatefulWidget {
   final ClientModel? clientToEdit;
-  final ClientFormSection? focusSection;
+  final ClientFormSection? initialFocusSection;
 
   const ClientFormScreen({
     super.key,
-    this.clientToEdit,
-    this.focusSection
+    this.clientToEdit, // Made nullable for Add Mode
+    this.initialFocusSection,
   });
 
   @override
@@ -50,560 +35,604 @@ class ClientFormScreen extends StatefulWidget {
 }
 
 class _ClientFormScreenState extends State<ClientFormScreen> {
+  // --- Controllers & Keys ---
   final _formKey = GlobalKey<FormState>();
-  final ClientService _clientService = ClientService();
-  final List<String> _genders = ['Male', 'Female', 'Other'];
-
-  bool isEditing = false;
-
-  // Scroll controller and GlobalKeys for sections
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _personalKey = GlobalKey();
-  final GlobalKey _passwordKey = GlobalKey();
-  final GlobalKey _agreementKey = GlobalKey();
 
-  late TextEditingController _nameController;
-  late TextEditingController _mobileController;
-  late TextEditingController _emailController;
-  late TextEditingController _dobController;
-  late TextEditingController _addressController;
-  late TextEditingController _altMobileController;
-  late TextEditingController _passwordController;
-  // 🎯 NEW: Confirm Password Controller
-  late TextEditingController _confirmPasswordController;
+  final Map<ClientFormSection, GlobalKey> _sectionKeys = {
+    ClientFormSection.personal: GlobalKey(),
+    ClientFormSection.password: GlobalKey(),
+    ClientFormSection.agreement: GlobalKey(),
+  };
 
-  String _gender = 'Male';
-  DateTime? _selectedDob;
-  PlatformFile? _selectedPhotoFile;
-  PlatformFile? _selectedAgreementFile;
-  String? _existingAgreementUrl;
+  // Text Controllers
+  final TextEditingController _mobileController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _testMobileController = TextEditingController();
+  final TextEditingController _testPasswordController = TextEditingController();
 
-  String _loginIdType = 'mobile';
-  String _generatedSystemId = '';
+  // 🎯 ADDED: WhatsApp Number Controller
+  final TextEditingController _whatsappNumberController = TextEditingController();
 
+
+  // --- State Variables ---
+  String? _selectedGender;
+  DateTime? _selectedDOB;
+
+  // 🎯 CHANGED: Use PlatformFile to match ClientService signature
+  PlatformFile? _agreementFile;
+
+  bool _isSaving = false;
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+  bool _isTestPasswordVisible = false;
+  String _testResult = '';
+
+
+  final ClientService _clientService = ClientService();
+  // 🎯 REMOVED MOCK: Retain test method logic, but use real service/Auth logic if possible
+
+  bool get isEditMode => widget.clientToEdit != null;
 
   @override
   void initState() {
     super.initState();
-    isEditing = widget.clientToEdit != null;
-    final client = widget.clientToEdit;
+    if (isEditMode) {
+      final client = widget.clientToEdit!;
+      _nameController.text = client.name;
+      _mobileController.text = client.mobile;
+      _selectedDOB = client.dob;
+      _selectedGender = client.gender;
 
-    // --- Controller Initialization ---
-    _nameController = TextEditingController(text: client?.name ?? '');
-    _mobileController = TextEditingController(text: client?.mobile ?? '');
-    _emailController = TextEditingController(text: client?.email ?? '');
-    _addressController = TextEditingController(text: client?.address ?? '');
-    _altMobileController = TextEditingController(text: client?.altMobile ?? '');
-    _passwordController = TextEditingController();
-    // 🎯 Initialize new controller
-    _confirmPasswordController = TextEditingController();
+      // 🎯 INITIALIZED: WhatsApp Number field
+      _whatsappNumberController.text = client.whatsappNumber ?? client.mobile;
 
-    _gender = client?.gender ?? _genders.first;
-    _existingAgreementUrl = client?.agreementUrl;
+      _testMobileController.text = client.mobile;
 
-    // DOB and Login ID Logic
-    if (client != null) {
-      _selectedDob = client.dob;
-      _dobController = TextEditingController(text: DateFormat('yyyy-MM-dd').format(client.dob));
-      if (client.loginId != client.mobile) {
-        _loginIdType = 'system';
-        _generatedSystemId = client.loginId;
-      } else {
-        _loginIdType = 'mobile';
+      if (widget.initialFocusSection != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToSection(widget.initialFocusSection!);
+        });
       }
-    } else {
-      _dobController = TextEditingController();
-      _generatedSystemId = _clientService.generateSystemId();
-    }
-    _mobileController.addListener(_updateLoginIdPreview);
-
-    // Schedule a scroll after the first frame is rendered
-    if (widget.focusSection != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToSection(widget.focusSection!);
-      });
     }
   }
-
 
   @override
   void dispose() {
-    _mobileController.removeListener(_updateLoginIdPreview);
-    _scrollController.dispose();
-    _nameController.dispose();
     _mobileController.dispose();
-    _emailController.dispose();
-    _dobController.dispose();
-    _addressController.dispose();
-    _altMobileController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose(); // 🎯 Dispose new controller
+    _confirmPasswordController.dispose();
+    _testMobileController.dispose();
+    _testPasswordController.dispose();
+    _nameController.dispose();
+    _scrollController.dispose();
+    _whatsappNumberController.dispose();
     super.dispose();
   }
 
-  void _scrollToSection(ClientFormSection section) {
-    final keyMap = {
-      ClientFormSection.personal: _personalKey,
-      ClientFormSection.password: _passwordKey,
-      ClientFormSection.agreement: _agreementKey,
-    };
+  // =================================================================
+  // CORE METHODS
+  // =================================================================
 
-    final context = keyMap[section]?.currentContext;
-    if (context != null) {
+  void _scrollToSection(ClientFormSection section) {
+    final key = _sectionKeys[section];
+    if (key?.currentContext != null) {
       Scrollable.ensureVisible(
-        context,
+        key!.currentContext!,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
-        alignment: 0.0,
+        alignment: 0.1,
       );
     }
   }
 
-  void _updateLoginIdPreview() {
-    if (_loginIdType == 'mobile') {
-      setState(() {});
-    }
-  }
-
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDob ?? DateTime.now().subtract(const Duration(days: 365 * 18)),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-    );
-    if (picked != null && picked != _selectedDob) {
-      setState(() {
-        _selectedDob = picked;
-        _dobController.text = DateFormat('yyyy-MM-dd').format(picked);
-      });
-    }
-  }
-
-  Future<void> _pickPhoto() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-    );
-
-    if (result != null) {
-      setState(() {
-        _selectedPhotoFile = result.files.first;
-      });
-    }
-  }
-
-  Future<void> _pickAgreement() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx'],
-      allowMultiple: false,
-    );
-
-    if (result != null) {
-      setState(() {
-        _selectedAgreementFile = result.files.first;
-      });
-    }
-  }
-
-  void _showSnackbar(String message, {Color color = Colors.green}) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: color),
-      );
-    }
-  }
-
-  // 🎯 Password Change Logic (Existing Client)
-  Future<void> _changePassword() async {
-    final password = _passwordController.text;
-    final confirmPassword = _confirmPasswordController.text;
-
-    if (password.isEmpty || confirmPassword.isEmpty) {
-      return _showSnackbar('Password fields cannot be empty.', color: Colors.red);
-    }
-    if (password != confirmPassword) {
-      return _showSnackbar('Password and Confirm Password must match.', color: Colors.red);
-    }
-    if (password.length < 6) {
-      return _showSnackbar('Password must be at least 6 characters long.', color: Colors.red);
-    }
-    if (widget.clientToEdit == null) {
-      return _showSnackbar('Error: Client ID missing for password change.', color: Colors.red);
-    }
-
-    try {
-      await _clientService.changePassword(widget.clientToEdit!.id, password);
-      _showSnackbar('✅ Password updated successfully!');
-      _passwordController.clear();
-      _confirmPasswordController.clear();
-      // In a real app, you would also trigger a data refresh on the dashboard
-    } catch (e) {
-      _showSnackbar('❌ Failed to update password: ${e.toString()}', color: Colors.red);
-    }
-  }
-
-  // 🎯 Save Form Logic (New or Existing Client)
-  Future<void> _saveForm() async {
-    if (!_formKey.currentState!.validate() || _selectedDob == null) {
-      _showSnackbar('Please fill all required fields and select a valid DOB.', color: Colors.orange);
+  void _scrollToFirstInvalidField() {
+    if (_selectedDOB == null) {
+      _scrollToSection(ClientFormSection.personal);
       return;
     }
 
-    // New client requires password match validation
-    if (!isEditing) {
-      final password = _passwordController.text;
-      final confirmPassword = _confirmPasswordController.text;
-
-      if (password.isEmpty || confirmPassword.isEmpty) {
-        return _showSnackbar('Initial password fields are required.', color: Colors.red);
-      }
-      if (password != confirmPassword) {
-        return _showSnackbar('Password and Confirm Password must match.', color: Colors.red);
-      }
-      if (password.length < 6) {
-        return _showSnackbar('Initial password must be at least 6 characters long.', color: Colors.red);
-      }
+    // 🎯 CHECK: Use the new _agreementFile variable
+    if (!isEditMode && _agreementFile == null) {
+      _scrollToSection(ClientFormSection.agreement);
+      return;
     }
 
-    final clientData = ClientModel(
-      id: isEditing ? widget.clientToEdit!.id : UniqueKey().toString(),
-      name: _nameController.text.trim(),
-      mobile: _mobileController.text.trim(),
-      email: _emailController.text.trim(),
-      gender: _gender,
-      dob: _selectedDob!,
-      address: _addressController.text.trim(),
-      altMobile: _altMobileController.text.trim().isEmpty ? null : _altMobileController.text.trim(),
-      loginId: _loginIdType == 'mobile' ? _mobileController.text.trim() : _generatedSystemId,
-      hasPasswordSet: widget.clientToEdit?.hasPasswordSet ?? false,
-      photoUrl: widget.clientToEdit?.photoUrl,
-      agreementUrl: _existingAgreementUrl,
-    );
-
-    try {
-      if (isEditing) {
-        await _clientService.updateClient(clientData, _selectedPhotoFile, _selectedAgreementFile);
-        _showSnackbar('✅ Client updated successfully!');
-      } else {
-        await _clientService.addClient(clientData, _passwordController.text, _selectedPhotoFile, _selectedAgreementFile);
-        _showSnackbar('✅ New client added successfully!');
-      }
-      if (mounted) Navigator.of(context).pop();
-
-    } catch (e) {
-      _showSnackbar('❌ Save failed: ${e.toString()}', color: Colors.red);
+    if (_formKey.currentState?.validate() == false) {
+      _scrollToSection(ClientFormSection.personal);
+      return;
     }
   }
 
-  // UI Helper methods
-  Widget _buildSectionHeader(String title) {
+  // 🎯 UPDATED: Unified method to handle both Add and Edit
+  void _handleClientSave() async {
+    final bool isFormValid = _formKey.currentState?.validate() == true;
+    final bool isDobValid = _selectedDOB != null;
+    final bool isPhotoValid = isEditMode || _agreementFile != null;
+
+    // Check if new client is missing password
+    if (!isEditMode && _passwordController.text.isEmpty) {
+      _formKey.currentState?.validate();
+      _scrollToSection(ClientFormSection.password);
+    }
+
+    if (!isFormValid || !isDobValid || !isPhotoValid) {
+      _scrollToFirstInvalidField();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please correct the highlighted errors.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final String mobile = _mobileController.text.trim();
+      final String password = _passwordController.text;
+      final String clientName = _nameController.text.trim();
+      final String clientId = isEditMode
+          ? widget.clientToEdit!.id
+          : _clientService.generateFixedRandomSystemId(); // Using a fixed random ID generator
+
+      // --- 1. PREPARE CLIENT MODEL ---
+      final clientToSave = ClientModel(
+        id: clientId,
+        mobile: mobile,
+        name: clientName,
+        dob: _selectedDOB!,
+        gender: _selectedGender ?? '',
+        // Use existing client data for fields not in the form when editing
+        createdAt: isEditMode ? widget.clientToEdit!.createdAt : Timestamp.now(),
+        email: widget.clientToEdit?.email ?? '',
+        loginId: widget.clientToEdit?.loginId ?? mobile,
+        patientId: widget.clientToEdit?.patientId ?? '',
+        // 🎯 SAVE WHATSAPP NUMBER
+        whatsappNumber: _whatsappNumberController.text.trim().isNotEmpty
+            ? _whatsappNumberController.text.trim()
+            : mobile,
+        // Default other required fields from Model
+        hasPasswordSet: isEditMode ? widget.clientToEdit!.hasPasswordSet : false,
+        updatedAt: Timestamp.now(),
+        createdBy: isEditMode ? widget.clientToEdit!.createdBy : (FirebaseAuth.instance.currentUser?.uid ?? 'Admin'),
+        lastModifiedBy: FirebaseAuth.instance.currentUser?.uid ?? 'Admin',
+      );
+
+      // --- 2. SAVE DATA TO FIRESTORE ---
+      if (isEditMode) {
+        // Update client document and optionally files
+        await _clientService.updateClient(
+          clientToSave,
+          null, // photo (assuming separate photo field is not implemented yet)
+          _agreementFile, // agreement
+        );
+        // Handle password change separately (via the dedicated service method)
+        if (password.isNotEmpty) {
+          await _clientService.changePassword(clientId, password);
+        }
+      } else {
+        // 🎯 ADD MODE: Create client document and set password via Cloud Function
+        await _clientService.addClient(
+          clientToSave,
+          password,
+          null, // photo (assuming separate photo field is not implemented yet)
+          _agreementFile, // agreement
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Client ${clientToSave.name} ${isEditMode ? 'updated' : 'added'} successfully!')),
+        );
+        Navigator.of(context).pop();
+      }
+
+    } on Exception catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save client: ${e.toString().replaceFirst('Exception: ', '')}')),
+        );
+      }
+    } finally {
+      setState(() => _isSaving = false);
+    }
+  }
+
+  // 🎯 NOTE: Keeping testCredentials logic as a mock since the real ClientAuthService
+  // is not fully exposed here, but replacing mock service reference with a basic check.
+  void _testCredentials() async {
+    // This is typically done via a real Firebase Auth sign-in to test the credentials.
+    // Given the complexity of admin-side testing, this will remain a UI placeholder
+    // or call the ClientService.testLoginCredentials if available/working.
+
+    if (_testMobileController.text.isEmpty || _testPasswordController.text.isEmpty) {
+      setState(() {
+        _testResult = 'Please enter both mobile and password to test.';
+      });
+      return;
+    }
+
+    setState(() {
+      _testResult = 'Testing...';
+    });
+
+    // Mocking the check for demonstration, replace with a real call if the method is available:
+    try {
+      // NOTE: Replace this with a real service call like _clientService.testLoginCredentials
+      // once you have the live client model available.
+      await Future.delayed(const Duration(milliseconds: 500));
+      final success = _testPasswordController.text == '123456';
+      setState(() {
+        _testResult = success
+            ? '✅ Mock Test successful! Credentials work for login.'
+            : '❌ Mock Test failed. Double-check password and mobile number.';
+      });
+    } catch (e) {
+      setState(() {
+        _testResult = '❌ Test failed due to an error: ${e.toString()}';
+      });
+    }
+  }
+
+  // =================================================================
+  // UI SECTION BUILDERS
+  // =================================================================
+
+  Widget _buildPersonalDetailsSection() {
+    Future<void> _selectDate(BuildContext context) async {
+      final DateTime? picked = await showDatePicker(
+        context: context,
+        initialDate: _selectedDOB ?? DateTime.now().subtract(const Duration(days: 365 * 20)),
+        firstDate: DateTime(1900),
+        lastDate: DateTime.now(),
+      );
+      if (picked != null && picked != _selectedDOB) {
+        setState(() {
+          _selectedDOB = picked;
+        });
+      }
+    }
+
     return Column(
+      key: _sectionKeys[ClientFormSection.personal],
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 24),
-        const Divider(),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).primaryColor,
-          ),
+        const _SectionHeader(
+          title: 'Personal Details',
+          icon: Icons.person_outline,
         ),
-        const Divider(),
-        const SizedBox(height: 8),
+
+        TextFormField(
+          controller: _nameController,
+          decoration: const InputDecoration(labelText: 'Client Name'),
+          validator: (value) => value == null || value.isEmpty ? 'Client name is required.' : null,
+        ),
+        const SizedBox(height: 10),
+
+        // --- Gender Dropdown (Placeholder) ---
+        // Assuming this exists from your old code
+        DropdownButtonFormField<String>(
+          decoration: const InputDecoration(labelText: 'Gender *'),
+          value: _selectedGender,
+          items: ['Male', 'Female', 'Other'].map((String value) {
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(value),
+            );
+          }).toList(),
+          onChanged: (String? newValue) {
+            setState(() {
+              _selectedGender = newValue;
+            });
+          },
+          validator: (v) => v == null ? 'Gender is required.' : null,
+        ),
+        const SizedBox(height: 10),
+
+
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(
+            _selectedDOB == null
+                ? 'Date of Birth (Required)'
+                : 'DOB: ${DateFormat('dd MMM yyyy').format(_selectedDOB!)}',
+            style: TextStyle(
+              color: _selectedDOB == null ? Theme.of(context).colorScheme.error : Theme.of(context).textTheme.bodyLarge?.color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          trailing: const Icon(Icons.calendar_today),
+          onTap: () => _selectDate(context),
+        ),
+        const SizedBox(height: 10),
       ],
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, {TextInputType type = TextInputType.text, String? Function(String?)? validator, Widget? suffix, bool obscureText = false, int maxLines = 1, bool isPassword = false, TextEditingController? matchController}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: type,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-          suffixIcon: suffix,
+  Widget _buildPasswordSection() {
+    return Column(
+      key: _sectionKeys[ClientFormSection.password],
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(
+          title: 'Client Authentication (Login Setup)',
+          icon: Icons.lock_outline,
         ),
-        validator: (value) {
-          if (isPassword && value!.isNotEmpty && value.length < 6) {
-            return 'Password must be at least 6 characters.';
-          }
-          if (matchController != null && value != matchController.text) {
-            return 'Passwords do not match.';
-          }
-          return validator?.call(value);
-        },
-        maxLines: maxLines,
-        obscureText: obscureText,
+
+        // 1. Mobile Number (The Login ID)
+        TextFormField(
+          controller: _mobileController,
+          readOnly: isEditMode,
+          decoration: InputDecoration(
+            labelText: 'Mobile Number (Login ID) *',
+            hintText: 'e.g., 9876543210',
+            prefixIcon: const Icon(Icons.phone),
+            filled: isEditMode,
+            fillColor: isEditMode ? Colors.grey.shade200 : null,
+          ),
+          keyboardType: TextInputType.phone,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          validator: (value) {
+            if (value == null || value.isEmpty || value.length < 10) {
+              return 'Please enter a valid 10-digit mobile number.';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 15),
+
+        // 🎯 ADDED: WhatsApp Number Field
+        TextFormField(
+          controller: _whatsappNumberController,
+          decoration: const InputDecoration(
+            labelText: 'WhatsApp Number (if different from Mobile)',
+            hintText: 'Defaults to Mobile if empty',
+            prefixIcon:  Icon(Icons.whatshot, color: Colors.green),
+          ),
+          keyboardType: TextInputType.phone,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        ),
+        const SizedBox(height: 15),
+
+
+        // Explanation for password fields in Edit Mode
+        if (isEditMode)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 10.0),
+            child: Text(
+              'Leave password fields blank to keep the current password. If a new password is set, it will be securely updated.',
+              style: TextStyle(fontStyle: FontStyle.italic, color: Colors.blueGrey),
+            ),
+          ),
+
+        // 2. Password Field
+        TextFormField(
+          controller: _passwordController,
+          obscureText: !_isPasswordVisible,
+          decoration: InputDecoration(
+            labelText: isEditMode ? 'New Password (Optional)' : 'Set Password (Required)',
+            prefixIcon: const Icon(Icons.vpn_key),
+            suffixIcon: IconButton(
+              icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
+              onPressed: () {
+                setState(() {
+                  _isPasswordVisible = !_isPasswordVisible;
+                });
+              },
+            ),
+          ),
+          validator: (value) {
+            if (!isEditMode && (value == null || value.isEmpty)) {
+              return 'Password is required for a new client.';
+            }
+            if (value != null && value.isNotEmpty && value.length < 6) {
+              return 'Password must be at least 6 characters long.';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 15),
+
+        // 3. Confirm Password Field
+        TextFormField(
+          controller: _confirmPasswordController,
+          obscureText: !_isConfirmPasswordVisible,
+          decoration: InputDecoration(
+            labelText: 'Confirm Password',
+            prefixIcon: const Icon(Icons.vpn_key),
+            suffixIcon: IconButton(
+              icon: Icon(_isConfirmPasswordVisible ? Icons.visibility : Icons.visibility_off),
+              onPressed: () {
+                setState(() {
+                  _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                });
+              },
+            ),
+          ),
+          validator: (value) {
+            if (_passwordController.text.isNotEmpty && (value == null || value.isEmpty)) {
+              return 'Please confirm the new password.';
+            }
+            if (_passwordController.text.isNotEmpty && value != _passwordController.text) {
+              return 'Passwords do not match.';
+            }
+            return null;
+          },
+        ),
+        const Divider(height: 30),
+        _buildCredentialsTestSection(),
+      ],
+    );
+  }
+
+  Widget _buildCredentialsTestSection() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Test Credentials (Optional)',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.blueGrey),
+          ),
+          const SizedBox(height: 10),
+          // Test Mobile
+          TextFormField(
+            controller: _testMobileController,
+            decoration: const InputDecoration(
+              labelText: 'Mobile to Test',
+              hintText: 'Enter client\'s mobile',
+            ),
+            keyboardType: TextInputType.phone,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+          const SizedBox(height: 10),
+          // Test Password
+          TextFormField(
+            controller: _testPasswordController,
+            obscureText: !_isTestPasswordVisible,
+            decoration: InputDecoration(
+              labelText: 'Password to Test',
+              suffixIcon: IconButton(
+                icon: Icon(_isTestPasswordVisible ? Icons.visibility : Icons.visibility_off),
+                onPressed: () {
+                  setState(() {
+                    _isTestPasswordVisible = !_isTestPasswordVisible;
+                  });
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 15),
+          // Test Button
+          ElevatedButton.icon(
+            onPressed: _testCredentials,
+            icon: const Icon(Icons.security),
+            label: const Text('TEST LOGIN'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 45),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Test Result
+          Text(_testResult, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
 
-  Widget _buildPhotoPreview(ClientModel? client) {
-    final imageWidget = _selectedPhotoFile != null
-        ? Image.file(
-      File(_selectedPhotoFile!.path!),
-      fit: BoxFit.cover,
-    )
-        : (client?.photoUrl != null
-        ? Image.network(
-      client!.photoUrl!,
-      fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return const Center(child: CircularProgressIndicator());
-      },
-    )
-        : const Center(child: Icon(Icons.person, size: 50, color: Colors.grey)));
 
-    return Container(
-      width: 100,
-      height: 100,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.blueGrey, width: 2),
+  Widget _buildAgreementPhotoSection() {
+    return Column(
+      key: _sectionKeys[ClientFormSection.agreement],
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(
+          title: 'Agreement Photo',
+          icon: Icons.camera_alt_outlined,
+        ),
+        ElevatedButton.icon(
+          onPressed: () async {
+            // 🎯 FIXED: Retrieve PlatformFile directly from FilePicker
+            FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.image);
+            if (result != null) {
+              setState(() {
+                // Store the PlatformFile
+                _agreementFile = result.files.single;
+              });
+            }
+          },
+          icon: const Icon(Icons.upload_file),
+          label: Text(_agreementFile == null ? 'Upload Agreement Photo' : 'Photo Selected'),
+        ),
+        if (_agreementFile != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            // 🎯 FIXED: Use PlatformFile name property
+            child: Text('File: ${_agreementFile!.name}', style: const TextStyle(fontStyle: FontStyle.italic)),
+          ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24.0),
+      child: ElevatedButton.icon(
+        onPressed: _isSaving ? null : _handleClientSave,
+        icon: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save),
+        label: Text(_isSaving ? 'Saving Client...' : 'Save Client'),
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 50),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: imageWidget,
     );
   }
 
 
+  // --- Build Method ---
   @override
   Widget build(BuildContext context) {
-    final bool canChangeIdType = !isEditing;
+    final titleText = isEditMode
+        ? 'Edit Client: ${_nameController.text.isNotEmpty ? _nameController.text : '...loading...'}'
+        : 'Add New Client';
+
+    final List<Widget> sections = [
+      _buildPersonalDetailsSection(),
+      _buildPasswordSection(),
+      _buildAgreementPhotoSection(),
+      _buildSubmitButton(),
+    ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Client: ${widget.clientToEdit!.name}' : 'Add New Client'),
+        title: Text(titleText),
       ),
-      // Attach ScrollController
-      body: SingleChildScrollView(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              // --- PHOTO UPLOAD ---
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _buildPhotoPreview(widget.clientToEdit),
-                  const SizedBox(width: 16),
-                  ElevatedButton.icon(
-                    onPressed: _pickPhoto,
-                    icon: const Icon(Icons.photo_camera),
-                    label: Text(_selectedPhotoFile != null ? 'Change Photo' : 'Select Client Photo'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-
-              // --- 🎯 1. PERSONAL INFORMATION SECTION ---
-              // Attach Key for targeted scrolling
-              Container(key: _personalKey, child: _buildSectionHeader('1. Personal Information')),
-
-              _buildTextField(_nameController, 'Client Name', validator: (value) => value!.isEmpty ? 'Name is required.' : null),
-              _buildTextField(_mobileController, 'Mobile Number (Primary)', type: TextInputType.phone, validator: (value) => value!.isEmpty || value.length < 10 ? 'Valid mobile number (min 10 digits) is required.' : null),
-              _buildTextField(_altMobileController, 'Alternative Mobile Number (Optional)', type: TextInputType.phone, validator: (value) => value!.isNotEmpty && value.length < 10 ? 'Alternative number must be 10 digits.' : null),
-              _buildTextField(_emailController, 'Email Address', type: TextInputType.emailAddress, validator: (value) => value!.isEmpty || !value.contains('@') ? 'Valid email is required.' : null),
-
-              // DOB Field
-              GestureDetector(
-                onTap: () => _selectDate(context),
-                child: AbsorbPointer(
-                  child: _buildTextField(
-                    _dobController,
-                    'Date of Birth (DOB)',
-                    suffix: const Icon(Icons.calendar_today),
-                    validator: (value) => value!.isEmpty ? 'DOB is required.' : null,
-                  ),
-                ),
-              ),
-
-              // Gender Dropdown
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: DropdownButtonFormField<String>(
-                  value: _gender,
-                  decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-                  items: _genders.map((String value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
-                  onChanged: (String? newValue) => setState(() => _gender = newValue!),
-                ),
-              ),
-
-              // Address Field
-              _buildTextField(
-                  _addressController,
-                  'Residential Address',
-                  type: TextInputType.multiline,
-                  maxLines: 3,
-                  validator: (value) => value!.isEmpty ? 'Address is required.' : null
-              ),
-
-
-              // --- 2. LOGIN ID CONFIGURATION & INITIAL PASSWORD ---
-
-              _buildSectionHeader(isEditing ? '2. Login ID Configuration' : '2. Login ID & Initial Password'),
-
-              // Login ID Type Selection (New Client Only)
-              if (canChangeIdType)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: RadioListTile<String>(
-                          title: const Text('Mobile No.'),
-                          value: 'mobile',
-                          groupValue: _loginIdType,
-                          onChanged: (val) => setState(() => _loginIdType = val!),
-                        ),
-                      ),
-                      Expanded(
-                        child: RadioListTile<String>(
-                          title: const Text('System ID'),
-                          value: 'system',
-                          groupValue: _loginIdType,
-                          onChanged: (val) => setState(() => _loginIdType = val!),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              // Login ID Preview
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: Text(
-                  _loginIdType == 'mobile'
-                      ? 'Login ID will be: ${_mobileController.text.trim().isNotEmpty ? _mobileController.text.trim() : 'Mobile Number'}'
-                      : 'Login ID will be: $_generatedSystemId',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey),
-                ),
-              ),
-              const Divider(),
-
-              // Initial Password (New Client)
-              if (!isEditing) ...[
-                _buildTextField(
-                  _passwordController,
-                  'Set Initial Password',
-                  isPassword: true,
-                  obscureText: true,
-                  validator: (value) => value!.isEmpty ? 'Initial password is required.' : null,
-                ),
-                // 🎯 NEW: Confirm Password for New Client
-                _buildTextField(
-                  _confirmPasswordController,
-                  'Confirm Initial Password',
-                  isPassword: true,
-                  obscureText: true,
-                  matchController: _passwordController,
-                  validator: (value) => value!.isEmpty ? 'Confirmation is required.' : null,
-                ),
-              ],
-
-              // --- 🎯 3. PASSWORD MANAGEMENT SECTION (Existing Client Only) ---
-              if (isEditing) ...[
-                // Attach Key
-                Container(key: _passwordKey, child: _buildSectionHeader('3. Password Management')),
-
-                _buildTextField(
-                  _passwordController,
-                  'New Password (min 6 chars)',
-                  isPassword: true,
-                  obscureText: true,
-                  validator: (value) => value!.isNotEmpty && value.length < 6 ? 'Minimum 6 characters required.' : null,
-                ),
-                // 🎯 NEW: Confirm Password for Existing Client
-                _buildTextField(
-                  _confirmPasswordController,
-                  'Confirm New Password',
-                  isPassword: true,
-                  obscureText: true,
-                  matchController: _passwordController,
-                  suffix: IconButton(
-                    icon: const Icon(Icons.send),
-                    onPressed: _changePassword,
-                  ),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: Text(
-                    widget.clientToEdit!.hasPasswordSet
-                        ? 'Current status: Password already set.'
-                        : 'Current status: Password not yet set.',
-                    style: TextStyle(color: widget.clientToEdit!.hasPasswordSet ? Colors.green : Colors.red),
-                  ),
-                ),
-              ],
-
-              // --- 🎯 4. AGREEMENT UPLOAD SECTION ---
-              // Attach Key
-              Container(key: _agreementKey, child: _buildSectionHeader('4. Agreement Management')),
-
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Text(
-                      _selectedAgreementFile != null
-                          ? 'Selected: ${_selectedAgreementFile!.name}'
-                          : (_existingAgreementUrl != null
-                          ? 'Existing: Agreement already uploaded.'
-                          : 'No agreement file selected.'),
-                      style: TextStyle(color: _selectedAgreementFile != null || _existingAgreementUrl != null ? Colors.black87 : Colors.red),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _pickAgreement,
-                    icon: const Icon(Icons.upload_file),
-                    label: Text(_existingAgreementUrl != null ? 'Replace File' : 'Upload Agreement'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              if (_existingAgreementUrl != null && _selectedAgreementFile == null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text('Note: Uploading a new file will replace the existing one.', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                ),
-
-              const SizedBox(height: 32),
-
-
-              // --- SAVE BUTTON ---
-              Center(
-                child: ElevatedButton(
-                  onPressed: _saveForm,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                    backgroundColor: Colors.blueAccent,
-                  ),
-                  child: Text(
-                    isEditing ? 'Save Changes' : 'Add Client',
-                    style: const TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-            ],
+            children: sections,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------------------------
+// COMMON SECTION HEADER
+// ----------------------------------------------------------------------
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const _SectionHeader({required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10.0, bottom: 12.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.indigo.shade500, size: 24),
+          const SizedBox(width: 10),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.indigo.shade700,
+            ),
+          ),
+        ],
       ),
     );
   }

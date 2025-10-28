@@ -1,8 +1,8 @@
 // lib/screens/login_test_screen.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/client_model.dart';
-import '../services/client_service.dart';
+import '../modules/client/model/client_model.dart';
+import '../modules/client/services/client_service.dart';
 
 class LoginTestScreen extends StatefulWidget {
   final ClientModel client;

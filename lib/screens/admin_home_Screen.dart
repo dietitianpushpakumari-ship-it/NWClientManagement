@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:nutricare_client_management/screens/dash/admin_dashboard_Screen.dart';
 import 'package:nutricare_client_management/screens/dash/master_Setup_page.dart';
 import 'package:provider/provider.dart';
 
 // Import your existing screens and the new AuthService
 
-import '../../services/auth_service.dart';
+import '../helper/auth_service.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -21,7 +20,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
 
   // List of main content pages
   final List<Widget> _pagesContent = [
-    const AdminDashboardScreen(),
     const Center(child: Text("General Settings Page Content")),
     const Center(child: Text("App Configuration Settings Page Content")),
   ];
@@ -259,10 +257,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     if (_selectedIndex == 2) title = 'App Configuration';
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        backgroundColor: Colors.blueGrey,
-      ),
+
       drawer: _buildDrawer(context),
       body: _pagesContent[_selectedIndex],
     );
