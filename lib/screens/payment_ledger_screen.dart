@@ -438,7 +438,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
         title: Text('${widget.clientName} - Ledger'),
         backgroundColor: Colors.indigo.shade600,
       ),
-      body: StreamBuilder<List<PaymentModel>>(
+      body: SafeArea(child: StreamBuilder<List<PaymentModel>>(
         stream: paymentService.streamPaymentsForAssignment(widget.assignment.id),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -516,7 +516,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
             ],
           );
         },
-      ),
+      ),),
     );
   }
 }

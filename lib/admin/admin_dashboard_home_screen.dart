@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
 import 'package:nutricare_client_management/admin/admin_profile_service.dart';
-import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart';
 import 'package:nutricare_client_management/admin/pending_client_list_screen.dart';
 import 'package:nutricare_client_management/pages/admin/client_ledger_overview_screen.dart';
-import 'package:nutricare_client_management/screens/client_form_screen.dart';
+import 'package:nutricare_client_management/scheduler/content_library_screen.dart';
 import 'package:nutricare_client_management/screens/dash/master_Setup_page.dart';
 
 class AdminDashboardHomeScreen extends StatelessWidget {
@@ -15,6 +12,9 @@ class AdminDashboardHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🎯 1. Capture screen width for dynamic sizing
+    final double screenWidth = MediaQuery.of(context).size.width;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -39,7 +39,7 @@ class AdminDashboardHomeScreen extends StatelessWidget {
                 children: [
                   Text(
                     'Hello, $userName!', // 🎯 DISPLAY FETCHED NAME
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Colors.indigo,
                     ),
@@ -47,7 +47,7 @@ class AdminDashboardHomeScreen extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     'Quick actions for your client management.',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ],
               );
@@ -56,13 +56,13 @@ class AdminDashboardHomeScreen extends StatelessWidget {
           const SizedBox(height: 25),
 
           // --- 1st Section: Core Actions ---
-          _buildCoreActionsSection(context),
+          _buildCoreActionsSection(context, screenWidth), // 🎯 Pass screenWidth
           const SizedBox(height: 25),
 
           // --- 2nd Section: Snapshot/KPIs (Placeholder) ---
           Text(
             'Current Snapshot',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           _buildSnapshotSection(context),
@@ -71,7 +71,7 @@ class AdminDashboardHomeScreen extends StatelessWidget {
           // --- 3rd Section: Pending Tasks (Placeholder) ---
           Text(
             'Alerts & Pending Tasks',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           _buildPendingTasksSection(context),
@@ -80,19 +80,19 @@ class AdminDashboardHomeScreen extends StatelessWidget {
     );
   }
 
-  // ... (Rest of the class methods remain the same) ...
-
   // --- Widget for Core Actions (Section 1) ---
-  Widget _buildCoreActionsSection(BuildContext context) {
+  // 🎯 Updated signature to receive screenWidth
+  Widget _buildCoreActionsSection(BuildContext context, double screenWidth) {
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 3,
       crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
+      mainAxisSpacing: 8,
       children: [
         _buildActionButton(
           context,
+          screenWidth, // 🎯 Pass screenWidth to the button builder
           title: 'New Client',
           icon: Icons.person_add,
           color: Colors.green.shade700,
@@ -105,18 +105,20 @@ class AdminDashboardHomeScreen extends StatelessWidget {
         ),
         _buildActionButton(
           context,
-          title: 'Client List',
+          screenWidth, // 🎯 Pass screenWidth to the button builder
+          title: 'Library',
           icon: Icons.people,
           color: Colors.indigo.shade700,
           onTap: () {
             // Navigate to the list of existing clients
             Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const PendingClientListScreen(),
+              builder: (context) => const ContentLibraryScreen(),
             ));
           },
         ),
         _buildActionButton(
           context,
+          screenWidth, // 🎯 Pass screenWidth to the button builder
           title: 'Ledger',
           icon: Icons.account_balance_wallet,
           color: Colors.teal.shade700,
@@ -129,6 +131,7 @@ class AdminDashboardHomeScreen extends StatelessWidget {
         ),
         _buildActionButton(
           context,
+          screenWidth, // 🎯 Pass screenWidth to the button builder
           title: 'Master Setup',
           icon: Icons.settings,
           color: Colors.blueGrey.shade700,
@@ -141,6 +144,7 @@ class AdminDashboardHomeScreen extends StatelessWidget {
         ),
         _buildActionButton(
           context,
+          screenWidth, // 🎯 Pass screenWidth to the button builder
           title: 'Analytics',
           icon: Icons.bar_chart,
           color: Colors.purple.shade700,
@@ -152,6 +156,7 @@ class AdminDashboardHomeScreen extends StatelessWidget {
         ),
         _buildActionButton(
           context,
+          screenWidth, // 🎯 Pass screenWidth to the button builder
           title: 'Reports',
           icon: Icons.document_scanner,
           color: Colors.orange.shade700,
@@ -166,34 +171,44 @@ class AdminDashboardHomeScreen extends StatelessWidget {
   }
 
   // --- Reusable Action Button Widget ---
+  // 🎯 Updated signature to receive screenWidth
   Widget _buildActionButton(
-      BuildContext context, {
+      BuildContext context,
+      double screenWidth,
+      {
         required String title,
         required IconData icon,
         required Color color,
         required VoidCallback onTap,
       }) {
+    // Calculate dynamic icon size (e.g., 8% of screen width)
+    final double dynamicIconSize = screenWidth * 0.08;
+    // Calculate dynamic vertical spacing (e.g., 2.5% of screen width)
+    final double dynamicSpacing = screenWidth * 0.025;
+
     return InkWell(
       onTap: onTap,
       child: Card(
         color: color.withOpacity(0.4),
-      //  color: Colors.white,
-        elevation: 1,
+        elevation: 6,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(color: color, width: 1.5),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: EdgeInsets.all(screenWidth * 0.015), // Dynamic padding
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(icon, size: 36, color: color),
-              const SizedBox(height: 10),
+              // 🎯 Use dynamic size for icon
+              Icon(icon, size: dynamicIconSize, color: color),
+              // 🎯 Use dynamic height for vertical space
+              SizedBox(height: dynamicSpacing),
               Text(
                 title,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
+                  // Font size can remain fixed for readability, but can also be made dynamic if needed.
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),

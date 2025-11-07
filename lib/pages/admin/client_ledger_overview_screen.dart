@@ -225,7 +225,7 @@ class _ClientLedgerOverviewScreenState extends State<ClientLedgerOverviewScreen>
           ),
         ],
       ),
-      body: FutureBuilder<List<AssignedPackageData>>(
+      body: SafeArea(child: FutureBuilder<List<AssignedPackageData>>(
         future: _ledgerDataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -306,7 +306,7 @@ class _ClientLedgerOverviewScreenState extends State<ClientLedgerOverviewScreen>
                       : ListView.builder(
                     shrinkWrap: true,
                     // CRITICAL: Prevents the inner ListView from fighting for scroll with the outer SingleChildScrollView
-                    physics: const NeverScrollableScrollPhysics(),
+                    physics: const ScrollPhysics(),
                     itemCount: filteredData.length,
                     itemBuilder: (context, index) {
                       return _buildAssignmentCard(filteredData[index], index);
@@ -323,7 +323,7 @@ class _ClientLedgerOverviewScreenState extends State<ClientLedgerOverviewScreen>
             ),
           );
         },
-      ),
+      ),),
     );
   }
 }

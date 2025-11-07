@@ -1556,7 +1556,7 @@ class _VitalsEntryPageState extends State<VitalsEntryPage>
         ),
       ),
 
-      body: Form(
+      body: SafeArea(child: Form(
         key: _formKey,
         child: Column(
           children: [
@@ -1571,7 +1571,7 @@ class _VitalsEntryPageState extends State<VitalsEntryPage>
             ),
           ],
         ),
-      ),
+      ),),
     );
   }
 }

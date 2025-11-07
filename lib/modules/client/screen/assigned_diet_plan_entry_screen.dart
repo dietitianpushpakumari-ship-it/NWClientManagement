@@ -463,7 +463,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage>
           ),
         ],
       ),
-      body: FutureBuilder(
+      body: SafeArea(child: FutureBuilder(
         future: _initialDataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
@@ -548,7 +548,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage>
             ],
           );
         },
-      ),
+      ),),
     );
   }
 }

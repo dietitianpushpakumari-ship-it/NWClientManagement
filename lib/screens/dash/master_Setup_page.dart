@@ -142,7 +142,7 @@ class _MasterSetupPageState extends State<MasterSetupPage> {
         foregroundColor: Colors.white,
       ),
       // Set a general background for the screen
-      body: Container(
+      body: SafeArea(child: Container(
         color: Colors.grey.shade100,
         child: ListView(
           padding: const EdgeInsets.only(top: 0),
@@ -255,7 +255,7 @@ class _MasterSetupPageState extends State<MasterSetupPage> {
             const SizedBox(height: 30),
           ],
         ),
-      ),
+      ),),
     );
   }
 }

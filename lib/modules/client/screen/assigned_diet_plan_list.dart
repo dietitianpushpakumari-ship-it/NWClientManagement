@@ -233,7 +233,15 @@ class _AssignedDietPlanListScreenState
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: const Icon(Icons.delete_forever, color: Colors.white),
       ),
-      child: ListTile(
+      child: Card(
+          elevation: 4,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.zero, // 👈 No rounded corners
+        ),
+
+          child: ListTile(
+
+
         leading: Stack(
           alignment: Alignment.center,
           children: [
@@ -262,60 +270,72 @@ class _AssignedDietPlanListScreenState
               ),
           ],
         ),
-        title: Text(
-          plan.name,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            // 🎯 Add a visual cue if frozen
-            color: isReady ? Colors.blue.shade800 : null,
-          ),
-        ),
-        subtitle: Text(
-          'Assigned: ${DateFormat('MMM d, y').format(plan.assignedDate ?? DateTime.now())}',
-        ),
-        onTap: () => _editPlan(plan),
-        trailing: Row(
+        title: Column(
+
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🎯 NEW: Freeze/Ready Button
-            IconButton(
-              icon: Icon(
-                isReady ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
-                color: isReady ? Colors.orange.shade700 : Colors.blue.shade700,
-              ),
-              tooltip: isReady
-                  ? 'Unfreeze / Unready'
-                  : 'Freeze / Ready to Deliver',
-              onPressed: () => _toggleReadyStatus(plan, service),
+            Text(
+            plan.name,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              // 🎯 Add a visual cue if frozen
+              color: isReady ? Colors.blue.shade800 : null,
+            ),),
+
+            Text(
+              'Assigned: ${DateFormat('MMM d, y').format(plan.assignedDate ?? DateTime.now())}',
             ),
 
-            // 🎯 NEW: View Report Button
-            IconButton(
-              icon: Icon(Icons.description, color: Colors.indigo.shade700),
-              tooltip: 'View Report',
-              onPressed: () => _viewPlanReport(plan),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 🎯 NEW: Freeze/Ready Button
+                IconButton(
+                  icon: Icon(
+                    isReady ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                    color: isReady ? Colors.orange.shade700 : Colors.redAccent.shade700,
+                  ),
+                  tooltip: isReady
+                      ? 'Unfreeze / Unready'
+                      : 'Freeze / Ready to Deliver',
+                  onPressed: () => _toggleReadyStatus(plan, service),
+                ),
+
+                // 🎯 NEW: View Report Button
+                IconButton(
+                  icon: Icon(Icons.description, color: Colors.blueAccent.shade700),
+                  tooltip: 'View Report',
+                  onPressed: () => _viewPlanReport(plan),
+                ),
+
+                // Edit Button (always available)
+                IconButton(
+                  icon: Icon(Icons.edit, color: Colors.indigo.shade700),
+                  tooltip: 'Edit Plan Items',
+                  onPressed: () => _editPlan(plan),
+                ),
+
+                // Status Switch (Active/Archive)
+                if (!plan.isDeleted) ...[
+                  Switch(
+                    value: isActive,
+                    onChanged: (bool newValue) => _togglePlanStatus(plan, newValue),
+                    activeColor: Colors.green,
+                    inactiveThumbColor: Colors.orange,
+                    inactiveTrackColor: Colors.orange.shade100,
+                  ),
+                ],
+              ],
             ),
 
-            // Edit Button (always available)
-            IconButton(
-              icon: Icon(Icons.edit, color: Colors.blue.shade700),
-              tooltip: 'Edit Plan Items',
-              onPressed: () => _editPlan(plan),
-            ),
 
-            // Status Switch (Active/Archive)
-            if (!plan.isDeleted) ...[
-              Switch(
-                value: isActive,
-                onChanged: (bool newValue) => _togglePlanStatus(plan, newValue),
-                activeColor: Colors.green,
-                inactiveThumbColor: Colors.orange,
-                inactiveTrackColor: Colors.orange.shade100,
-              ),
-            ],
-          ],
-        ),
-      ),
+          ],),
+
+       // subtitle:
+        onTap: () => _editPlan(plan),
+      //  trailing:
+      ),),
     );
   }
 
@@ -395,10 +415,10 @@ class _AssignedDietPlanListScreenState
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      /*floatingActionButton: FloatingActionButton(
         onPressed: _createNewPlan,
         child: const Icon(Icons.add),
-      ),
+      ),*/
     );
   }
 

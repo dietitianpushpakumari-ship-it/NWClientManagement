@@ -9,7 +9,6 @@ import 'package:nutricare_client_management/meal_planner/screen/diet_plan_histor
 import 'package:nutricare_client_management/meal_planner/screen/food_category_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/food_item_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/guideline_list_page.dart';
-import 'package:nutricare_client_management/meal_planner/screen/master_diet_plan_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/master_meal_name_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/serving_unit_list_page.dart';
 import 'package:nutricare_client_management/modules/master/service/food_item_service.dart';

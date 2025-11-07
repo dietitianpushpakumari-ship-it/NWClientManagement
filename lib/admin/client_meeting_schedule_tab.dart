@@ -818,7 +818,7 @@ class _ClientMeetingScheduleTabState extends State<ClientMeetingScheduleTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    return SafeArea(child: SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -840,7 +840,7 @@ class _ClientMeetingScheduleTabState extends State<ClientMeetingScheduleTab> {
           _buildMeetingHistory(),
         ],
       ),
-    );
+    ));
   }
 }
 

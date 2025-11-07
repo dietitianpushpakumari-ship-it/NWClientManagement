@@ -94,7 +94,7 @@ class _AdminAccountPageState extends State<AdminAccountPage> with SingleTickerPr
           ],
         ),
       ),
-      body: StreamBuilder<AdminProfileModel>(
+      body: SafeArea(child:StreamBuilder<AdminProfileModel>(
         stream: _service.streamAdminProfile(_adminUid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -119,7 +119,7 @@ class _AdminAccountPageState extends State<AdminAccountPage> with SingleTickerPr
             ],
           );
         },
-      ),
+      ),),
     );
   }
 }

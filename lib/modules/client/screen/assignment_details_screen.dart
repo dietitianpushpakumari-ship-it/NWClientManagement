@@ -599,7 +599,7 @@ final investigation  = await InvestigationMasterService().fetchAllInvestigationM
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: SafeArea(child: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
@@ -740,7 +740,7 @@ final investigation  = await InvestigationMasterService().fetchAllInvestigationM
             ],
           ),
         ),
-      ),
+      ),),
     );
   }
 }

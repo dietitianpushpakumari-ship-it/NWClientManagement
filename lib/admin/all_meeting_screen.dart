@@ -176,9 +176,6 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> {
     );
   }
 
-  // NOTE: For brevity, _launchUrl, _makeNativeCall, _makeWhatsAppCall,
-  // and _launchVideoCall logic remains as provided in previous steps.
-
   Future<void> _launchUrl(BuildContext context, Uri url) async {
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -354,24 +351,27 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> {
                       // 1. Date and Time Pickers (Reschedule only for non-archived)
                       if (meeting.status != MeetingStatus.completed && meeting.status != MeetingStatus.cancelled) ...[
                         const Text('Change Schedule', style: TextStyle(fontWeight: FontWeight.bold)),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ListTile(
+                      //  Row(
+                        //  children: [
+                           // Expanded(
+                             // child:
+                              ListTile(
                                 title: Text(DateFormat('dd MMM yyyy').format(selectedDate!)),
                                 trailing: const Icon(Icons.calendar_today),
                                 onTap: () => selectDate(context),
                               ),
-                            ),
-                            Expanded(
-                              child: ListTile(
+                          //  ),
+                          //  Expanded(
+                             // child:
+
+                              ListTile(
                                 title: Text(selectedTime.format(context)),
                                 trailing: const Icon(Icons.access_time),
                                 onTap: () => selectTime(context),
                               ),
-                            ),
-                          ],
-                        ),
+                          //  ),
+                       //   ],
+                       // ),
                         const SizedBox(height: 15),
                       ],
 
@@ -454,8 +454,11 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> {
     final bool hasVideoLink = meeting.meetLink?.isNotEmpty == true || meeting.meetingType.contains('Video');
 
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.call, color: Colors.indigo),
+      // 🎯 TEAL COLOR for the Call icon and set size for compactness
+      icon: const Icon(Icons.call, color: Colors.teal, size:35.0),
       tooltip: 'Call & Video Actions',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 35),
       onSelected: (String action) {
         // Handle the selected action
         if (action == 'native') {
@@ -547,12 +550,15 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> {
         }
             : null,
         leading: Icon(icon, color: isMissed ? Colors.red : Colors.indigo),
+        // Title now uses maximum horizontal space
         title: Text(
           '$clientName: ${meeting.purpose}',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             decoration: meeting.status == MeetingStatus.cancelled ? TextDecoration.lineThrough : null,
           ),
+          maxLines: 2, // Allow title to wrap
+          overflow: TextOverflow.ellipsis,
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -575,21 +581,28 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> {
               ),
           ],
         ),
+        // 🎯 Trailing widget with a vertical column of colored actions
         trailing: !isCompleted && client != null
-            ? Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 1. Combined Call Button
-            _buildCallActionButton(context, meeting, client),
-            // 2. Edit/Reschedule Action Button
-            IconButton(
-              icon: const Icon(Icons.edit_calendar, color: Colors.indigo, size: 20),
-              tooltip: 'Edit/Reschedule',
-              // The onPressed handler ensures that clicking this button
-              // performs the action instead of navigating via the ListTile onTap.
-              onPressed: () => _showMeetingActionDialog(meeting),
+            ? Container(
+          width: 40,
+          alignment: Alignment.center,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildCallActionButton(context, meeting, client),
+                const SizedBox(height: 4),
+                IconButton(
+                  icon: const Icon(Icons.edit_calendar,
+                      color: Colors.indigo, size: 35),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => _showMeetingActionDialog(meeting),
+                ),
+              ],
             ),
-          ],
+          ),
         )
             : null,
       ),
@@ -664,6 +677,9 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🎯 FIX 1: Capture screen height for a dynamic safety buffer
+    final double screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('All Scheduled Meetings'),
@@ -680,42 +696,48 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> {
       body: _isLoading && _allMeetings.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- Active (Upcoming) ---
-            _buildMeetingGroup(
+        // ❌ Removed fixed padding from here.
+        child: Padding(
+          padding: const EdgeInsets.all(16.0), // 🎯 FIX 2: Apply padding to the inner widget
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- Active (Upcoming) ---
+              _buildMeetingGroup(
+                  context,
+                  'Active / Upcoming Calls',
+                  upcomingMeetings,
+                  color: Colors.green.shade700,
+                  isExpanded: true
+              ),
+
+              const Divider(),
+
+              // --- Missed Calls ---
+              _buildMeetingGroup(
+                  context,
+                  'Missed Calls (Action Required)',
+                  missedMeetings,
+                  color: Colors.red.shade700,
+                  isExpanded: missedMeetings.isNotEmpty
+              ),
+
+             const Divider(),
+
+              // --- Archive (Completed & Cancelled) ---
+              _buildMeetingGroup(
                 context,
-                'Active / Upcoming Calls',
-                upcomingMeetings,
-                color: Colors.green.shade700,
-                isExpanded: true
-            ),
+                'Archive (Completed & Cancelled)',
+                archivedMeetings,
+                color: Colors.orange.shade700,
+                isExpanded: false,
+                showPagination: true, // ⬅️ Enable pagination UI here
+              ),
 
-            const Divider(),
-
-            // --- Missed Calls ---
-            _buildMeetingGroup(
-                context,
-                'Missed Calls (Action Required)',
-                missedMeetings,
-                color: Colors.red.shade700,
-                isExpanded: missedMeetings.isNotEmpty
-            ),
-
-            const Divider(),
-
-            // --- Archive (Completed & Cancelled) ---
-            _buildMeetingGroup(
-              context,
-              'Archive (Completed & Cancelled)',
-              archivedMeetings,
-              color: Colors.orange.shade700,
-              isExpanded: false,
-              showPagination: true, // ⬅️ Enable pagination UI here
-            ),
-          ],
+              // 🎯 FIX 3: Add dynamic safety buffer at the bottom (4% of screen height)
+              SizedBox(height: screenHeight * 0.04),
+            ],
+          ),
         ),
       ),
     );

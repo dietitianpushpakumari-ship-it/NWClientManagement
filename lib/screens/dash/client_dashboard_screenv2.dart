@@ -3,6 +3,7 @@ import 'package:nutricare_client_management/admin/client_meeting_schedule_tab.da
 import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_list.dart';
 import 'package:nutricare_client_management/modules/client/screen/master_plan_assignment_page.dart'
     hide ClientModel;
+import 'package:nutricare_client_management/scheduler/client_content_scheduler_tab.dart';
 import 'package:nutricare_client_management/screens/diet_plan_history_card.dart';
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
 import 'package:nutricare_client_management/screens/package_status_card.dart';
@@ -152,7 +153,7 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen>
   void initState() {
     super.initState();
     _currentClient = widget.client;
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -585,6 +586,7 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen>
           tabs: const [
             Tab(text: 'Profile', ),
             Tab(text: 'Schedule'),
+            Tab(text: 'Content Schedule'),
             Tab(text: 'Actions'),
             Tab(text: 'Vitals'),
             Tab(text: 'Package/Payment'),
@@ -599,6 +601,7 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen>
             client: _currentClient,
 
           ),
+         Center(child:  ClientContentSchedulerTab(client: _currentClient)),
           _buildActionsTab(),
           Center(child: VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)),
           Center(child: _buildPackageStatusSection(_currentClient.id)),
