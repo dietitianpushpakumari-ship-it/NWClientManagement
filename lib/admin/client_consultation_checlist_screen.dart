@@ -18,7 +18,7 @@ import 'package:nutricare_client_management/screens/package_assignment_page.dart
 import 'package:nutricare_client_management/screens/package_status_card.dart';
 import 'package:nutricare_client_management/screens/payment_ledger_screen.dart';
 import 'package:nutricare_client_management/screens/vitals_history_page.dart';
-
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 import '../screens/vitals_entry_form_screen.dart';
 
 enum ConsultationStep {
@@ -222,7 +222,6 @@ class _ClientConsultationChecklistScreenState
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
-         // appBar: AppBar(title: Text(title)),
           body: formWidget,
           // SingleChildScrollView(
           // padding: const EdgeInsets.all(16.0),
@@ -238,110 +237,112 @@ class _ClientConsultationChecklistScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('New Client Consultation Checklist'),
-        backgroundColor: Colors.indigo,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    return  Scaffold(
+        appBar: CustomGradientAppBar(
+          title: const Text('New Consultation'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+            ),
           ),
         ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          // If resuming, display a clear message
-          if (widget.initialProfile != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20.0),
-              child: Text(
-                'RESUMING CONSULTATION for ID: ${widget.initialProfile!.patientId}',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(color: Colors.orange),
-                textAlign: TextAlign.center,
+        body: SafeArea(
+          child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: [
+            // If resuming, display a clear message
+            if (widget.initialProfile != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20.0),
+                child: Text(
+                  'RESUMING CONSULTATION for ID: ${widget.initialProfile!.patientId}',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(color: Colors.orange),
+                  textAlign: TextAlign.center,
+                ),
               ),
+
+            // Step 1 Card: Personal Info
+            _buildCardTile(
+              step: ConsultationStep.personalInfo,
+              title: '1. Capture Personal Data',
+              subtitle: _clientProfile == null
+                  ? 'Required fields: Name, Age, Mobile, Gender.'
+                  : 'Patient ID: ${_clientProfile!.patientId}',
+              isActive: true,
+              // Always active
+              onTap: () => _navigateToForm(ConsultationStep.personalInfo),
             ),
 
-          // Step 1 Card: Personal Info
-          _buildCardTile(
-            step: ConsultationStep.personalInfo,
-            title: '1. Capture Personal Data',
-            subtitle: _clientProfile == null
-                ? 'Required fields: Name, Age, Mobile, Gender.'
-                : 'Patient ID: ${_clientProfile!.patientId}',
-            isActive: true,
-            // Always active
-            onTap: () => _navigateToForm(ConsultationStep.personalInfo),
-          ),
-
-          // Step 2 Card: Vitals (Unlocks if Step 1 is done)
-          _buildCardTile(
-            step: ConsultationStep.vitals,
-            title: '2. Enter Vitals & Lab Reports',
-            subtitle: 'Anthropometrics, Labs, Clinical Diagnosis.',
-            isActive: _completionStatus[ConsultationStep.personalInfo]!,
-            onTap: _completionStatus[ConsultationStep.personalInfo]!
-                ? () => _navigateToForm(ConsultationStep.vitals)
-                : null,
-          ),
-
-          // Step 3 Card: Meal Plan (Unlocks if Step 2 is done)
-          _buildCardTile(
-            step: ConsultationStep.masterPlanAssign,
-            title: '3. Assign Master Meal Plan',
-            subtitle: 'Generate diet chart based on diagnosis and client data.',
-            isActive: _completionStatus[ConsultationStep.vitals]!,
-            onTap: _completionStatus[ConsultationStep.vitals]!
-                ? () => _navigateToForm(ConsultationStep.masterPlanAssign)
-                : null,
-          ),
-          _buildCardTile(
-            step: ConsultationStep.mealPlan,
-            title: '4. Meal Plan',
-            subtitle: 'Manage diet plan based on diagnosis and client data.',
-            isActive: _completionStatus[ConsultationStep.masterPlanAssign]!,
-            onTap: _completionStatus[ConsultationStep.masterPlanAssign]!
-                ? () => _navigateToForm(ConsultationStep.mealPlan)
-                : null,
-          ),
-
-          // Step 4 Card: Report Preview (Unlocks if Step 3 is done)
-          _buildCardTile(
-            step: ConsultationStep.Booking,
-            title: '4.Make booking for Single consultation or package',
-            subtitle: 'Manage booking',
-            isActive: _completionStatus[ConsultationStep.mealPlan]!,
-            onTap: _completionStatus[ConsultationStep.mealPlan]!
-                ? () => _navigateToForm(ConsultationStep.Booking)
-                : null,
-            trailing: _buildFinalActionButtons(),
-          ),
-          _buildCardTile(
-            step: ConsultationStep.Profile,
-            title: '5. Manage Profile',
-            subtitle: 'managing profile, onboard client ,set password',
-            isActive: _completionStatus[ConsultationStep.mealPlan]!,
-            onTap: _completionStatus[ConsultationStep.mealPlan]!
-                ? () => _navigateToForm(ConsultationStep.Profile)
-                : null,
-            trailing: _buildFinalActionButtons(),
-          ),
-
-          const SizedBox(height: 30),
-          if (_clientProfile != null &&
-              !_completionStatus[ConsultationStep.mealPlan]!)
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text(
-                'Complete all steps to generate the final report.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
+            // Step 2 Card: Vitals (Unlocks if Step 1 is done)
+            _buildCardTile(
+              step: ConsultationStep.vitals,
+              title: '2. Enter Vitals & Lab Reports',
+              subtitle: 'Anthropometrics, Labs, Clinical Diagnosis.',
+              isActive: _completionStatus[ConsultationStep.personalInfo]!,
+              onTap: _completionStatus[ConsultationStep.personalInfo]!
+                  ? () => _navigateToForm(ConsultationStep.vitals)
+                  : null,
             ),
-        ],
+
+            // Step 3 Card: Meal Plan (Unlocks if Step 2 is done)
+            _buildCardTile(
+              step: ConsultationStep.masterPlanAssign,
+              title: '3. Assign Master Meal Plan',
+              subtitle: 'Generate diet chart based on diagnosis and client data.',
+              isActive: _completionStatus[ConsultationStep.vitals]!,
+              onTap: _completionStatus[ConsultationStep.vitals]!
+                  ? () => _navigateToForm(ConsultationStep.masterPlanAssign)
+                  : null,
+            ),
+            _buildCardTile(
+              step: ConsultationStep.mealPlan,
+              title: '4. Meal Plan',
+              subtitle: 'Manage diet plan based on diagnosis and client data.',
+              isActive: _completionStatus[ConsultationStep.masterPlanAssign]!,
+              onTap: _completionStatus[ConsultationStep.masterPlanAssign]!
+                  ? () => _navigateToForm(ConsultationStep.mealPlan)
+                  : null,
+            ),
+
+            // Step 4 Card: Report Preview (Unlocks if Step 3 is done)
+            _buildCardTile(
+              step: ConsultationStep.Booking,
+              title: '4.Make booking for Single consultation or package',
+              subtitle: 'Manage booking',
+              isActive: _completionStatus[ConsultationStep.mealPlan]!,
+              onTap: _completionStatus[ConsultationStep.mealPlan]!
+                  ? () => _navigateToForm(ConsultationStep.Booking)
+                  : null,
+              trailing: _buildFinalActionButtons(),
+            ),
+            _buildCardTile(
+              step: ConsultationStep.Profile,
+              title: '5. Manage Profile',
+              subtitle: 'managing profile, onboard client ,set password',
+              isActive: _completionStatus[ConsultationStep.mealPlan]!,
+              onTap: _completionStatus[ConsultationStep.mealPlan]!
+                  ? () => _navigateToForm(ConsultationStep.Profile)
+                  : null,
+              trailing: _buildFinalActionButtons(),
+            ),
+
+            const SizedBox(height: 30),
+            if (_clientProfile != null &&
+                !_completionStatus[ConsultationStep.mealPlan]!)
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Text(
+                  'Complete all steps to generate the final report.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -1,12 +1,10 @@
-// lib/screens/food_category_entry_page.dart
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:nutricare_client_management/helper/language_config.dart';
 import 'package:nutricare_client_management/modules/master/model/food_category.dart';
 import 'package:nutricare_client_management/modules/master/service/food_category_service.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/services.dart';
-
-import '../../helper/language_config.dart' show supportedLanguageCodes, supportedLanguages;
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class FoodCategoryEntryPage extends StatefulWidget {
   final FoodCategory? itemToEdit;
@@ -31,8 +29,7 @@ class _FoodCategoryEntryPageState extends State<FoodCategoryEntryPage> {
     if (widget.itemToEdit != null) {
       _initializeForEdit(widget.itemToEdit!);
     } else {
-      // Default new item to a high order number (you'd typically fetch the max + 1)
-      _orderController.text = '100';
+      _orderController.text = '100'; // Default order
     }
   }
 
@@ -83,93 +80,162 @@ class _FoodCategoryEntryPageState extends State<FoodCategoryEntryPage> {
 
     try {
       await service.save(itemToSave);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${itemToSave.enName} saved!')));
-      Navigator.of(context).pop();
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Category saved successfully!')));
+        Navigator.of(context).pop();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  InputDecoration _inputDecoration(String label, {String? hint}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.blue, width: 2),
+      ),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isEdit = widget.itemToEdit != null;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor: Colors.grey.shade50, // Soft background
+      appBar: CustomGradientAppBar(
         title: Text(isEdit ? 'Edit Food Category' : 'Add Food Category'),
-        backgroundColor: Colors.orange,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- Core Fields ---
-              TextFormField(
-                controller: _enNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Category Name (English) *',
-                  border: OutlineInputBorder(),
-                  hintText: 'e.g., Protein, Vegetable',
-                ),
-                validator: (value) => value!.isEmpty ? 'English Name is required' : null,
-              ),
-              const SizedBox(height: 15),
-
-              TextFormField(
-                controller: _orderController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: 'Display Order (Lower number appears first)',
-                  border: OutlineInputBorder(),
-                  hintText: 'e.g., 10',
-                ),
-                validator: (value) => (value == null || int.tryParse(value) == null) ? 'Valid number required' : null,
-              ),
-              const SizedBox(height: 30),
-
-              // --- Localization Section ---
-              Text(
-                'Translations',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade700),
-              ),
-              const Divider(),
-
-              ...supportedLanguageCodes.map((code) {
-                if (code == 'en') return const SizedBox.shrink();
-                final languageName = supportedLanguages[code]!;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 15.0),
-                  child: TextFormField(
-                    controller: _localizedControllers[code],
-                    decoration: InputDecoration(
-                      labelText: 'Name ($languageName)',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.translate),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // --- Card 1: Basic Info ---
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline, color: colorScheme.primary),
+                            const SizedBox(width: 8),
+                            Text('Basic Information', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _enNameController,
+                          decoration: _inputDecoration(
+                            'Category Name (English) *',
+                            hint: 'e.g., Protein, Veggies',
+                          ),
+                          validator: (value) => value!.isEmpty ? 'English Name is required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _orderController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          decoration: _inputDecoration(
+                            'Display Order',
+                            hint: 'e.g., 10',
+                          ),
+                          validator: (value) => (value == null || int.tryParse(value) == null) ? 'Valid number required' : null,
+                        ),
+                      ],
                     ),
                   ),
-                );
-              }).toList(),
-
-              const SizedBox(height: 40),
-
-              // --- Save Button ---
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _saveItem,
-                icon: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.save),
-                label: Text(isEdit ? 'Update Category' : 'Save Category'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 20),
+
+                // --- Card 2: Localization ---
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.translate, color: Colors.teal),
+                            const SizedBox(width: 8),
+                            Text('Localization (Optional)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        ...supportedLanguageCodes.map((code) {
+                          if (code == 'en') return const SizedBox.shrink();
+                          final languageName = supportedLanguages[code]!;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: TextFormField(
+                              controller: _localizedControllers[code],
+                              decoration: _inputDecoration(
+                                'Name in $languageName',
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // --- Save Button ---
+                ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _saveItem,
+                  icon: _isLoading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.check_circle_outline),
+                  label: Text(isEdit ? 'Update Category' : 'Save Category'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 56),
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/models/medical_history_master_model.dart';
 import 'package:nutricare_client_management/models/medical_history_master_service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class MedicalHistoryMasterPage extends StatefulWidget {
   const MedicalHistoryMasterPage({super.key});
@@ -65,10 +66,8 @@ class _MedicalHistoryMasterPageState extends State<MedicalHistoryMasterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Medical History Master'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
       ),
       body: FutureBuilder<List<MedicalHistoryMasterModel>>(
         future: _historyFuture,

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../modules/package/model/package_assignment_model.dart';
 import '../modules/package/model/payment_model.dart';
 import '../modules/package/service/package_payment_service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class PaymentLedgerScreen extends StatefulWidget {
   final PackageAssignmentModel assignment;
@@ -433,10 +434,10 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
   // --- BUILD METHOD ---
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: Text('${widget.clientName} - Ledger'),
-        backgroundColor: Colors.indigo.shade600,
       ),
       body: SafeArea(child: StreamBuilder<List<PaymentModel>>(
         stream: paymentService.streamPaymentsForAssignment(widget.assignment.id),

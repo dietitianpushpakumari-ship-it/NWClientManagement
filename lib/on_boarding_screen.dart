@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/admin/authwrapper.dart';
-import 'package:nutricare_client_management/login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// Import your LoginScreen
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -15,22 +13,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController(initialPage: 0);
   int _currentPage = 0;
 
-  // Data for your onboarding slides (Wellness Focus)
-  final List<Map<String, String>> onboardingData = [
+  // 🎯 UPDATED DATA: Incorporating Diet Plans, Tracking, Goals, and Reminders/Alarms
+  final List<Map<String, dynamic>> onboardingData = [
     {
-      "heading": "Track Your Wellness Journey",
-      "description": "Log your meals, vital statistics, and physical activity with ease to keep your progress visible.",
-      "image_path": "assets/onboarding_track.png",
+      "heading": "Personalized Diet Plans",
+      "description": "Create and manage patient-specific diet plans tailored to their unique health needs and dietary preferences.",
+      "icon": Icons.restaurant_menu_rounded, // Feature: Diet Plan Creation
     },
     {
-      "heading": "Personalized Diet & Goals",
-      "description": "Receive and view diet plans customized by your dietitian, perfectly aligned with your health objectives.",
-      "image_path": "assets/onboarding_plan.png",
+      "heading": "Track & Monitor Progress",
+      "description": "Monitor client activity, log vitals, and track progress towards targeted health goals in real-time.",
+      "icon": Icons.query_stats_rounded, // Feature: Tracking & Goals
     },
     {
-      "heading": "Direct Expert Connection",
-      "description": "Use the integrated chat to communicate instantly with your coach for real-time support and advice.",
-      "image_path": "assets/onboarding_chat.png",
+      "heading": "Smart Reminders & Alarms",
+      "description": "Configure custom alarms and reminders for meals, hydration, and medication to keep patients on track.",
+      "icon": Icons.alarm_on_rounded, // 🎯 NEW Feature: Reminders & Alarms
+    },
+    {
+      "heading": "Comprehensive Care",
+      "description": "From onboarding to daily management, access all the tools you need to ensure your patients' success.",
+      "icon": Icons.health_and_safety_rounded,
     },
   ];
 
@@ -39,12 +42,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // Set flag to true so the user bypasses this screen next time
     await prefs.setBool('hasSeenOnboarding', true);
 
-    // Navigate to the LoginScreen and remove all previous routes
+    if (!mounted) return;
+    // Navigate to the AuthWrapper (or Login) when done
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        // ✅ Navigate to the AuthWrapper when onboarding is done
-        builder: (context) => const AuthWrapper(),
-      ),
+      MaterialPageRoute(builder: (context) => const AuthWrapper()),
     );
   }
 
@@ -59,10 +60,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
         child: Column(
           children: <Widget>[
-            // --- Page View for Swiping Slides ---
+            // --- 1. SKIP BUTTON (Top Right) ---
+            Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16.0, top: 8.0),
+                child: TextButton(
+                  onPressed: _completeOnboarding,
+                  child: Text(
+                    'Skip',
+                    style: TextStyle(
+                      color: colorScheme.secondary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // --- 2. SLIDING CONTENT AREA ---
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -76,9 +97,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
 
-            // --- Dots Indicator & Buttons ---
+            // --- 3. BOTTOM CONTROLS (Dots & Button) ---
             Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
               child: Column(
                 children: [
                   // Dots Indicator
@@ -89,12 +110,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           (index) => _buildDot(context, index: index),
                     ),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 40),
 
-                  // The main Call-to-Action Button
+                  // Main Action Button
                   SizedBox(
                     width: double.infinity,
-                    height: 54,
+                    height: 56,
                     child: ElevatedButton(
                       onPressed: () {
                         if (_currentPage == onboardingData.length - 1) {
@@ -102,30 +123,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         } else {
                           _pageController.nextPage(
                             duration: const Duration(milliseconds: 400),
-                            curve: Curves.easeIn,
+                            curve: Curves.easeInOut,
                           );
                         }
                       },
-                      // Uses the ElevatedButton theme defined in app_theme.dart
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        elevation: 4,
+                        shadowColor: colorScheme.primary.withOpacity(0.4),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
                       child: Text(
-                        _currentPage == onboardingData.length - 1 ? 'Get Started' : 'Next',
-                        style: TextStyle(
+                        _currentPage == onboardingData.length - 1
+                            ? 'Get Started'
+                            : 'Next',
+                        style: const TextStyle(
                           fontSize: 18,
-                          color: colorScheme.onPrimary, // Text color is based on primary color
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ),
-
-                  // Skip button on first page
-                  if (_currentPage < onboardingData.length - 1)
-                    TextButton(
-                      onPressed: _completeOnboarding,
-                      child: Text(
-                        'Skip',
-                        style: TextStyle(color: colorScheme.onSurface),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -135,25 +156,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // Helper widget to build the indicator dots
+  // Helper: Animated Dot
   Widget _buildDot(BuildContext context, {required int index}) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final bool isActive = _currentPage == index;
+
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 4),
       height: 8,
-      width: _currentPage == index ? 24 : 8,
+      width: isActive ? 32 : 8, // Elongate active dot
       decoration: BoxDecoration(
-        color: _currentPage == index ? colorScheme.primary : colorScheme.surfaceVariant,
+        color: isActive ? colorScheme.primary : colorScheme.surfaceVariant,
         borderRadius: BorderRadius.circular(4),
       ),
     );
   }
 }
 
-// Widget for a single onboarding page content
+// --- Helper Widget: Single Page Content ---
 class _OnboardingPage extends StatelessWidget {
-  final Map<String, String> data;
+  final Map<String, dynamic> data;
 
   const _OnboardingPage({required this.data});
 
@@ -163,42 +186,64 @@ class _OnboardingPage extends StatelessWidget {
     final TextTheme textTheme = Theme.of(context).textTheme;
 
     return Padding(
-      padding: const EdgeInsets.all(32.0),
+      padding: const EdgeInsets.symmetric(horizontal: 32.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          // Placeholder for your image/illustration
+          // --- Feature Icon/Illustration ---
+          // Using a Container with a soft background to highlight the icon
           Container(
-            height: 300,
-            width: 300,
+            height: 280,
+            width: 280,
             decoration: BoxDecoration(
-              color: colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
+              color: colorScheme.primary.withOpacity(0.08),
+              shape: BoxShape.circle,
             ),
             child: Center(
-              child: Icon(
-                Icons.favorite_border,
-                size: 80,
-                color: colorScheme.primary,
+              child: Container(
+                height: 220,
+                width: 220,
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withOpacity(0.15),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                      offset: const Offset(0, 10),
+                    )
+                  ],
+                ),
+                child: Icon(
+                  data["icon"],
+                  size: 100,
+                  color: colorScheme.primary,
+                ),
               ),
             ),
-            // Replace with Image.asset(data["image_path"]!)
           ),
-          const SizedBox(height: 50),
+          const SizedBox(height: 48),
+
+          // --- Heading ---
           Text(
             data["heading"]!,
-            style: textTheme.headlineMedium?.copyWith(
-              color: colorScheme.primary,
-              fontWeight: FontWeight.w700,
+            style: textTheme.headlineSmall?.copyWith(
+              color: Colors.black87,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 15),
+          const SizedBox(height: 16),
+
+          // --- Description ---
           Text(
             data["description"]!,
             style: textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onSurface,
+              color: Colors.grey.shade600,
               height: 1.5,
+              fontSize: 16,
             ),
             textAlign: TextAlign.center,
           ),

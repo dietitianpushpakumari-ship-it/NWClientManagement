@@ -3,10 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
 import '../modules/package/model/package_model.dart';
-// Assuming the following models/services exist in your structure
-import '../modules/package/service/package_payment_service.dart';
 import '../modules/package/service/package_Service.dart';
-import 'package_entry_page.dart'; // Import for Create/Edit
+import 'package_entry_page.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class PackageListPage extends StatefulWidget {
   const PackageListPage({super.key});
@@ -77,110 +76,236 @@ class _PackageListPageState extends State<PackageListPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  // 🎯 NEW: Revamped Card Builder
+  Widget _buildPackageCard(PackageModel package) {
     final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final bool isActive = package.isActive;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Service Packages Master'),
-        backgroundColor: Colors.purple,
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: isActive ? Colors.green.withOpacity(0.3) : Colors.grey.withOpacity(0.3)),
       ),
-      body: FutureBuilder<List<PackageModel>>(
-        future: _packagesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          final packages = snapshot.data ?? [];
-
-          if (packages.isEmpty) {
-            return const Center(child: Text('No packages available. Tap "+" to create one.'));
-          }
-
-          return ListView.builder(
-            itemCount: packages.length,
-            itemBuilder: (context, index) {
-              final package = packages[index];
-              return Card(
-                elevation: 2,
-                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                child: ListTile(
-                  // 🎯 FIX: Set dense to true to reduce vertical spacing
-                  dense: true,
-                  leading: Icon(
-                    package.isActive ? Icons.check_circle : Icons.cancel,
-                    color: package.isActive ? Colors.green : Colors.red,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // --- HEADER (Name, Price, Status) ---
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isActive ? Colors.green.shade50 : Colors.grey.shade100,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5),
+                    ],
                   ),
-                  title: Text(
-                      package.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold)
+                  child: Icon(
+                    Icons.inventory_2_rounded,
+                    color: isActive ? Colors.green.shade700 : Colors.grey,
+                    size: 24,
                   ),
-
-                  // Subtitle remains compact
-                  subtitle: Text(
-                    '${package.category.displayName}, ${package.durationDays} days, ${package.programFeatureIds.length} features',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  // 🎯 FIX: Trailing is now only the price, removing height-consuming action buttons.
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        currencyFormatter.format(package.price),
+                        package.name,
                         style: const TextStyle(
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                          fontSize: 14,
+                          color: Colors.black87,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      // Add a subtle indicator that tapping edits the item
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.edit, size: 20),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                        onPressed: () => _editPackage(package),
-                      ),
-                      // Provide quick delete access via a PopUpMenu for ultimate compactness
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'delete') _deletePackage(package);
-                        },
-                        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                          const PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Text('Delete'),
-                          ),
-                        ],
-                        icon: const Icon(Icons.more_vert, size: 20),
-                        padding: EdgeInsets.zero,
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormatter.format(package.price),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.indigo.shade700,
+                        ),
                       ),
                     ],
                   ),
+                ),
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isActive ? Colors.green : Colors.grey,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isActive ? 'ACTIVE' : 'INACTIVE',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
-                  // Tap the item to edit (primary action)
-                  onTap: () => _editPackage(package),
+          // --- BODY (Details & Tags) ---
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Description
+                if (package.description.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: Text(
+                      package.description,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+
+                // Tags Row (Category, Duration, Features Count)
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    _buildInfoChip(Icons.category_outlined, package.category.displayName, Colors.blue),
+                    _buildInfoChip(Icons.timer_outlined, '${package.durationDays} Days', Colors.orange),
+                    if (package.programFeatureIds.isNotEmpty)
+                      _buildInfoChip(Icons.star_outline, '${package.programFeatureIds.length} Features', Colors.purple),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1),
+
+          // --- FOOTER (Actions) ---
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _editPackage(package),
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: const Text('Edit'),
+                  style: TextButton.styleFrom(foregroundColor: Colors.indigo),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () => _deletePackage(package),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete'),
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.withOpacity(0.8)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: CustomGradientAppBar(
+        title: const Text('Service Packages Master'),
+      ),
+      body: SafeArea(
+        child: FutureBuilder<List<PackageModel>>(
+          future: _packagesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+            final packages = snapshot.data ?? [];
+
+            if (packages.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.inventory_2_outlined, size: 60, color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No packages available.',
+                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: () => _navigateAndRefresh(const PackageEntryPage()),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Create First Package'),
+                      style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary, foregroundColor: Colors.white),
+                    ),
+                  ],
                 ),
               );
-            },
-          );
-        },
-      ),
+            }
 
-      // Floating button to CREATE a new package
+            return ListView.builder(
+              padding: const EdgeInsets.only(bottom: 80),
+              itemCount: packages.length,
+              itemBuilder: (context, index) {
+                return _buildPackageCard(packages[index]);
+              },
+            );
+          },
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           _navigateAndRefresh(const PackageEntryPage());
         },
-        child: const Icon(Icons.add),
-        backgroundColor: Colors.blueGrey,
+        backgroundColor: colorScheme.primary,
         tooltip: 'Create New Package',
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

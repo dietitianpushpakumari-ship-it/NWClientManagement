@@ -4,7 +4,6 @@ import 'package:nutricare_client_management/modules/client/screen/assigned_diet_
 import 'package:nutricare_client_management/modules/client/screen/master_plan_assignment_page.dart'
     hide ClientModel;
 import 'package:nutricare_client_management/scheduler/client_content_scheduler_tab.dart';
-import 'package:nutricare_client_management/screens/diet_plan_history_card.dart';
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
 import 'package:nutricare_client_management/screens/package_status_card.dart';
 import 'package:nutricare_client_management/screens/payment_ledger_screen.dart';
@@ -16,6 +15,8 @@ import '../../modules/client/model/client_model.dart';
 import '../../modules/package/model/package_assignment_model.dart';
 import '../client_form_screen.dart' hide ClientModel, ClientService;
 import '../../modules/client/services/client_service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 // 🎯 WIDGET: SlideToAct for secure deletion
 class SlideToAct extends StatefulWidget {
@@ -565,11 +566,10 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen>
   // --- Main Build Method ---
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: Text('${_currentClient.name} profile'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
@@ -593,21 +593,23 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildProfileTab(_currentClient),
-          ClientMeetingScheduleTab(
-            client: _currentClient,
+      body: SafeArea(
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildProfileTab(_currentClient),
+            ClientMeetingScheduleTab(
+              client: _currentClient,
 
-          ),
-         Center(child:  ClientContentSchedulerTab(client: _currentClient)),
-          _buildActionsTab(),
-          Center(child: VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)),
-          Center(child: _buildPackageStatusSection(_currentClient.id)),
+            ),
+           Center(child:  ClientContentSchedulerTab(client: _currentClient)),
+            _buildActionsTab(),
+            Center(child: VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)),
+            Center(child: _buildPackageStatusSection(_currentClient.id)),
 
 
-        ],
+          ],
+        ),
       ),
     );
   }

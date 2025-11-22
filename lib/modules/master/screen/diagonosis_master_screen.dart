@@ -5,6 +5,8 @@ import 'package:nutricare_client_management/modules/master/model/diagonosis_mast
 import 'package:nutricare_client_management/modules/master/screen/DiagonosisEntryPage.dart';
 import 'package:nutricare_client_management/modules/master/service/diagonosis_master_service.dart';
 import 'package:provider/provider.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 
 
@@ -102,46 +104,47 @@ class DiagnosisListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final diagonosisService = Provider.of<DiagnosisMasterService>(context);
-
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Diagnosis Master'),
-        backgroundColor: Colors.blueGrey,
       ),
 
       // Use a StreamBuilder for real-time list updates
-      body: StreamBuilder<List<DiagnosisMasterModel>>(
-        stream: diagonosisService.getDiagnoses(), // Fetch active diagonosiss
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading diagnosis: ${snapshot.error}'));
-          }
-          final diagonosiss = snapshot.data ?? [];
-          if (diagonosiss.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: Text('No active serving diagnosis found. Tap + to add the first one.'),
-              ),
+      body: SafeArea(
+        child: StreamBuilder<List<DiagnosisMasterModel>>(
+          stream: diagonosisService.getDiagnoses(), // Fetch active diagonosiss
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error loading diagnosis: ${snapshot.error}'));
+            }
+            final diagonosiss = snapshot.data ?? [];
+            if (diagonosiss.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: Text('No active serving diagnosis found. Tap + to add the first one.'),
+                ),
+              );
+            }
+        
+            return ListView.builder(
+              itemCount: diagonosiss.length,
+              itemBuilder: (context, index) {
+                final diagonosis = diagonosiss[index];
+                return _builddiagonosisCard(context, diagonosis);
+              },
             );
-          }
-
-          return ListView.builder(
-            itemCount: diagonosiss.length,
-            itemBuilder: (context, index) {
-              final diagonosis = diagonosiss[index];
-              return _builddiagonosisCard(context, diagonosis);
-            },
-          );
-        },
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateToEntry(context, null),
         child: const Icon(Icons.add),
-        backgroundColor: Colors.blueGrey,
+        backgroundColor: colorScheme.secondary,
         tooltip: 'Add New Serving diagnosis',
       ),
     );

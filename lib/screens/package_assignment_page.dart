@@ -11,6 +11,8 @@ import '../modules/package/model/package_assignment_model.dart';
 import '../modules/package/service/package_payment_service.dart';
 import '../modules/client/services/client_service.dart';
 import 'payment_ledger_screen.dart'; // Import the Ledger Screen
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 class PackageAssignmentPage extends StatefulWidget {
   final String clientId;
@@ -291,14 +293,14 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
   // --- BUILD METHOD ---
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
+        appBar: CustomGradientAppBar(
           title: Text('Packages for ${widget.clientName}'),
-          backgroundColor: Colors.indigo.shade600,
         ),
-        body: _buildAssignmentForm()
+        body: SafeArea(child: _buildAssignmentForm())
       ),
     );
   }

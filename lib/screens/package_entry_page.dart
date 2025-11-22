@@ -5,6 +5,8 @@ import '../modules/package/model/package_model.dart';
 import '../modules/package/service/program_feature_service.dart'; // 🎯 NEW
 import '../modules/package/service/package_payment_service.dart';
 import '../modules/package/service/package_Service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 class PackageEntryPage extends StatefulWidget {
   final PackageModel? packageToEdit; // Optional package for editing
@@ -112,159 +114,163 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.packageToEdit == null ? 'Create New Package' : 'Edit Package'),
-        backgroundColor: Colors.blueGrey,
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ElevatedButton(
-          onPressed: _isLoading ? null : _savePackage,
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 15),
-            backgroundColor: Colors.blueAccent,
-            foregroundColor: Colors.white,
-          ),
-          child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Save Package'),
+        appBar: CustomGradientAppBar(
+          title: Text(widget.packageToEdit == null ? 'Create New Package' : 'Edit Package'),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              // 🎯 NEW: Category Dropdown
-              DropdownButtonFormField<PackageCategory>(
-                value: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Package Category',
-                  border: OutlineInputBorder(),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _savePackage,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                backgroundColor: colorScheme.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Save Package'),
+            ),
+          ),
+        ),
+        body:   SafeArea(
+          child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                // 🎯 NEW: Category Dropdown
+                DropdownButtonFormField<PackageCategory>(
+                  value: _selectedCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'Package Category',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: PackageCategory.values.map((category) {
+                    return DropdownMenuItem(
+                      value: category,
+                      child: Text(category.displayName),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedCategory = val!;
+                    });
+                  },
                 ),
-                items: PackageCategory.values.map((category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(category.displayName),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    _selectedCategory = val!;
-                  });
-                },
-              ),
-              const SizedBox(height: 15),
-
-              // Feature Multi-Select
-              FutureBuilder<List<ProgramFeatureModel>>(
-                future: _programFeaturesFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: LinearProgressIndicator());
-                  }
-                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Text('No Program Features available. Define them first.');
-                  }
-
-                  final allFeatures = snapshot.data!;
-
-                  // 🎯 Multi-select Chip display
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8.0),
-                        child: Text('Program Features', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                      ),
-                      Wrap(
-                        spacing: 8.0,
-                        children: allFeatures.map((feature) {
-                          final isSelected = _selectedFeatureIds.contains(feature.id);
-                          return FilterChip(
-                            label: Text(feature.name),
-                            selected: isSelected,
-                            onSelected: (bool selected) {
-                              setState(() {
-                                if (selected) {
-                                  _selectedFeatureIds.add(feature.id);
-                                } else {
-                                  _selectedFeatureIds.remove(feature.id);
-                                }
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 15),
-                    ],
-                  );
-                },
-              ),
-
-              // Existing Fields
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Package Name',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 15),
+      
+                // Feature Multi-Select
+                FutureBuilder<List<ProgramFeatureModel>>(
+                  future: _programFeaturesFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: LinearProgressIndicator());
+                    }
+                    if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Text('No Program Features available. Define them first.');
+                    }
+      
+                    final allFeatures = snapshot.data!;
+      
+                    // 🎯 Multi-select Chip display
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8.0),
+                          child: Text('Program Features', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                        ),
+                        Wrap(
+                          spacing: 8.0,
+                          children: allFeatures.map((feature) {
+                            final isSelected = _selectedFeatureIds.contains(feature.id);
+                            return FilterChip(
+                              label: Text(feature.name),
+                              selected: isSelected,
+                              onSelected: (bool selected) {
+                                setState(() {
+                                  if (selected) {
+                                    _selectedFeatureIds.add(feature.id);
+                                  } else {
+                                    _selectedFeatureIds.remove(feature.id);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 15),
+                      ],
+                    );
+                  },
                 ),
-                validator: (value) => value!.isEmpty ? 'Name is required' : null,
-              ),
-              const SizedBox(height: 15),
-              TextFormField(
-                controller: _descController,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
+      
+                // Existing Fields
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Package Name',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value!.isEmpty ? 'Name is required' : null,
                 ),
-                maxLines: 3,
-                validator: (value) => value!.isEmpty ? 'Description is required' : null,
-              ),
-              const SizedBox(height: 15),
-              TextFormField(
-                controller: _priceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Price (₹)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 15),
+                TextFormField(
+                  controller: _descController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  validator: (value) => value!.isEmpty ? 'Description is required' : null,
                 ),
-                validator: (value) => value!.isEmpty || double.tryParse(value!) == null ? 'Valid price required' : null,
-              ),
-              const SizedBox(height: 15),
-              TextFormField(
-                controller: _durationController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Duration (Days)',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 15),
+                TextFormField(
+                  controller: _priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Price (₹)',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value!.isEmpty || double.tryParse(value!) == null ? 'Valid price required' : null,
                 ),
-                validator: (value) => value!.isEmpty || int.tryParse(value!) == null ? 'Valid duration (days) required' : null,
-              ),
-              const SizedBox(height: 15),
-              TextFormField(
-                controller: _inclusionsController,
-                decoration: const InputDecoration(
-                  labelText: 'Inclusions (Comma Separated)',
-                  hintText: 'e.g., diet chart, workout plan, weekly call',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 15),
+                TextFormField(
+                  controller: _durationController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Duration (Days)',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value!.isEmpty || int.tryParse(value!) == null ? 'Valid duration (days) required' : null,
                 ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 15),
-
-              SwitchListTile(
-                title: const Text('Is Active (Allows assignment to new clients)'),
-                value: _isActive,
-                onChanged: (val) {
-                  setState(() {
-                    _isActive = val;
-                  });
-                },
-              ),
-              const SizedBox(height: 30),
-            ],
+                const SizedBox(height: 15),
+                TextFormField(
+                  controller: _inclusionsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Inclusions (Comma Separated)',
+                    hintText: 'e.g., diet chart, workout plan, weekly call',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 15),
+      
+                SwitchListTile(
+                  title: const Text('Is Active (Allows assignment to new clients)'),
+                  value: _isActive,
+                  onChanged: (val) {
+                    setState(() {
+                      _isActive = val;
+                    });
+                  },
+                ),
+                const SizedBox(height: 30),
+              ],
+            ),
           ),
         ),
       ),

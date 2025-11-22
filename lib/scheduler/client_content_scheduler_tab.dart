@@ -227,13 +227,15 @@ class _ClientContentSchedulerTabState extends State<ClientContentSchedulerTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          _buildSchedulerForm(),
-          _buildActiveSchedules(),
-        ],
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            _buildSchedulerForm(),
+            _buildActiveSchedules(),
+          ],
+        ),
       ),
     );
   }

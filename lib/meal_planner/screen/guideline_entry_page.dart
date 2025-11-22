@@ -1,5 +1,3 @@
-// lib/screens/guideline_entry_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/helper/language_config.dart';
 import 'package:nutricare_client_management/modules/master/model/diet_plan_category.dart';
@@ -8,7 +6,7 @@ import 'package:nutricare_client_management/modules/master/service/guideline_ser
 import 'package:provider/provider.dart';
 
 import '../service/Dependancy_service.dart';
-
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class GuidelineEntryPage extends StatefulWidget {
   final Guideline? itemToEdit;
@@ -28,7 +26,7 @@ class _GuidelineEntryPageState extends State<GuidelineEntryPage> {
   bool _isLoading = false;
 
   late Future<List<DietPlanCategory>> _categoriesFuture;
-  final DependencyService _dependencyService = DependencyService(); // Use DependencyService for fetching master data
+  final DependencyService _dependencyService = DependencyService();
 
   @override
   void initState() {
@@ -93,104 +91,200 @@ class _GuidelineEntryPageState extends State<GuidelineEntryPage> {
 
     try {
       await service.save(itemToSave);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Guideline saved: ${itemToSave.enTitle}')));
-      Navigator.of(context).pop();
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Guideline saved successfully!')));
+        Navigator.of(context).pop();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  InputDecoration _inputDecoration(String label, {String? hint}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.blue, width: 2),
+      ),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isEdit = widget.itemToEdit != null;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor: Colors.grey.shade50,
+      appBar: CustomGradientAppBar(
         title: Text(isEdit ? 'Edit Guideline' : 'Add New Guideline'),
-        backgroundColor: Colors.indigo,
       ),
-      body: FutureBuilder<List<DietPlanCategory>>(
-        future: _categoriesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading categories: ${snapshot.error}'));
-          }
+      body: SafeArea(
+        child: FutureBuilder<List<DietPlanCategory>>(
+          future: _categoriesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error loading categories: ${snapshot.error}'));
+            }
 
-          final List<DietPlanCategory> categories = snapshot.data ?? [];
-          if (categories.isEmpty) {
-            return const Center(child: Text('No Diet Plan Categories found. Please create one first.'));
-          }
+            final List<DietPlanCategory> categories = snapshot.data ?? [];
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // --- Core Field ---
-                  TextFormField(
-                    controller: _enTitleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Guideline Title (English) *',
-                      border: OutlineInputBorder(),
-                      hintText: 'e.g., Drink at least 3L of water per day.',
-                    ),
-                    validator: (value) => value!.isEmpty ? 'Title is required' : null,
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 30),
+            // Handle case with no categories
+            if (categories.isEmpty) {
+              return const Center(child: Text('No Diet Plan Categories found. Please create one first.'));
+            }
 
-                  // --- Diet Plan Category Multi-Select ---
-                  _buildCategoryMultiSelect(categories),
-                  const SizedBox(height: 30),
-
-                  // --- Localization Section ---
-                  Text(
-                    'Translations',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade700),
-                  ),
-                  const Divider(),
-
-                  ...supportedLanguageCodes.map((code) {
-                    if (code == 'en') return const SizedBox.shrink();
-                    final languageName = supportedLanguages[code]!;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 15.0),
-                      child: TextFormField(
-                        controller: _localizedControllers[code],
-                        decoration: InputDecoration(
-                          labelText: 'Title ($languageName)',
-                          border: const OutlineInputBorder(),
-                          prefixIcon: const Icon(Icons.translate),
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // --- Card 1: Basic Details ---
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.description_outlined, color: colorScheme.primary),
+                                const SizedBox(width: 8),
+                                Text('Guideline Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              controller: _enTitleController,
+                              decoration: _inputDecoration(
+                                'Guideline Title (English) *',
+                                hint: 'e.g., Drink at least 3L of water per day.',
+                              ),
+                              validator: (value) => value!.isEmpty ? 'Title is required' : null,
+                              maxLines: 3,
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  }).toList(),
-
-                  const SizedBox(height: 40),
-
-                  // --- Save Button ---
-                  ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _saveItem,
-                    icon: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.save),
-                    label: Text(isEdit ? 'Update Guideline' : 'Save Guideline'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 50),
-                      backgroundColor: Colors.indigo.shade700,
-                      foregroundColor: Colors.white,
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 20),
+
+                    // --- Card 2: Applicability (Categories) ---
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.category_outlined, color: Colors.orange),
+                                const SizedBox(width: 8),
+                                Text('Applicable Categories', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            _buildCategoryMultiSelect(categories),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // --- Card 3: Localization ---
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.translate, color: Colors.teal),
+                                const SizedBox(width: 8),
+                                Text('Translations (Optional)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            ...supportedLanguageCodes.map((code) {
+                              if (code == 'en') return const SizedBox.shrink();
+                              final languageName = supportedLanguages[code]!;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16.0),
+                                child: TextFormField(
+                                  controller: _localizedControllers[code],
+                                  decoration: _inputDecoration(
+                                    'Title in $languageName',
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // --- Save Button ---
+                    ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _saveItem,
+                      icon: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.check_circle_outline),
+                      label: Text(isEdit ? 'Update Guideline' : 'Save Guideline'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 56),
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -202,58 +296,50 @@ class _GuidelineEntryPageState extends State<GuidelineEntryPage> {
         .map((c) => c.enName)
         .toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Applies to Diet Plan Categories *',
-          style: TextStyle(fontSize: 14, color: Colors.grey),
-        ),
-        const SizedBox(height: 8),
-        InputDecorator(
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.fromLTRB(12.0, 10.0, 20.0, 10.0),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              isExpanded: true,
-              value: null, // Always null for multi-select
-              hint: Text(_selectedCategoryIds.isEmpty
-                  ? 'Select one or more categories'
-                  : selectedCategoryNames.join(', ')),
-              items: categories.map((cat) {
-                final isSelected = _selectedCategoryIds.contains(cat.id);
-                return DropdownMenuItem<String>(
-                  value: cat.id,
-                  child: Row(
-                    children: [
-                      Icon(
-                        isSelected ? Icons.check_box : Icons.check_box_outline_blank,
-                        color: isSelected ? Colors.indigo : Colors.grey,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(cat.enName),
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: (String? newId) {
-                if (newId != null) {
-                  setState(() {
-                    if (_selectedCategoryIds.contains(newId)) {
-                      _selectedCategoryIds.remove(newId);
-                    } else {
-                      _selectedCategoryIds.add(newId);
-                    }
-                  });
-                }
-              },
+    return InputDecorator(
+      decoration: _inputDecoration('Select Categories *'),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: null, // Always null for multi-select behavior
+          hint: Text(
+            _selectedCategoryIds.isEmpty
+                ? 'Select one or more categories'
+                : selectedCategoryNames.join(', '),
+            style: TextStyle(
+              color: _selectedCategoryIds.isEmpty ? Colors.grey : Colors.black87,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+          items: categories.map((cat) {
+            final isSelected = _selectedCategoryIds.contains(cat.id);
+            return DropdownMenuItem<String>(
+              value: cat.id,
+              child: Row(
+                children: [
+                  Icon(
+                    isSelected ? Icons.check_box : Icons.check_box_outline_blank,
+                    color: isSelected ? Colors.indigo : Colors.grey,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(cat.enName, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
+            );
+          }).toList(),
+          onChanged: (String? newId) {
+            if (newId != null) {
+              setState(() {
+                if (_selectedCategoryIds.contains(newId)) {
+                  _selectedCategoryIds.remove(newId);
+                } else {
+                  _selectedCategoryIds.add(newId);
+                }
+              });
+            }
+          },
         ),
-      ],
+      ),
     );
   }
 }
-

@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 import 'package:nutricare_client_management/helper/meal_planner/meal_entry_list.dart';
 import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
 
@@ -672,7 +673,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Meal Planning'),
         actions: [
           IconButton(

@@ -12,6 +12,7 @@ import 'package:nutricare_client_management/meal_planner/screen/guideline_list_p
 import 'package:nutricare_client_management/meal_planner/screen/master_meal_name_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/serving_unit_list_page.dart';
 import 'package:nutricare_client_management/modules/master/service/food_item_service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 // 🎯 Placeholder Screens - You will replace these with your actual form pages
 class PlaceholderFormPage extends StatelessWidget {
@@ -21,7 +22,7 @@ class PlaceholderFormPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: CustomGradientAppBar(title: Text(title)),
       body: Center(
         child: Text(
           'This is the entry form for: $title',
@@ -103,72 +104,73 @@ class DietPlanMasterPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Diet Plan Master Setup'),
-        backgroundColor: Colors.teal, // Calming color for nutrition
-        elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: <Widget>[
-          const Padding(
-            padding: EdgeInsets.only(bottom: 20.0),
-            child: Text(
-              'Food Categories',
-              style: TextStyle(fontSize: 15, color: Colors.grey),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: <Widget>[
+            const Padding(
+              padding: EdgeInsets.only(bottom: 20.0),
+              child: Text(
+                'Food Categories',
+                style: TextStyle(fontSize: 15, color: Colors.grey),
+              ),
             ),
-          ),
-
-          // 1. Diet Templates Master
-          _buildMasterCard(
-            context: context,
-            title: 'Serving units',
-            subtitle: 'Create standard, reusable diet plans (e.g., Keto, Vegan, Maintenance).',
-            icon: Icons.restaurant_menu,
-            iconColor: Colors.green.shade600,
-            targetPage: const ServingUnitListPage(),
-          ),
-          _buildMasterCard(
-            context: context,
-            title: 'Master meal routine',
-            subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
-            icon: Icons.no_food,
-            iconColor: Colors.blueGrey.shade700,
-            targetPage: const MasterMealNameListPage(),
-          ),
-
-          // 2. Meal Items Master
-          _buildMasterCard(
-            context: context,
-            title: 'Food Categories',
-            subtitle: 'Manage common ingredients and basic single-item meal entries.',
-            icon: Icons.dinner_dining,
-            iconColor: Colors.amber.shade700,
-            targetPage: const FoodCategoryListPage()),
-
-          // 3. Recipe & Prep Master
-          _buildMasterCard(
-            context: context,
-            title: 'Diet Plan categories',
-            subtitle: 'Define detailed cooking recipes with steps and nutritional info.',
-            icon: Icons.book_online,
-            iconColor: Colors.red.shade400,
-            targetPage: const DietPlanCategoryListPage(),
-          ),
-
-          // 4. Exclusion Master
-          _buildMasterCard(
-            context: context,
-            title: 'Master food items',
-            subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
-            icon: Icons.no_food,
-            iconColor: Colors.blueGrey.shade700,
-            targetPage: const FoodItemListPage(),
-          ),
-
-
-        ],
+        
+            // 1. Diet Templates Master
+            _buildMasterCard(
+              context: context,
+              title: 'Serving units',
+              subtitle: 'Create standard, reusable diet plans (e.g., Keto, Vegan, Maintenance).',
+              icon: Icons.restaurant_menu,
+              iconColor: Colors.green.shade600,
+              targetPage: const ServingUnitListPage(),
+            ),
+            _buildMasterCard(
+              context: context,
+              title: 'Master meal routine',
+              subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
+              icon: Icons.no_food,
+              iconColor: Colors.blueGrey.shade700,
+              targetPage: const MasterMealNameListPage(),
+            ),
+        
+            // 2. Meal Items Master
+            _buildMasterCard(
+              context: context,
+              title: 'Food Categories',
+              subtitle: 'Manage common ingredients and basic single-item meal entries.',
+              icon: Icons.dinner_dining,
+              iconColor: Colors.amber.shade700,
+              targetPage: const FoodCategoryListPage()),
+        
+            // 3. Recipe & Prep Master
+            _buildMasterCard(
+              context: context,
+              title: 'Diet Plan categories',
+              subtitle: 'Define detailed cooking recipes with steps and nutritional info.',
+              icon: Icons.book_online,
+              iconColor: Colors.red.shade400,
+              targetPage: const DietPlanCategoryListPage(),
+            ),
+        
+            // 4. Exclusion Master
+            _buildMasterCard(
+              context: context,
+              title: 'Master food items',
+              subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
+              icon: Icons.no_food,
+              iconColor: Colors.blueGrey.shade700,
+              targetPage: const FoodItemListPage(),
+            ),
+        
+        
+          ],
+        ),
       ),
     );
   }

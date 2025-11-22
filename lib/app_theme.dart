@@ -1,57 +1,63 @@
 import 'package:flutter/material.dart';
 
-// 1. Define the Primary Seed Color for the brand
-const Color _wellnessSeedColor = Color(0xFF3949AB); // A calming Indigo
+// 1. Define the Primary Seed Color (Depth)
+// Restful Navy Blue: Remains the deep, professional color.
+const Color _wellnessSeedColor = Color(0xFF00DFDB);
 
-// 2. Define a Secondary/Accent Color (e.g., a vibrant Green/Teal)
-const Color _secondaryAccentColor = Color(0xFF26A69A); // A vibrant Teal
+// 2. Define colors for the Calming Glass/Shining Effect
+const Color _softMistColorPrimary = Color(0xFF00DFDB); // Soft, desaturated Mint Mist
+const Color _softMistColorSecondary = Color(0xFFE1F5FE); // Light Pale Blue
 
 class AppTheme {
   // --- Shared Properties ---
-  static const String fontFamily = 'Roboto'; // Default M3 font is Roboto
+  static const String fontFamily = 'Roboto';
 
   // --- LIGHT THEME ---
   static ThemeData lightTheme = ThemeData(
-    // 1. Mandatory M3 flag
     useMaterial3: true,
     fontFamily: fontFamily,
     brightness: Brightness.light,
 
-    // 2. ColorScheme from Seed (generates Primary, Secondary, etc., harmony)
+    // 2. ColorScheme from Seed
     colorScheme: ColorScheme.fromSeed(
       seedColor: _wellnessSeedColor,
-      primary: _wellnessSeedColor, // Explicitly set Primary to the seed
-      secondary: _secondaryAccentColor, // Inject the accent color manually
-      // Use a light, soft surface color for the wellness feel
-      surface: const Color(0xFFF7F9FC),
+      primary: _wellnessSeedColor,
+      secondary: _softMistColorPrimary, // Exposed for glass tint/start
+      tertiary: _softMistColorSecondary, // Exposed for soft highlight/end
+      surface: const Color(0xFFFBFBFD),
+      error: Colors.red.shade700,
     ),
 
-    // 3. Customize Component Theme (Focus on soft shapes)
-    cardTheme: CardThemeData( // <--- CORRECTED: Use CardThemeData
-      elevation: 0.5,
+    // 3. Customize Component Theme (Maximized Shine and Elegance)
+    cardTheme: CardThemeData().copyWith(
+      elevation: 8.0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0), // More rounded/friendly cards
+        borderRadius: BorderRadius.circular(16.0),
       ),
+      // Shadow/Glow effect is now softer, using the soothing secondary color
+      shadowColor: _softMistColorPrimary.withOpacity(0.6),
+      surfaceTintColor: _wellnessSeedColor.withOpacity(0.1),
     ),
 
-    // Customize AppBar for a clean, light look
-    appBarTheme: const AppBarTheme(
+    // Customize AppBar
+    appBarTheme: AppBarTheme(
       centerTitle: true,
-      elevation: 0,
-      backgroundColor: Color(0xFFF7F9FC), // Matches surface
-      foregroundColor: Color(0xFF1A237E), // Dark text on light background
+      elevation: 8.0,
+      // Background must be transparent for the custom glass effect to show
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white, // Text/icons are white
     ),
 
-    // Customize Floating Action Button (often used for quick entry/action)
+    // Customize Floating Action Button
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: _secondaryAccentColor,
-      foregroundColor: Colors.white,
+      backgroundColor: _softMistColorPrimary,
+      foregroundColor: Colors.black,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(30.0), // Pill shape for friendly look
+        borderRadius: BorderRadius.circular(30.0),
       ),
     ),
 
-    // Customize buttons for consistent design
+    // Customize buttons
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
@@ -60,7 +66,7 @@ class AppTheme {
       ),
     ),
 
-    // Input fields (for Vitals/Diet entries)
+    // Input fields
     inputDecorationTheme: InputDecorationTheme(
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12.0),
@@ -80,30 +86,28 @@ class AppTheme {
     ),
   );
 
-  // --- DARK THEME (Optional but highly recommended for M3) ---
+  // --- DARK THEME ---
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     fontFamily: fontFamily,
     brightness: Brightness.dark,
 
-    // Use the same seed color for consistency
     colorScheme: ColorScheme.fromSeed(
       seedColor: _wellnessSeedColor,
       primary: _wellnessSeedColor,
-      secondary: _secondaryAccentColor,
-      brightness: Brightness.dark, // Crucial to generate dark scheme
+      secondary: _softMistColorPrimary,
+      tertiary: _softMistColorSecondary,
+      brightness: Brightness.dark,
     ),
 
-    // Apply similar component themes, automatically adapting to dark colors
     cardTheme: lightTheme.cardTheme,
-    appBarTheme: const AppBarTheme(
-      centerTitle: true,
-      elevation: 0,
+    appBarTheme: lightTheme.appBarTheme.copyWith(
+      backgroundColor: Colors.transparent,
     ),
     floatingActionButtonTheme: lightTheme.floatingActionButtonTheme,
     elevatedButtonTheme: lightTheme.elevatedButtonTheme,
     inputDecorationTheme: lightTheme.inputDecorationTheme.copyWith(
-      fillColor: const Color(0xFF1E1E1E), // Darker input background
+      fillColor: const Color(0xFF1E1E1E),
     ),
   );
 }

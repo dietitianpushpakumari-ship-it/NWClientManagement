@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/meal_planner/service/diet_plan_service.dart';
 
 import '../models/diet_plan_assignment_model.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 
 // NOTE: Placeholder for the page used for creating a new assignment
@@ -15,9 +16,11 @@ class DietPlanAssignmentPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Assign Diet Plan')),
-      body: const Center(child: Text('Diet Plan Assignment Form Placeholder')),
+    return SafeArea(
+      child: Scaffold(
+        appBar: CustomGradientAppBar(title: const Text('Assign Diet Plan')),
+        body: const Center(child: Text('Diet Plan Assignment Form Placeholder')),
+      ),
     );
   }
 }
@@ -109,10 +112,9 @@ class _DietPlanHistoryPageState extends State<DietPlanHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: Text('${widget.clientName}\'s Diet Plans'),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
+
       ),
       body: FutureBuilder<List<DietPlanAssignmentModel>>(
         future: _assignmentsFuture,

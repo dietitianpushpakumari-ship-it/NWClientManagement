@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/meal_planner/screen/disease_master_model.dart';
 import 'package:nutricare_client_management/meal_planner/screen/disease_master_service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class DiseaseMasterEntryScreen extends StatefulWidget {
   final DiseaseMasterModel? diseaseToEdit;
@@ -84,13 +85,12 @@ class _DiseaseMasterEntryScreenState extends State<DiseaseMasterEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: Text(
           widget.diseaseToEdit != null ? 'Edit Disease' : 'Add New Disease',
         ),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             onPressed: _isLoading ? null : _saveDisease,
@@ -106,23 +106,25 @@ class _DiseaseMasterEntryScreenState extends State<DiseaseMasterEntryScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: TextFormField(
-            controller: _enNameController,
-            decoration: const InputDecoration(
-              labelText: 'Disease Name (English)*',
-              hintText: 'e.g., Type 2 Diabetes Mellitus',
-              border: OutlineInputBorder(),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: TextFormField(
+              controller: _enNameController,
+              decoration: const InputDecoration(
+                labelText: 'Disease Name (English)*',
+                hintText: 'e.g., Type 2 Diabetes Mellitus',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Disease name is required.';
+                }
+                return null;
+              },
             ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Disease name is required.';
-              }
-              return null;
-            },
           ),
         ),
       ),

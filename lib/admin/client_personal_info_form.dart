@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nutricare_client_management/admin/patient_service.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 class ClientPersonalInformationForm extends StatefulWidget {
   final Function(ClientModel) onProfileSaved;
@@ -164,134 +166,134 @@ class _ClientPersonalInformationFormState
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Personal Information'),
-        backgroundColor: colorScheme.primary, // Use theme primary color
-        foregroundColor: colorScheme.onPrimary, // Text color on primary background
-      ),
-      // 🎯 ADD PADDING TO THE BODY
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0), // Consistent padding
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch, // Stretch fields full width
-            children: <Widget>[
-              // Display Patient ID if editing
-              if (_isEditing)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24.0), // More spacing
-                  child: Text(
-                    'Patient ID: ${widget.initialProfile!.patientId}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall // Use a slightly larger, bold style
-                        ?.copyWith(color: colorScheme.primary),
+        appBar: CustomGradientAppBar(
+          title: const Text('Personal Information'), // Text color on primary background
+        ),
+        // 🎯 ADD PADDING TO THE BODY
+        body:  SafeArea(
+          child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0), // Consistent padding
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch, // Stretch fields full width
+              children: <Widget>[
+                // Display Patient ID if editing
+                if (_isEditing)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24.0), // More spacing
+                    child: Text(
+                      'Patient ID: ${widget.initialProfile!.patientId}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall // Use a slightly larger, bold style
+                          ?.copyWith(color: colorScheme.primary),
+                    ),
+                  ),
+
+                // --- Full Name ---
+                TextFormField(
+                  controller: _clientNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Client Full Name *',
+                    prefixIcon: Icon(Icons.person),
+                    border: OutlineInputBorder(), // Use OutlineInputBorder for definition
+                  ),
+                  validator: (v) => v!.isEmpty ? 'Name is required.' : null,
+                ),
+                const SizedBox(height: 16), // Consistent spacing
+
+                // --- Age ---
+                TextFormField(
+                  controller: _ageController,
+                  decoration: const InputDecoration(
+                    labelText: 'Age *',
+                    prefixIcon: Icon(Icons.cake),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (v) => v!.isEmpty || int.tryParse(v) == null
+                      ? 'Valid age is required.'
+                      : null,
+                ),
+                const SizedBox(height: 16),
+
+                // --- Mobile Number ---
+                TextFormField(
+                  controller: _mobileNumberController,
+                  decoration: const InputDecoration(
+                    labelText: 'Mobile Number *',
+                    prefixIcon: Icon(Icons.phone_android),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
+                  validator: (v) => v!.isEmpty ? 'Mobile is required.' : null,
+                ),
+                const SizedBox(height: 16),
+
+                // --- Gender Dropdown ---
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: 'Gender *',
+                    prefixIcon: Icon(Icons.accessibility),
+                    border: OutlineInputBorder(),
+                  ),
+                  value: _gender,
+                  items: _genders.map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _gender = newValue;
+                    });
+                  },
+                  validator: (v) => v == null ? 'Gender is required.' : null,
+                ),
+                const SizedBox(height: 16),
+
+                // --- Address ---
+                TextFormField(
+                  controller: _addressController,
+                  decoration: const InputDecoration(
+                    labelText: 'Address (Optional)',
+                    prefixIcon: Icon(Icons.location_on),
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true, // Centers the label text vertically for multiline
+                  ),
+                  maxLines: 3, // Increased maxLines for a better look
+                ),
+
+                const SizedBox(height: 40),
+
+                // --- Save Button ---
+                ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _saveClient,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    minimumSize: const Size.fromHeight(50), // Full width, decent height
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: _isSaving
+                      ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : Icon(_isEditing ? Icons.edit : Icons.save),
+                  label: Text(
+                    _isEditing ? 'UPDATE PROFILE' : 'SAVE & PROCEED',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
-
-              // --- Full Name ---
-              TextFormField(
-                controller: _clientNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Client Full Name *',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(), // Use OutlineInputBorder for definition
-                ),
-                validator: (v) => v!.isEmpty ? 'Name is required.' : null,
-              ),
-              const SizedBox(height: 16), // Consistent spacing
-
-              // --- Age ---
-              TextFormField(
-                controller: _ageController,
-                decoration: const InputDecoration(
-                  labelText: 'Age *',
-                  prefixIcon: Icon(Icons.cake),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (v) => v!.isEmpty || int.tryParse(v) == null
-                    ? 'Valid age is required.'
-                    : null,
-              ),
-              const SizedBox(height: 16),
-
-              // --- Mobile Number ---
-              TextFormField(
-                controller: _mobileNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'Mobile Number *',
-                  prefixIcon: Icon(Icons.phone_android),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.phone,
-                validator: (v) => v!.isEmpty ? 'Mobile is required.' : null,
-              ),
-              const SizedBox(height: 16),
-
-              // --- Gender Dropdown ---
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Gender *',
-                  prefixIcon: Icon(Icons.accessibility),
-                  border: OutlineInputBorder(),
-                ),
-                value: _gender,
-                items: _genders.map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _gender = newValue;
-                  });
-                },
-                validator: (v) => v == null ? 'Gender is required.' : null,
-              ),
-              const SizedBox(height: 16),
-
-              // --- Address ---
-              TextFormField(
-                controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'Address (Optional)',
-                  prefixIcon: Icon(Icons.location_on),
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true, // Centers the label text vertically for multiline
-                ),
-                maxLines: 3, // Increased maxLines for a better look
-              ),
-
-              const SizedBox(height: 40),
-
-              // --- Save Button ---
-              ElevatedButton.icon(
-                onPressed: _isSaving ? null : _saveClient,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                  minimumSize: const Size.fromHeight(50), // Full width, decent height
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                icon: _isSaving
-                    ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-                    : Icon(_isEditing ? Icons.edit : Icons.save),
-                label: Text(
-                  _isEditing ? 'UPDATE PROFILE' : 'SAVE & PROCEED',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

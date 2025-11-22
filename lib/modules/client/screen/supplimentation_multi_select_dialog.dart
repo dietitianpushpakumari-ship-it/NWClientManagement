@@ -47,24 +47,26 @@ class _SupplementationMasterCreationDialogState extends State<SupplementationMas
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add New Supplementation Type'),
-      content: Form(
-          key: _formKey,
-          child: TextFormField(
-            controller: _controller,
-            decoration: const InputDecoration(labelText: 'Supplementation Name', border: OutlineInputBorder()),
-            validator: (value) => value!.trim().isEmpty ? 'Name cannot be empty' : null,
-          )
-      ),
-      actions: [
-        TextButton(onPressed: _isSaving ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        ElevatedButton.icon(
-          onPressed: _isSaving ? null : _saveSupplementation,
-          icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add),
-          label: Text(_isSaving ? 'Saving...' : 'Create'),
+    return SafeArea(
+      child: AlertDialog(
+        title: const Text('Add New Supplementation Type'),
+        content: Form(
+            key: _formKey,
+            child: TextFormField(
+              controller: _controller,
+              decoration: const InputDecoration(labelText: 'Supplementation Name', border: OutlineInputBorder()),
+              validator: (value) => value!.trim().isEmpty ? 'Name cannot be empty' : null,
+            )
         ),
-      ],
+        actions: [
+          TextButton(onPressed: _isSaving ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+          ElevatedButton.icon(
+            onPressed: _isSaving ? null : _saveSupplementation,
+            icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add),
+            label: Text(_isSaving ? 'Saving...' : 'Create'),
+          ),
+        ],
+      ),
     );
   }
 }

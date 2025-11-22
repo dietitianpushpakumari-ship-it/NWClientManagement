@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'master_diet_plan_entry_page.dart';
 import '../service/master_diet_plan_service.dart';
 import '../model/diet_plan_item_model.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 // We'll use the placeholders defined in the service layer
 // import '../models/master_diet_plan_model.dart';
@@ -101,66 +103,69 @@ class _MasterDietPlanListScreenState extends State<MasterDietPlanListScreen> {
   @override
   Widget build(BuildContext context) {
     final service = Provider.of<MasterDietPlanService>(context);
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Master Diet Templates'),
       ),
-      body: StreamBuilder<List<MasterDietPlanModel>>(
-          stream: service.streamAllPlans(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+      body: SafeArea(
+        child: StreamBuilder<List<MasterDietPlanModel>>(
+            stream: service.streamAllPlans(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
             }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final plans = snapshot.data ?? [];
-
-          if (plans.isEmpty) {
-            return const Center(
-              child: Text('No templates found. Tap the "+" to create one.'),
-            );
-          }
-
-          return ListView.builder(
-            itemCount: plans.length,
-            itemBuilder: (context, index) {
-              final plan = plans[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: ListTile(
-                  title: Text(plan.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(plan.description.isEmpty ? 'No description' : plan.description),
-                  onTap: () => _editTemplate(plan),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Clone Button
-                      IconButton(
-                        icon: Icon(Icons.copy, color: Colors.blue.shade700),
-                        tooltip: 'Clone Template',
-                        onPressed: () => _cloneTemplate(plan),
-                      ),
-                      // Edit Button
-                      IconButton(
-                        icon: Icon(Icons.edit, color: Colors.green.shade700),
-                        tooltip: 'Edit Template',
-                        onPressed: () => _editTemplate(plan),
-                      ),
-                      // Delete Button
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        tooltip: 'Delete Template',
-                        onPressed: () => _confirmDelete(context, plan),
-                      ),
-                    ],
-                  ),
-                ),
+        
+            final plans = snapshot.data ?? [];
+        
+            if (plans.isEmpty) {
+              return const Center(
+                child: Text('No templates found. Tap the "+" to create one.'),
               );
-            },
-          );
-        },
+            }
+        
+            return ListView.builder(
+              itemCount: plans.length,
+              itemBuilder: (context, index) {
+                final plan = plans[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: ListTile(
+                    title: Text(plan.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(plan.description.isEmpty ? 'No description' : plan.description),
+                    onTap: () => _editTemplate(plan),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Clone Button
+                        IconButton(
+                          icon: Icon(Icons.copy, color: Colors.blue.shade700),
+                          tooltip: 'Clone Template',
+                          onPressed: () => _cloneTemplate(plan),
+                        ),
+                        // Edit Button
+                        IconButton(
+                          icon: Icon(Icons.edit, color: Colors.green.shade700),
+                          tooltip: 'Edit Template',
+                          onPressed: () => _editTemplate(plan),
+                        ),
+                        // Delete Button
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          tooltip: 'Delete Template',
+                          onPressed: () => _confirmDelete(context, plan),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _createNewTemplate,

@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
-
-// 識 NOTE: Assuming ClientModel.fromFirestore can handle the 'isArchived' field
-// and that ClientModel has a field like 'id' for Firestore reference.
 
 class PendingClientListScreen extends StatefulWidget {
   const PendingClientListScreen({super.key});
@@ -16,9 +14,8 @@ class PendingClientListScreen extends StatefulWidget {
 class _PendingClientListScreenState extends State<PendingClientListScreen> {
   bool _isArchiveExpanded = false;
 
-  // --- Core Firestore Update Logic (Renamed for clarity) ---
+  // --- Core Firestore Update Logic ---
 
-  // 🎯 NEW FUNCTION: Performs the actual Firestore update
   Future<void> _updateArchiveStatus(ClientModel client, bool isArchiving) async {
     final String action = isArchiving ? 'Archiving' : 'Activating';
 
@@ -45,7 +42,6 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> {
     }
   }
 
-  // 🎯 MODIFIED FUNCTION: Shows the confirmation dialog before calling the update
   void _handleArchiveToggle(ClientModel client, bool isArchiving) {
     final String actionTitle = isArchiving ? 'Archive' : 'Activate';
     final String actionVerb = isArchiving ? 'archive' : 'activate';
@@ -84,7 +80,6 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> {
   // --- Navigation & Helper Widgets ---
 
   void _startNewConsultation() {
-    // Navigate to the checklist screen with a null profile to indicate client creation
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const ClientConsultationChecklistScreen(initialProfile: null),
@@ -96,7 +91,6 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> {
     final bool isArchived = client.isArchived ?? false;
     final bool isSoftDeleted = client.isSoftDeleted ?? false;
 
-    // Do not show soft-deleted clients in this view
     if (isSoftDeleted) return const SizedBox.shrink();
 
     final IconData archiveIcon = isArchived ? Icons.unarchive : Icons.archive;
@@ -127,14 +121,11 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Archive/Unarchive Button (Calls the confirmation handler)
             IconButton(
               icon: Icon(archiveIcon, color: archiveColor),
               tooltip: archiveTooltip,
               onPressed: () => _handleArchiveToggle(client, !isArchived),
             ),
-
-            // Resume/Continue Consultation Button
             IconButton(
               icon: const Icon(Icons.play_circle_fill, color: Colors.green),
               tooltip: 'Resume Consultation',
@@ -157,62 +148,61 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Resume Consultations')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('clients')
-            .where('isSoftDeleted', isEqualTo: false)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('No client records found.'));
-          }
+      appBar: CustomGradientAppBar(title: const Text('Resume Consultation')),
+      body: SafeArea(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('clients')
+                .where('isSoftDeleted', isEqualTo: false)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(child: Text('No client records found.'));
+              }
 
-          final allClients = snapshot.data!.docs.map((doc) => ClientModel.fromFirestore(doc)).toList();
+              final allClients = snapshot.data!.docs.map((doc) => ClientModel.fromFirestore(doc)).toList();
 
-          // Separate clients into Active and Archived groups
-          final activeClients = allClients.where((c) => c.isArchived != true).toList();
-          final archivedClients = allClients.where((c) => c.isArchived == true).toList();
+              final activeClients = allClients.where((c) => c.isArchived != true).toList();
+              final archivedClients = allClients.where((c) => c.isArchived == true).toList();
 
+              return ListView(
+                // 🎯 FIX: Added bottom padding to prevent FAB overlap
+                padding: const EdgeInsets.only(bottom: 80),
+                children: [
+                  if (activeClients.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'Active Consultations (${activeClients.length})',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade700),
+                      ),
+                    ),
+                  ...activeClients.map((client) => _buildClientTile(client)).toList(),
 
-          return ListView(
-            children: [
-              // 1. ACTIVE CONSULTATIONS (Always expanded)
-              if (activeClients.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Active Consultations (${activeClients.length})',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade700),
+                  const Divider(),
+
+                  ExpansionTile(
+                    initiallyExpanded: _isArchiveExpanded,
+                    onExpansionChanged: (expanded) {
+                      setState(() {
+                        _isArchiveExpanded = expanded;
+                      });
+                    },
+                    leading: const Icon(Icons.archive, color: Colors.orange),
+                    title: Text(
+                      'Archived Patients (${archivedClients.length})',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade700),
+                    ),
+                    children: archivedClients.isEmpty
+                        ? [const Padding(padding: EdgeInsets.all(16.0), child: Text('No patients in archive.'))]
+                        : archivedClients.map((client) => _buildClientTile(client)).toList(),
                   ),
-                ),
-              ...activeClients.map((client) => _buildClientTile(client)).toList(),
-
-              const Divider(),
-
-              // 2. ARCHIVED CONSULTATIONS (Collapsed by default)
-              ExpansionTile(
-                initiallyExpanded: _isArchiveExpanded,
-                onExpansionChanged: (expanded) {
-                  setState(() {
-                    _isArchiveExpanded = expanded;
-                  });
-                },
-                leading: const Icon(Icons.archive, color: Colors.orange),
-                title: Text(
-                  'Archived Patients (${archivedClients.length})',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade700),
-                ),
-                children: archivedClients.isEmpty
-                    ? [const Padding(padding: EdgeInsets.all(16.0), child: Text('No patients in archive.'))]
-                    : archivedClients.map((client) => _buildClientTile(client)).toList(),
-              ),
-            ],
-          );
-        },
-      ),
+                ],
+              );
+            },
+          )),
 
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _startNewConsultation,

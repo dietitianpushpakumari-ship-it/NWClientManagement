@@ -9,6 +9,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 // 🎯 CORRECT IMPORTS for Model and Service
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/services/client_service.dart'; // Use the actual ClientService
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 // ----------------------------------------------------------------------------------
 // 🎯 ENUM DEFINITION (Kept from old structure)
@@ -587,18 +589,20 @@ class _ClientFormScreenState extends State<ClientFormScreen> {
       _buildSubmitButton(),
     ];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(titleText),
-      ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: sections,
+    return SafeArea(
+      child: Scaffold(
+        appBar: CustomGradientAppBar(
+          title: Text(titleText),
+        ),
+        body: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: sections,
+            ),
           ),
         ),
       ),

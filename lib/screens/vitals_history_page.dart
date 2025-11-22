@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 import 'package:nutricare_client_management/helper/lab_vitals_data.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
@@ -236,136 +237,137 @@ class _VitalsHistoryPageState extends State<VitalsHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Add vitals for ${widget.clientName}'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
+      appBar: CustomGradientAppBar(
+        title: Text('Vitals list'),
       ),
-      body: FutureBuilder<List<VitalsModel>>(
-        future: _vitalsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading data: ${snapshot.error}'));
-          }
-          // Sort by date descending (most recent first)
-          final vitalsHistory = snapshot.data ?? [];
-          vitalsHistory.sort((a, b) => b.date.compareTo(a.date));
+      body: SafeArea(
+        child: FutureBuilder<List<VitalsModel>>(
+          future: _vitalsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error loading data: ${snapshot.error}'));
+            }
+            // Sort by date descending (most recent first)
+            final vitalsHistory = snapshot.data ?? [];
+            vitalsHistory.sort((a, b) => b.date.compareTo(a.date));
 
-          if (vitalsHistory.isEmpty) {
-            return const Center(child: Text('No vitals records found. Tap "+" to add one.'));
-          }
+            if (vitalsHistory.isEmpty) {
+              return const Center(child: Text('No vitals records found. Tap "+" to add one.'));
+            }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(8.0),
-            itemCount: vitalsHistory.length,
-            itemBuilder: (context, index) {
-              final record = vitalsHistory[index];
-              final trendColor = _getStatusColor(record, vitalsHistory);
+            return ListView.builder(
+              padding: const EdgeInsets.all(8.0),
+              itemCount: vitalsHistory.length,
+              itemBuilder: (context, index) {
+                final record = vitalsHistory[index];
+                final trendColor = _getStatusColor(record, vitalsHistory);
 
-              return Card(
-                elevation: 4,
-                margin: const EdgeInsets.symmetric(vertical: 8.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: trendColor.withOpacity(0.5), width: 2),
-                ),
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.only(left: 16.0, right: 8.0),
-                  leading: CircleAvatar(
-                    backgroundColor: trendColor,
-                    child: Text(
-                      '${record.weightKg.toStringAsFixed(1)}',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
+                return Card(
+                  elevation: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: trendColor.withOpacity(0.5), width: 2),
                   ),
-                  title: Text(
-                    DateFormat.yMMMd().format(record.date),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  subtitle: Text(
-                    record.bodyFatPercentage > 0
-                        ? 'Weight: ${record.weightKg} kg, BFP: ${record.bodyFatPercentage}%'
-                        : 'Weight: ${record.weightKg} kg',
-                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-                  ),
-                  trailing: _buildRecordActions(record),
-                  children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // --- Physical Vitals (Simplified) ---
-                          _buildDetailRow('Weight', '${record.weightKg} kg', 'Physical Measurement', highlightColor: Colors.teal),
-                          if (record.bodyFatPercentage > 0)
-                            _buildDetailRow('Body Fat %', '${record.bodyFatPercentage}%', 'Physical Measurement', highlightColor: Colors.teal),
-
-                          // --- Lab Results Grouped by Profile ---
-                          if (record.labResults.isNotEmpty) ...[
-                            const Divider(height: 20),
-
-                            // Dynamic grouping and display of all lab results
-                            ...LabVitalsData.labTestGroups.entries.map((entry) {
-                              final groupName = entry.key;
-                              final testKeys = entry.value;
-
-                              // Filter to only include tests with results in the current record
-                              final testsWithResults = testKeys
-                                  .where((key) => record.labResults.containsKey(key) && record.labResults[key]!.isNotEmpty)
-                                  .toList();
-
-                              if (testsWithResults.isEmpty) return const SizedBox.shrink();
-
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 10.0, bottom: 8.0),
-                                    child: Text(
-                                        '--- $groupName ---',
-                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blueGrey.shade700)
-                                    ),
-                                  ),
-                                  ...testsWithResults.map((key) {
-                                    final test = LabVitalsData.allLabTests[key];
-                                    final value = record.labResults[key]!;
-                                    final reference = test?.referenceRange ?? 'N/A';
-                                    final unit = test?.unit ?? '';
-
-                                    return _buildDetailRow(
-                                      test?.displayName ?? key,
-                                      '$value $unit',
-                                      '$reference $unit',
-                                      // Color code based on range check
-                                      valueColor: _getLabValueColor(key, value, isMale: true),
-                                    );
-                                  }).toList(),
-                                ],
-                              );
-                            }).toList(),
-                          ],
-
-                          // --- Notes ---
-                          if (record.notes?.isNotEmpty == true) ...[
-                            const Divider(height: 20),
-                            _buildDetailRow('Notes', record.notes!, 'Comments'),
-                          ],
-
-                          if (record.labReportUrls.isNotEmpty)
-                            _buildDetailRow('Reports', 'View ${record.labReportUrls.length} files', 'Files'),
-                        ],
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.only(left: 16.0, right: 8.0),
+                    leading: CircleAvatar(
+                      backgroundColor: trendColor,
+                      child: Text(
+                        '${record.weightKg.toStringAsFixed(1)}',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                     ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
+                    title: Text(
+                      DateFormat.yMMMd().format(record.date),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    subtitle: Text(
+                      record.bodyFatPercentage > 0
+                          ? 'Weight: ${record.weightKg} kg, BFP: ${record.bodyFatPercentage}%'
+                          : 'Weight: ${record.weightKg} kg',
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                    ),
+                    trailing: _buildRecordActions(record),
+                    children: <Widget>[
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // --- Physical Vitals (Simplified) ---
+                            _buildDetailRow('Weight', '${record.weightKg} kg', 'Physical Measurement', highlightColor: Colors.teal),
+                            if (record.bodyFatPercentage > 0)
+                              _buildDetailRow('Body Fat %', '${record.bodyFatPercentage}%', 'Physical Measurement', highlightColor: Colors.teal),
+
+                            // --- Lab Results Grouped by Profile ---
+                            if (record.labResults.isNotEmpty) ...[
+                              const Divider(height: 20),
+
+                              // Dynamic grouping and display of all lab results
+                              ...LabVitalsData.labTestGroups.entries.map((entry) {
+                                final groupName = entry.key;
+                                final testKeys = entry.value;
+
+                                // Filter to only include tests with results in the current record
+                                final testsWithResults = testKeys
+                                    .where((key) => record.labResults.containsKey(key) && record.labResults[key]!.isNotEmpty)
+                                    .toList();
+
+                                if (testsWithResults.isEmpty) return const SizedBox.shrink();
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 10.0, bottom: 8.0),
+                                      child: Text(
+                                          '--- $groupName ---',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blueGrey.shade700)
+                                      ),
+                                    ),
+                                    ...testsWithResults.map((key) {
+                                      final test = LabVitalsData.allLabTests[key];
+                                      final value = record.labResults[key]!;
+                                      final reference = test?.referenceRange ?? 'N/A';
+                                      final unit = test?.unit ?? '';
+
+                                      return _buildDetailRow(
+                                        test?.displayName ?? key,
+                                        '$value $unit',
+                                        '$reference $unit',
+                                        // Color code based on range check
+                                        valueColor: _getLabValueColor(key, value, isMale: true),
+                                      );
+                                    }).toList(),
+                                  ],
+                                );
+                              }).toList(),
+                            ],
+
+                            // --- Notes ---
+                            if (record.notes?.isNotEmpty == true) ...[
+                              const Divider(height: 20),
+                              _buildDetailRow('Notes', record.notes!, 'Comments'),
+                            ],
+
+                            if (record.labReportUrls.isNotEmpty)
+                              _buildDetailRow('Reports', 'View ${record.labReportUrls.length} files', 'Files'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
 
       // --- FLOATING ACTION BUTTON (Create) ---
@@ -377,7 +379,7 @@ class _VitalsHistoryPageState extends State<VitalsHistoryPage> {
           ));
         },
         child: const Icon(Icons.add),
-        backgroundColor: Colors.indigo,
+        backgroundColor: colorScheme.secondary,
         tooltip: 'Add New Vitals Record',
       ),
     );

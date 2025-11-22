@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/screens/feature_config_form.dart';
 import '../helper/config_service.dart';
 import '../models/feature_config_model.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 class FeatureConfigMasterScreen extends StatelessWidget {
    FeatureConfigMasterScreen({super.key});
@@ -55,70 +57,71 @@ class FeatureConfigMasterScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Feature Configuration Master'),
-        backgroundColor: Colors.indigo,
-      ),
-      body: StreamBuilder<Map<String, List<FeatureConfigModel>>>(
-        // Stream grouped by SCOPE now
-        stream: _configService.streamAllFeatures(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading features: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No feature configurations found.'));
-          }
-
-          final groupedFeatures = snapshot.data!;
-          final scopes = groupedFeatures.keys.toList();
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16.0),
-            itemCount: scopes.length,
-            itemBuilder: (context, scopeIndex) {
-              final scope = scopes[scopeIndex];
-              final features = groupedFeatures[scope]!;
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // --- Scope Header ---
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
-                    child: Text(
-                      '${scope.toUpperCase()} SCOPE FEATURES',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: scope == 'global' ? Colors.purple : Colors.teal,
+    return SafeArea(
+      child: Scaffold(
+        appBar: CustomGradientAppBar(
+          title: const Text('Feature Configuration Master'),
+        ),
+        body: StreamBuilder<Map<String, List<FeatureConfigModel>>>(
+          // Stream grouped by SCOPE now
+          stream: _configService.streamAllFeatures(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error loading features: ${snapshot.error}'));
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No feature configurations found.'));
+            }
+      
+            final groupedFeatures = snapshot.data!;
+            final scopes = groupedFeatures.keys.toList();
+      
+            return ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: scopes.length,
+              itemBuilder: (context, scopeIndex) {
+                final scope = scopes[scopeIndex];
+                final features = groupedFeatures[scope]!;
+      
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- Scope Header ---
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+                      child: Text(
+                        '${scope.toUpperCase()} SCOPE FEATURES',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: scope == 'global' ? Colors.purple : Colors.teal,
+                        ),
                       ),
                     ),
-                  ),
-                  const Divider(height: 1),
-
-                  // --- Feature List ---
-                  ...features.map((feature) {
-                    return _buildFeatureListTile(context, feature);
-                  }).toList(),
-
-                  if (scopeIndex < scopes.length - 1)
-                    const SizedBox(height: 16),
-                ],
-              );
-            },
-          );
-        },
-      ),
-      // Floating Action Button for Adding New Feature
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showFeatureForm(context),
-        backgroundColor: Colors.indigo,
-        child: const Icon(Icons.add, color: Colors.white),
+                    const Divider(height: 1),
+      
+                    // --- Feature List ---
+                    ...features.map((feature) {
+                      return _buildFeatureListTile(context, feature);
+                    }).toList(),
+      
+                    if (scopeIndex < scopes.length - 1)
+                      const SizedBox(height: 16),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+        // Floating Action Button for Adding New Feature
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => _showFeatureForm(context),
+          backgroundColor: Colors.indigo,
+          child: const Icon(Icons.add, color: Colors.white),
+        ),
       ),
     );
   }

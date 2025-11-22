@@ -10,6 +10,7 @@ import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:nutricare_client_management/admin/schedule_meeting_utils.dart'; // Contains MeetingModel & MeetingStatus
 import '../modules/client/model/client_model.dart';
 import '../modules/client/services/client_service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 
 // ----------------------------------------------------------------------------------
@@ -679,12 +680,11 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> {
   Widget build(BuildContext context) {
     // 🎯 FIX 1: Capture screen height for a dynamic safety buffer
     final double screenHeight = MediaQuery.of(context).size.height;
-
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('All Scheduled Meetings'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
+
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -693,50 +693,52 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> {
         ],
       ),
       // Use the main _isLoading flag only for the initial screen state
-      body: _isLoading && _allMeetings.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        // ❌ Removed fixed padding from here.
-        child: Padding(
-          padding: const EdgeInsets.all(16.0), // 🎯 FIX 2: Apply padding to the inner widget
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- Active (Upcoming) ---
-              _buildMeetingGroup(
+      body: SafeArea(
+        child: _isLoading && _allMeetings.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+          // ❌ Removed fixed padding from here.
+          child: Padding(
+            padding: const EdgeInsets.all(16.0), // 🎯 FIX 2: Apply padding to the inner widget
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- Active (Upcoming) ---
+                _buildMeetingGroup(
+                    context,
+                    'Active / Upcoming Calls',
+                    upcomingMeetings,
+                    color: Colors.green.shade700,
+                    isExpanded: true
+                ),
+
+                const Divider(),
+
+                // --- Missed Calls ---
+                _buildMeetingGroup(
+                    context,
+                    'Missed Calls (Action Required)',
+                    missedMeetings,
+                    color: Colors.red.shade700,
+                    isExpanded: missedMeetings.isNotEmpty
+                ),
+
+               const Divider(),
+
+                // --- Archive (Completed & Cancelled) ---
+                _buildMeetingGroup(
                   context,
-                  'Active / Upcoming Calls',
-                  upcomingMeetings,
-                  color: Colors.green.shade700,
-                  isExpanded: true
-              ),
+                  'Archive (Completed & Cancelled)',
+                  archivedMeetings,
+                  color: Colors.orange.shade700,
+                  isExpanded: false,
+                  showPagination: true, // ⬅️ Enable pagination UI here
+                ),
 
-              const Divider(),
-
-              // --- Missed Calls ---
-              _buildMeetingGroup(
-                  context,
-                  'Missed Calls (Action Required)',
-                  missedMeetings,
-                  color: Colors.red.shade700,
-                  isExpanded: missedMeetings.isNotEmpty
-              ),
-
-             const Divider(),
-
-              // --- Archive (Completed & Cancelled) ---
-              _buildMeetingGroup(
-                context,
-                'Archive (Completed & Cancelled)',
-                archivedMeetings,
-                color: Colors.orange.shade700,
-                isExpanded: false,
-                showPagination: true, // ⬅️ Enable pagination UI here
-              ),
-
-              // 🎯 FIX 3: Add dynamic safety buffer at the bottom (4% of screen height)
-              SizedBox(height: screenHeight * 0.04),
-            ],
+                // 🎯 FIX 3: Add dynamic safety buffer at the bottom (4% of screen height)
+                SizedBox(height: screenHeight * 0.04),
+              ],
+            ),
           ),
         ),
       ),

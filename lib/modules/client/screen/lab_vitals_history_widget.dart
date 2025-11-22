@@ -77,106 +77,108 @@ class LabVitalsHistoryWidget extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: vitalsWithData.length,
-      itemBuilder: (context, index) {
-        final vital = vitalsWithData[index];
-        final formattedDate = DateFormat.yMMMd().format(vital.date);
-
-        // --- Clinical Summary Extraction ---
-        // Assuming chronic medical history, complaint, and medication/allergies
-        // are stored in the notes or otherLifestyleHabits map.
-        final medication = vital.otherLifestyleHabits?['medication'];
-        final allergies = vital.otherLifestyleHabits?['allergies'];
-        // Using 'notes' for general medical history/complaint
-        final clinicalNotes = vital.notes;
-
-        // Convert lab results into a list of [TestName, Result, Unit, ReferenceRange]
-        final labRows = vital.labResults.entries.map((entry) {
-          final testKey = entry.key;
-          final resultValue = entry.value;
-          final testDetails = allLabTests[testKey];
-
-          return [
-            testDetails?.displayName ?? testKey.toUpperCase(),
-            resultValue,
-            testDetails?.unit ?? '',
-            testDetails?.referenceRange ?? 'N/A',
-          ];
-        }).toList();
-
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 8.0),
-          child: ExpansionTile(
-            title: Text(
-              'Vitals Record - $formattedDate',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text('Weight: ${vital.weightKg} kg | Labs: ${labRows.length}'),
-            children: [
-              // 🎯 NEW SECTION: Clinical Summary
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Clinical Summary',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo),
-                    ),
-                    const Divider(height: 10),
-                    _buildClinicalDetailRow('Med. History/Notes', clinicalNotes),
-                    _buildClinicalDetailRow('Existing Medication', medication),
-                    _buildClinicalDetailRow('Allergies', allergies),
-
-                    if (labRows.isNotEmpty) const SizedBox(height: 16),
-                    if (labRows.isNotEmpty)
+    return SafeArea(
+      child: ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: vitalsWithData.length,
+        itemBuilder: (context, index) {
+          final vital = vitalsWithData[index];
+          final formattedDate = DateFormat.yMMMd().format(vital.date);
+      
+          // --- Clinical Summary Extraction ---
+          // Assuming chronic medical history, complaint, and medication/allergies
+          // are stored in the notes or otherLifestyleHabits map.
+          final medication = vital.otherLifestyleHabits?['medication'];
+          final allergies = vital.otherLifestyleHabits?['allergies'];
+          // Using 'notes' for general medical history/complaint
+          final clinicalNotes = vital.notes;
+      
+          // Convert lab results into a list of [TestName, Result, Unit, ReferenceRange]
+          final labRows = vital.labResults.entries.map((entry) {
+            final testKey = entry.key;
+            final resultValue = entry.value;
+            final testDetails = allLabTests[testKey];
+      
+            return [
+              testDetails?.displayName ?? testKey.toUpperCase(),
+              resultValue,
+              testDetails?.unit ?? '',
+              testDetails?.referenceRange ?? 'N/A',
+            ];
+          }).toList();
+      
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 8.0),
+            child: ExpansionTile(
+              title: Text(
+                'Vitals Record - $formattedDate',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text('Weight: ${vital.weightKg} kg | Labs: ${labRows.length}'),
+              children: [
+                // 🎯 NEW SECTION: Clinical Summary
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       const Text(
-                        'Lab Results',
+                        'Clinical Summary',
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo),
                       ),
-
-                    // --- Lab Results Table ---
-                    if (labRows.isNotEmpty)
-                      Table(
-                        border: TableBorder.all(color: Colors.grey.shade300),
-                        columnWidths: const {
-                          0: FlexColumnWidth(3),
-                          1: FlexColumnWidth(2),
-                          2: FlexColumnWidth(1.5),
-                          3: FlexColumnWidth(3),
-                        },
-                        children: [
-                          // Header Row
-                          TableRow(
-                            decoration: BoxDecoration(color: Colors.grey.shade100),
-                            children: const [
-                              Padding(padding: EdgeInsets.all(8.0), child: Text('Test', style: TextStyle(fontWeight: FontWeight.bold))),
-                              Padding(padding: EdgeInsets.all(8.0), child: Text('Result', style: TextStyle(fontWeight: FontWeight.bold))),
-                              Padding(padding: EdgeInsets.all(8.0), child: Text('Unit', style: TextStyle(fontWeight: FontWeight.bold))),
-                              Padding(padding: EdgeInsets.all(8.0), child: Text('Ref. Range', style: TextStyle(fontWeight: FontWeight.bold))),
-                            ],
-                          ),
-                          // Data Rows
-                          ...labRows.map((row) => TableRow(
-                            children: [
-                              Padding(padding: const EdgeInsets.all(8.0), child: Text(row[0], style: const TextStyle(fontSize: 13))),
-                              Padding(padding: const EdgeInsets.all(8.0), child: Text(row[1], style: const TextStyle(fontSize: 13))),
-                              Padding(padding: const EdgeInsets.all(8.0), child: Text(row[2], style: const TextStyle(fontSize: 13))),
-                              Padding(padding: const EdgeInsets.all(8.0), child: Text(row[3], style: const TextStyle(fontSize: 13))),
-                            ],
-                          )).toList(),
-                        ],
-                      ),
-                  ],
+                      const Divider(height: 10),
+                      _buildClinicalDetailRow('Med. History/Notes', clinicalNotes),
+                      _buildClinicalDetailRow('Existing Medication', medication),
+                      _buildClinicalDetailRow('Allergies', allergies),
+      
+                      if (labRows.isNotEmpty) const SizedBox(height: 16),
+                      if (labRows.isNotEmpty)
+                        const Text(
+                          'Lab Results',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo),
+                        ),
+      
+                      // --- Lab Results Table ---
+                      if (labRows.isNotEmpty)
+                        Table(
+                          border: TableBorder.all(color: Colors.grey.shade300),
+                          columnWidths: const {
+                            0: FlexColumnWidth(3),
+                            1: FlexColumnWidth(2),
+                            2: FlexColumnWidth(1.5),
+                            3: FlexColumnWidth(3),
+                          },
+                          children: [
+                            // Header Row
+                            TableRow(
+                              decoration: BoxDecoration(color: Colors.grey.shade100),
+                              children: const [
+                                Padding(padding: EdgeInsets.all(8.0), child: Text('Test', style: TextStyle(fontWeight: FontWeight.bold))),
+                                Padding(padding: EdgeInsets.all(8.0), child: Text('Result', style: TextStyle(fontWeight: FontWeight.bold))),
+                                Padding(padding: EdgeInsets.all(8.0), child: Text('Unit', style: TextStyle(fontWeight: FontWeight.bold))),
+                                Padding(padding: EdgeInsets.all(8.0), child: Text('Ref. Range', style: TextStyle(fontWeight: FontWeight.bold))),
+                              ],
+                            ),
+                            // Data Rows
+                            ...labRows.map((row) => TableRow(
+                              children: [
+                                Padding(padding: const EdgeInsets.all(8.0), child: Text(row[0], style: const TextStyle(fontSize: 13))),
+                                Padding(padding: const EdgeInsets.all(8.0), child: Text(row[1], style: const TextStyle(fontSize: 13))),
+                                Padding(padding: const EdgeInsets.all(8.0), child: Text(row[2], style: const TextStyle(fontSize: 13))),
+                                Padding(padding: const EdgeInsets.all(8.0), child: Text(row[3], style: const TextStyle(fontSize: 13))),
+                              ],
+                            )).toList(),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/models/feature_config_model.dart';
 import 'package:nutricare_client_management/helper/config_service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 
 class ModuleFeatureScreen extends StatelessWidget {
@@ -10,64 +12,65 @@ class ModuleFeatureScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ConfigService configService = ConfigService();
-
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Module Feature Toggles'),
-        backgroundColor: Colors.blueGrey.shade700,
       ),
-      body: StreamBuilder<Map<String, List<FeatureConfigModel>>>(
-        stream: configService.streamAllFeatures(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading features: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No feature modules defined.'));
-          }
+      body: SafeArea(
+        child: StreamBuilder<Map<String, List<FeatureConfigModel>>>(
+          stream: configService.streamAllFeatures(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error loading features: ${snapshot.error}'));
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No feature modules defined.'));
+            }
 
-          final groupedFeatures = snapshot.data!;
-          final sections = groupedFeatures.keys.toList();
+            final groupedFeatures = snapshot.data!;
+            final sections = groupedFeatures.keys.toList();
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16.0),
-            itemCount: sections.length,
-            itemBuilder: (context, sectionIndex) {
-              final section = sections[sectionIndex];
-              final features = groupedFeatures[section]!;
+            return ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: sections.length,
+              itemBuilder: (context, sectionIndex) {
+                final section = sections[sectionIndex];
+                final features = groupedFeatures[section]!;
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // --- Section Header ---
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
-                    child: Text(
-                      section,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- Section Header ---
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+                      child: Text(
+                        section,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).primaryColor,
+                        ),
                       ),
                     ),
-                  ),
-                  const Divider(height: 1),
+                    const Divider(height: 1),
 
-                  // --- Feature List ---
-                  ...features.map((feature) {
-                    return _buildFeatureTile(service: configService, feature: feature, context: context);
-                  }).toList(),
+                    // --- Feature List ---
+                    ...features.map((feature) {
+                      return _buildFeatureTile(service: configService, feature: feature, context: context);
+                    }).toList(),
 
-                  if (sectionIndex < sections.length - 1)
-                    const SizedBox(height: 16),
-                ],
-              );
-            },
-          );
-        },
+                    if (sectionIndex < sections.length - 1)
+                      const SizedBox(height: 16),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

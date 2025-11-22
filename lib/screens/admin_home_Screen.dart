@@ -256,10 +256,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     if (_selectedIndex == 1) title = 'General Settings';
     if (_selectedIndex == 2) title = 'App Configuration';
 
-    return Scaffold(
-
-      drawer: _buildDrawer(context),
-      body: _pagesContent[_selectedIndex],
+    return SafeArea(
+      child: Scaffold(
+      
+        drawer: _buildDrawer(context),
+        body: _pagesContent[_selectedIndex],
+      ),
     );
   }
 }

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/meal_planner/screen/InvestigationMasterScreen.dart' show InvestigationMasterScreen;
+import 'package:nutricare_client_management/meal_planner/screen/InvestigationMasterScreen.dart';
 import 'package:nutricare_client_management/meal_planner/screen/dash/diet_plan_master_dashboard.dart';
 import 'package:nutricare_client_management/meal_planner/screen/disease_master_list_screen.dart';
 import 'package:nutricare_client_management/meal_planner/screen/guideline_list_page.dart';
-import 'package:nutricare_client_management/modules/client/screen/supplementation_master_screen.dart' show SupplementationMasterScreen;
+import 'package:nutricare_client_management/modules/client/screen/supplementation_master_screen.dart';
 import 'package:nutricare_client_management/modules/master/screen/diagonosis_master_screen.dart';
-import 'package:nutricare_client_management/modules/master/screen/master_diet_plan_list_screen.dart' show MasterDietPlanListScreen;
+import 'package:nutricare_client_management/modules/master/screen/master_diet_plan_list_screen.dart';
 import 'package:nutricare_client_management/screens/package_list_page.dart';
 import 'package:nutricare_client_management/screens/program_feature_master_screen.dart';
-
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class MasterSetupPage extends StatefulWidget {
   const MasterSetupPage({super.key});
@@ -23,239 +23,272 @@ class _MasterSetupPageState extends State<MasterSetupPage> {
   bool _isDietPlannerExpanded = true;
   bool _isLabVitalsExpanded = true;
 
-  // Helper method to navigate to a module
   void _navigateToModule(BuildContext context, Widget page) {
     Navigator.of(context).push(MaterialPageRoute(builder: (c) => page));
   }
 
-  // Helper to build a standard module tile item with background
-  Widget _buildModuleTile({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 1, horizontal: 0),
-      // 🎯 List Item Background: Light Grey
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100, // Slightly darker than the header
-        border: Border.all(color: Colors.grey.shade200, width: 0.5),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.only(left: 30, right: 16), // Indent content for hierarchy
-        leading: Icon(icon, color: color),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  // REVISED: Helper to build a collapsible section with clear header separation
-  Widget _buildCollapsibleSection({
-    required String title,
-    required String subtitle,
-    required bool isExpanded,
-    required ValueChanged<bool> onExpansionChanged,
-    required List<Widget> children,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 1. PRIMARY HEADER (Visually distinct with background color)
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.only(top: 24.0, bottom: 12.0, left: 16, right: 16),
-          color: Colors.blueGrey.shade50,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.blueGrey.shade800,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-              const Divider(height: 16, thickness: 1.5),
-            ],
-          ),
-        ),
-
-        // 2. EXPANSION TILE CONTAINER (The collapsible list)
-        Container(
-          // 🎯 Expansion Tile Header Background: White
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.2),
-                spreadRadius: 0,
-                blurRadius: 5,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          margin: const EdgeInsets.only(bottom: 16, top: 0, left: 16, right: 16),
-          child: ExpansionTile(
-            initiallyExpanded: isExpanded,
-            onExpansionChanged: onExpansionChanged,
-            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-
-            // Icon and title for the collapsible action
-            leading: Icon(icon, color: color),
-            title: Text(
-              '${title} Modules',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.blueGrey.shade700,
-              ),
-            ),
-            // The children here will use the slightly darker background defined in _buildModuleTile
-            children: children,
-          ),
-        ),
-      ],
-    );
-  }
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Setup & Configuration'),
-        backgroundColor: Colors.blueGrey,
-        foregroundColor: Colors.white,
+      backgroundColor: Colors.grey.shade50, // Soft background
+      appBar: CustomGradientAppBar(
+        title: const Text('Setup & Configuration'),
       ),
-      // Set a general background for the screen
-      body: SafeArea(child: Container(
-        color: Colors.grey.shade100,
+      body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.only(top: 0),
+          padding: const EdgeInsets.all(16.0),
           children: <Widget>[
-
-            // =======================================================
-            // SECTION 1: PACKAGE PLANNER (COLLAPSIBLE)
-            // =======================================================
-            _buildCollapsibleSection(
+            // --- SECTION 1: PACKAGE PLANNER ---
+            _buildSectionCard(
+              context,
               title: 'Package Planner',
-              subtitle: 'Manage master data for package creations and features.',
-              icon: Icons.inventory_2,
-              color: Colors.purple,
+              subtitle: 'Manage packages & features',
+              icon: Icons.inventory_2_rounded,
+              color: Colors.deepPurple,
               isExpanded: _isPackagePlannerExpanded,
-              onExpansionChanged: (expanded) => setState(() => _isPackagePlannerExpanded = expanded),
+              onExpansionChanged: (val) => setState(() => _isPackagePlannerExpanded = val),
               children: [
-                _buildModuleTile(
-                  icon: Icons.star,
-                  color: Colors.red,
-                  title: 'Program Features Master',
-                  subtitle: 'Create and manage reusable program features.',
+                _buildModuleItem(
+                  context,
+                  title: 'Program Features',
+                  subtitle: 'Define reusable features',
+                  icon: Icons.star_rounded,
+                  color: Colors.amber.shade700,
                   onTap: () => _navigateToModule(context, const ProgramFeatureMasterScreen()),
                 ),
-                _buildModuleTile(
-                  icon: Icons.inventory_2_outlined,
-                  color: Colors.purple,
-                  title: 'Service Packages Master',
-                  subtitle: 'Create, edit, and deactivate subscription packages.',
+                _buildModuleItem(
+                  context,
+                  title: 'Service Packages',
+                  subtitle: 'Create subscription plans',
+                  icon: Icons.card_giftcard_rounded,
+                  color: Colors.purple.shade700,
                   onTap: () => _navigateToModule(context, const PackageListPage()),
                 ),
               ],
             ),
 
-            // =======================================================
-            // SECTION 2: DIET PLANNER SETUP (COLLAPSIBLE)
-            // =======================================================
-            _buildCollapsibleSection(
+            const SizedBox(height: 20),
+
+            // --- SECTION 2: DIET PLANNER SETUP ---
+            _buildSectionCard(
+              context,
               title: 'Diet Planner Setup',
-              subtitle: 'Configure food items, and common diet template components.',
-              icon: Icons.fastfood,
+              subtitle: 'Configure food items & templates',
+              icon: Icons.restaurant_menu_rounded,
               color: Colors.green,
               isExpanded: _isDietPlannerExpanded,
-              onExpansionChanged: (expanded) => setState(() => _isDietPlannerExpanded = expanded),
+              onExpansionChanged: (val) => setState(() => _isDietPlannerExpanded = val),
               children: [
-                _buildModuleTile(
-                  icon: Icons.format_list_bulleted,
-                  color: Colors.indigo,
+                _buildModuleItem(
+                  context,
                   title: 'Diet Plan Master Builder',
-                  subtitle: 'Access the master data to create reusable diet plans.',
+                  subtitle: 'Setup base data (Foods, Meals)',
+                  icon: Icons.build_circle_rounded,
+                  color: Colors.indigo,
                   onTap: () => _navigateToModule(context, const DietPlanMasterPage()),
                 ),
-                _buildModuleTile(
-                  icon: Icons.restaurant_menu,
-                  color: Colors.green,
-                  title: 'Meal Template',
-                  subtitle: 'Manage Meal Template (List of master plans).',
+                _buildModuleItem(
+                  context,
+                  title: 'Meal Templates',
+                  subtitle: 'Create reusable plan templates',
+                  icon: Icons.copy_all_rounded,
+                  color: Colors.teal,
                   onTap: () => _navigateToModule(context, const MasterDietPlanListScreen()),
                 ),
               ],
             ),
 
-            // =======================================================
-            // SECTION 3: LAB VITALS & MEDICAL (COLLAPSIBLE)
-            // =======================================================
-            _buildCollapsibleSection(
+            const SizedBox(height: 20),
+
+            // --- SECTION 3: LAB VITALS & MEDICAL ---
+            _buildSectionCard(
+              context,
               title: 'Lab Vitals & Medical',
-              subtitle: 'Manage master lists for Diagnosis, Investigations, and Supplements.',
-              icon: Icons.local_hospital,
-              color: Colors.red.shade700,
+              subtitle: 'Diagnosis, Labs & Supplements',
+              icon: Icons.medical_services_rounded,
+              color: Colors.redAccent,
               isExpanded: _isLabVitalsExpanded,
-              onExpansionChanged: (expanded) => setState(() => _isLabVitalsExpanded = expanded),
+              onExpansionChanged: (val) => setState(() => _isLabVitalsExpanded = val),
               children: [
-                _buildModuleTile(
-                  icon: Icons.medical_services,
-                  color: Colors.blue,
-                  title: 'Diagnosis',
-                  subtitle: 'Manage the master diagnosis list.',
-                  onTap: () => _navigateToModule(context, DiagnosisListPage()),
+                _buildModuleItem(
+                  context,
+                  title: 'Diagnosis Master',
+                  subtitle: 'Manage clinical diagnoses',
+                  icon: Icons.local_hospital_rounded,
+                  color: Colors.red,
+                  onTap: () => _navigateToModule(context, const DiagnosisListPage()),
                 ),
-                _buildModuleTile(
-                  icon: Icons.rule,
-                  color: Colors.blue,
-                  title: 'Guidelines',
-                  subtitle: 'Manage the master list of global guidelines.',
-                  onTap: () => _navigateToModule(context, GuidelineListPage()),
-                ),
-                _buildModuleTile(
-                  icon: Icons.science,
-                  color: Colors.blue,
+                _buildModuleItem(
+                  context,
                   title: 'Investigations',
-                  subtitle: 'Manage the master list of lab investigation names.',
-                  onTap: () => _navigateToModule(context, InvestigationMasterScreen()),
-                ),
-                _buildModuleTile(
-                  icon: Icons.medication_liquid,
+                  subtitle: 'Lab tests & panels',
+                  icon: Icons.science_rounded,
                   color: Colors.blue,
+                  onTap: () => _navigateToModule(context, const InvestigationMasterScreen()),
+                ),
+                _buildModuleItem(
+                  context,
                   title: 'Supplementation',
-                  subtitle: 'Manage the master list of supplements.',
-                  onTap: () => _navigateToModule(context, SupplementationMasterScreen()),
+                  subtitle: 'Vitamins & Supplements list',
+                  icon: Icons.medication_rounded,
+                  color: Colors.orange,
+                  onTap: () => _navigateToModule(context, const SupplementationMasterScreen()),
                 ),
-                _buildModuleTile(
-                  icon: Icons.masks,
-                  color: Colors.blue,
-                  title: 'Disease',
-                  subtitle: 'Manage the master list of diseases/conditions.',
-                  onTap: () => _navigateToModule(context, DiseaseMasterListScreen()),
+                _buildModuleItem(
+                  context,
+                  title: 'Guidelines',
+                  subtitle: 'Global diet guidelines',
+                  icon: Icons.rule_rounded,
+                  color: Colors.blueGrey,
+                  onTap: () => _navigateToModule(context, const GuidelineListPage()),
+                ),
+                _buildModuleItem(
+                  context,
+                  title: 'Disease Conditions',
+                  subtitle: 'Manage disease master list',
+                  icon: Icons.coronavirus_rounded, // Or Icons.sick
+                  color: Colors.deepOrange,
+                  onTap: () => _navigateToModule(context, const DiseaseMasterListScreen()),
                 ),
               ],
             ),
-            const SizedBox(height: 30),
+
+            // Bottom Spacing
+            const SizedBox(height: 40),
           ],
         ),
-      ),),
+      ),
+    );
+  }
+
+  // --- 1. Section Card Widget ---
+  Widget _buildSectionCard(
+      BuildContext context, {
+        required String title,
+        required String subtitle,
+        required IconData icon,
+        required Color color,
+        required bool isExpanded,
+        required ValueChanged<bool> onExpansionChanged,
+        required List<Widget> children,
+      }) {
+    return Card(
+      elevation: 4,
+      shadowColor: color.withOpacity(0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        // Remove default divider lines from ExpansionTile
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: isExpanded,
+          onExpansionChanged: onExpansionChanged,
+          backgroundColor: Colors.white,
+          collapsedBackgroundColor: Colors.white,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+
+          // Header Icon
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+
+          // Header Text
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.blueGrey.shade800,
+            ),
+          ),
+          subtitle: Text(
+            subtitle,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          ),
+
+          // Custom Arrow
+          trailing: AnimatedRotation(
+            turns: isExpanded ? 0.5 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade400, size: 28),
+          ),
+
+          // Module Items
+          children: [
+            // A subtle separator line
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Divider(height: 1, color: Colors.grey.shade100),
+            ),
+            ...children,
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- 2. Module Item Widget ---
+  Widget _buildModuleItem(
+      BuildContext context, {
+        required String title,
+        required String subtitle,
+        required IconData icon,
+        required Color color,
+        required VoidCallback onTap,
+      }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            // Smaller icon container for items
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 22, color: color),
+            ),
+            const SizedBox(width: 16),
+
+            // Text Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Arrow
+            Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey.shade300),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -6,6 +6,8 @@ import 'package:nutricare_client_management/modules/master/service/diagonosis_ma
 import 'package:provider/provider.dart';
 
 import '../model/diagonosis_master.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 
 
@@ -109,15 +111,14 @@ class _DiagnosisEntryPageState extends State<DiagnosisEntryPage> {
   @override
   Widget build(BuildContext context) {
     final bool isEdit = widget.diagnosisToEdit != null;
-
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: Text(isEdit ? 'Edit Diagnoses' : 'Add New Diagnoses'),
-        backgroundColor: Colors.teal,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
-        child: Form(
+        child: SafeArea(child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,13 +184,13 @@ class _DiagnosisEntryPageState extends State<DiagnosisEntryPage> {
                 label: Text(isEdit ? 'Update Diagnosis' : 'Save Diagnosis'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: Colors.teal,
+                  backgroundColor: colorScheme.primary,
                   foregroundColor: Colors.white,
                 ),
               ),
             ],
           ),
-        ),
+        ),)
       ),
     );
   }

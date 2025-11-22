@@ -36,40 +36,42 @@ class PackageStatusCard extends StatelessWidget {
   // --- Widget Builders ---
 
   Widget _buildNoPackageWidget(BuildContext context) {
-    return Card(
-      elevation: 4,
-      color: Colors.red.shade50,
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      child: InkWell(
-        onTap: onAssignTap, // Action to assign a package
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'No Active Package Assigned',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red.shade900,
+    return SafeArea(
+      child: Card(
+        elevation: 4,
+        color: Colors.red.shade50,
+        margin: const EdgeInsets.symmetric(vertical: 10),
+        child: InkWell(
+          onTap: onAssignTap, // Action to assign a package
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No Active Package Assigned',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red.shade900,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Tap here or click the button to assign a new package.',
-                style: TextStyle(color: Colors.red),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: onAssignTap,
-                icon: const Icon(Icons.add_circle_outline),
-                label: const Text('Assign First Package'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red.shade600,
-                  side: BorderSide(color: Colors.red.shade200),
+                const SizedBox(height: 8),
+                const Text(
+                  'Tap here or click the button to assign a new package.',
+                  style: TextStyle(color: Colors.red),
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: onAssignTap,
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Assign First Package'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red.shade600,
+                    side: BorderSide(color: Colors.red.shade200),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -82,7 +84,7 @@ class PackageStatusCard extends StatelessWidget {
     // Currency formatter for Indian Rupees
     final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
-    return Column(
+    return SafeArea(child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
@@ -173,7 +175,7 @@ class PackageStatusCard extends StatelessWidget {
         ),
         const SizedBox(height: 10),
       ],
-    );
+    ));
   }
 
   Widget _buildCategoryBadge(String category) {

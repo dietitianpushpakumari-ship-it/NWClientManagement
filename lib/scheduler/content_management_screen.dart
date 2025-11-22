@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/scheduler/content_service.dart';
 import 'package:nutricare_client_management/scheduler/dieititan_content_model.dart';
 
-import 'disease_tag.dart';
+import 'disease_tag.dart';import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
+
 
 
 class ContentManagementScreen extends StatefulWidget {
@@ -98,11 +100,10 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: Text(_isEditMode ? 'Edit Content' : 'Create New Content'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
       ),
       body: SafeArea(child: Form(
         key: _formKey,

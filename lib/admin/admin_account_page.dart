@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // 🎯 ADJUST THESE IMPORTS TO YOUR PROJECT STRUCTURE
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
 import 'package:nutricare_client_management/admin/admin_profile_service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 // ----------------------------------------------------------------------
 // --- MAIN WIDGET ---
@@ -40,34 +41,35 @@ class _AdminAccountPageState extends State<AdminAccountPage> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     // 🛑 HANDLER FOR NULL USER: Cannot proceed without a logged-in user.
     if (_currentUser == null) {
       return Scaffold(
-        appBar: AppBar(
+        appBar: CustomGradientAppBar(
           title: const Text('Account & Settings'),
-          backgroundColor: Colors.indigo.shade700,
-          foregroundColor: Colors.white,
         ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.lock_person, size: 80, color: Colors.redAccent),
-                const SizedBox(height: 20),
-                const Text(
-                  'Authentication Required',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Your current session is invalid or you are not logged in. Please restart the app or log in. UID: $_adminUid (Fallback)',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, color: Colors.grey),
-                ),
-              ],
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.lock_person, size: 80, color: Colors.redAccent),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Authentication Required',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Your current session is invalid or you are not logged in. Please restart the app or log in. UID: $_adminUid (Fallback)',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -77,11 +79,8 @@ class _AdminAccountPageState extends State<AdminAccountPage> with SingleTickerPr
     // --- User is signed in ---
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Admin Profile & Settings'),
-        backgroundColor: Colors.indigo.shade700,
-        foregroundColor: Colors.white,
-        elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,

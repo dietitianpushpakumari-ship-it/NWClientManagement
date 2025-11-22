@@ -13,6 +13,8 @@ import 'package:nutricare_client_management/modules/master/service/master_meal_n
 import 'dart:math';
 
 import '../model/diet_plan_item_model.dart' hide MasterMealName, DietPlanCategory;
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 
 class MasterDietPlanEntryPage extends StatefulWidget {
@@ -360,7 +362,7 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
       child: ElevatedButton.icon(
         onPressed: _savePlan,
         icon: const Icon(Icons.save),
-        label: const Text('Save Complete Master Diet Plan'),
+        label: const Text('Save Template'),
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(double.infinity, 55),
           backgroundColor: Colors.indigo,
@@ -375,67 +377,71 @@ class _MasterDietPlanEntryPageState extends State<MasterDietPlanEntryPage> with 
   // --- MAIN WIDGET BUILD ---
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('New Master Diet Plan Template')),
-      body: FutureBuilder(
-        future: _initialDataFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done){
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError || _currentPlan.days.isEmpty || _allFoodItems.isEmpty) {
-            return Center(child: Text('Error loading data: ${snapshot.error ?? 'Missing Food Items/Meals'}'));
-          }
+      appBar: CustomGradientAppBar(title: const Text('New Template'),
+      ),
+      body: SafeArea(
+        child: FutureBuilder(
+          future: _initialDataFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done){
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError || _currentPlan.days.isEmpty || _allFoodItems.isEmpty) {
+              return Center(child: Text('Error loading data: ${snapshot.error ?? 'Missing Food Items/Meals'}'));
+            }
 
-          final meals = _currentPlan.days.first.meals;
+            final meals = _currentPlan.days.first.meals;
 
-          // Check if controller is null (shouldn't happen here if data loaded, but for safety)
-          if (_tabController == null) {
-            return const Center(child: Text('Tab Controller initialization failed.'));
-          }
+            // Check if controller is null (shouldn't happen here if data loaded, but for safety)
+            if (_tabController == null) {
+              return const Center(child: Text('Tab Controller initialization failed.'));
+            }
 
-          return Column(
-            children: [
-              // 1. Template Form
-              _buildMasterPlanDetailsForm(),
+            return Column(
+              children: [
+                // 1. Template Form
+                _buildMasterPlanDetailsForm(),
 
-              // 2. Meal Tabs (Breakfast, Lunch, Dinner, etc.)
-              Material(
-                elevation: 2,
-                child: meals.isEmpty ? null : TabBar(
-                  // Use the null-checked controller
-                  controller: _tabController!,
-                  isScrollable: true,
-                  labelColor: Colors.indigo,
-                  unselectedLabelColor: Colors.grey,
-                  tabs: meals.map((m) => Tab(text: m.mealName)).toList(),
-                ),
-              ),
-
-              // 3. Tab Content (List of Food Items for the selected meal)
-            //  if(meals.isNotEmpty)
-                Expanded(
-                  child: TabBarView(
+                // 2. Meal Tabs (Breakfast, Lunch, Dinner, etc.)
+                Material(
+                  elevation: 2,
+                  child: meals.isEmpty ? null : TabBar(
                     // Use the null-checked controller
                     controller: _tabController!,
-                    children: meals.map((meal) =>
-                        MealEntryList(
-                          meal: meal,
-                          allFoodItems: _allFoodItems,
-                          addItemToMeal: _addItemToMeal,
-                          addAlternativeToItem: _addAlternativeToItem,
-                          removeAlternativeFromItem: _removeAlternativeFromItem,
-                          removeItemFromMeal: _removeItemFromMeal,
-                        )).toList(),
+                    isScrollable: true,
+                    labelColor: Colors.indigo,
+                    unselectedLabelColor: Colors.grey,
+                    tabs: meals.map((m) => Tab(text: m.mealName)).toList(),
                   ),
                 ),
 
+                // 3. Tab Content (List of Food Items for the selected meal)
+              //  if(meals.isNotEmpty)
+                  Expanded(
+                    child: TabBarView(
+                      // Use the null-checked controller
+                      controller: _tabController!,
+                      children: meals.map((meal) =>
+                          MealEntryList(
+                            meal: meal,
+                            allFoodItems: _allFoodItems,
+                            addItemToMeal: _addItemToMeal,
+                            addAlternativeToItem: _addAlternativeToItem,
+                            removeAlternativeFromItem: _removeAlternativeFromItem,
+                            removeItemFromMeal: _removeItemFromMeal,
+                          )).toList(),
+                    ),
+                  ),
 
-              // 4. Save Button
-              _buildSaveButton(),
-            ],
-          );
-        },
+
+                // 4. Save Button
+                _buildSaveButton(),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

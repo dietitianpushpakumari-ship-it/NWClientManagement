@@ -6,6 +6,7 @@ import 'package:nutricare_client_management/modules/master/service/serving_unit_
 import 'package:provider/provider.dart';
 
 import '../../modules/master/model/ServingUnit.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 
 
@@ -103,46 +104,47 @@ class ServingUnitListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unitService = Provider.of<ServingUnitService>(context);
-
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Serving Units Master'),
-        backgroundColor: Colors.blueGrey,
       ),
 
       // Use a StreamBuilder for real-time list updates
-      body: StreamBuilder<List<ServingUnit>>(
-        stream: unitService.streamAllActiveUnits(), // Fetch active units
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading units: ${snapshot.error}'));
-          }
-          final units = snapshot.data ?? [];
-          if (units.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: Text('No active serving units found. Tap + to add the first one.'),
-              ),
-            );
-          }
+      body: SafeArea(
+        child: StreamBuilder<List<ServingUnit>>(
+          stream: unitService.streamAllActiveUnits(), // Fetch active units
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error loading units: ${snapshot.error}'));
+            }
+            final units = snapshot.data ?? [];
+            if (units.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: Text('No active serving units found. Tap + to add the first one.'),
+                ),
+              );
+            }
 
-          return ListView.builder(
-            itemCount: units.length,
-            itemBuilder: (context, index) {
-              final unit = units[index];
-              return _buildUnitCard(context, unit);
-            },
-          );
-        },
+            return ListView.builder(
+              itemCount: units.length,
+              itemBuilder: (context, index) {
+                final unit = units[index];
+                return _buildUnitCard(context, unit);
+              },
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateToEntry(context, null),
         child: const Icon(Icons.add),
-        backgroundColor: Colors.blueGrey,
+        backgroundColor: colorScheme.primary,
         tooltip: 'Add New Serving Unit',
       ),
     );

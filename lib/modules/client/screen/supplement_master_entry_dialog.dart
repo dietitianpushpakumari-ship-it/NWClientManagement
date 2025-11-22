@@ -51,24 +51,26 @@ class _SupplementationMasterEntryDialogState extends State<SupplementationMaster
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.supplementation != null;
-    return AlertDialog(
-      title: Text(isEditing ? 'Edit Supplementation' : 'Add New Supplementation'),
-      content: Form(
-          key: _formKey,
-          child: TextFormField(
-            controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Supplementation Name (English)', border: OutlineInputBorder()),
-            validator: (value) => value!.trim().isEmpty ? 'Name cannot be empty' : null,
-          )
-      ),
-      actions: [
-        TextButton(onPressed: _isSaving ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        ElevatedButton.icon(
-          onPressed: _isSaving ? null : _saveSupplementation,
-          icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(isEditing ? Icons.save : Icons.add),
-          label: Text(_isSaving ? 'Saving...' : (isEditing ? 'Save' : 'Create')),
+    return SafeArea(
+      child: AlertDialog(
+        title: Text(isEditing ? 'Edit Supplementation' : 'Add New Supplementation'),
+        content: Form(
+            key: _formKey,
+            child: TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Supplementation Name (English)', border: OutlineInputBorder()),
+              validator: (value) => value!.trim().isEmpty ? 'Name cannot be empty' : null,
+            )
         ),
-      ],
+        actions: [
+          TextButton(onPressed: _isSaving ? null : () => Navigator.of(context).pop(), child: const Text('Cancel')),
+          ElevatedButton.icon(
+            onPressed: _isSaving ? null : _saveSupplementation,
+            icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(isEditing ? Icons.save : Icons.add),
+            label: Text(_isSaving ? 'Saving...' : (isEditing ? 'Save' : 'Create')),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 // 🎯 NOTE: Since AuthWrapper handles navigation on success,
 // you technically don't need this import for navigation,
 // but keep it if you use the screen elsewhere.
@@ -93,15 +94,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Admin Login'),
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-        elevation: 0,
-        systemOverlayStyle: SystemUiOverlayStyle(
-          statusBarColor: colorScheme.primary,
-          statusBarIconBrightness: Brightness.light,
-        ),
       ),
       body: Center(
         child: SingleChildScrollView(

@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 import 'package:nutricare_client_management/helper/meal_planner/meal_entry_list.dart';
 import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
 
@@ -671,152 +672,155 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage>
   // --- MAIN WIDGET BUILD ---
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Meal Planning'),
-        actions: [
-          IconButton(
-            icon: _isSaving
-                ? const CircularProgressIndicator(
-              color: Colors.white,
-              strokeWidth: 2,
-            )
-                : const Icon(Icons.save),
-            onPressed: _isSaving ? null : _savePlan,
-            tooltip: 'Save Diet Plan',
-          ),
-        ],
-      ),
-      body: FutureBuilder(
-        future: _initialDataFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError ||
-              _currentPlan.days.isEmpty ||
-              _allFoodItems.isEmpty) {
-            return Center(
-              child: Text(
-                'Error loading data: ${snapshot.error ?? 'Missing Food Items/Meals'}',
-              ),
-            );
-          }
-
-          final meals = _currentPlan.days.first.meals;
-
-          // Check if controller is null (shouldn't happen here if data loaded, but for safety)
-          if (_tabController == null) {
-            return const Center(
-              child: Text('Tab Controller initialization failed.'),
-            );
-          }
-
-          return Column(
-            children: [
-              // 🎯 CHANGE: Set initiallyExpanded to true to show the Plan details by default
-              ExpansionTile(
-                initiallyExpanded: true,
-                onExpansionChanged: (expanded) =>
-                    setState(() => _isGuidelinesExpanded = expanded),
-                leading: const Icon(Icons.list_alt, color: Colors.blueGrey),
-                title: const Text(
-                  'Assignments',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+        appBar: CustomGradientAppBar(
+          title: const Text('Meal Planning'),
+          actions: [
+            IconButton(
+              icon: _isSaving
+                  ? const CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              )
+                  : const Icon(Icons.save),
+              onPressed: _isSaving ? null : _savePlan,
+              tooltip: 'Save Diet Plan',
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: FutureBuilder(
+          future: _initialDataFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError ||
+                _currentPlan.days.isEmpty ||
+                _allFoodItems.isEmpty) {
+              return Center(
+                child: Text(
+                  'Error loading data: ${snapshot.error ?? 'Missing Food Items/Meals'}',
                 ),
-                children: [
-                  _buildMasterPlanDetailsForm(),
-                  _buildVitalsLinker(),
-                  Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.only(
-                              top: 4.0,
-                              bottom: 4.0,
-                              left: 10.0,
-                              right: 10.0,
-                            ),
-                            child: Text(
-                              'Diagnosis',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
-                          TextButton.icon(
-                            icon: Icon(
-                              Icons.search,
-                              size: 18,
-                              color: Colors.indigo,
-                            ),
-                            label: Text(
-                              _selectedDiagnosisIds.isEmpty
-                                  ? 'Select Diagnosis'
-                                  : 'Edit Diagnoses (${_selectedDiagnosisIds.length})',
-                              style: const TextStyle(
-                                color: Colors.indigo,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            onPressed: _showDiagnosisSelectionDialog,
-                            // backgroundColor: Colors.indigo.shade50,
-                            // side: BorderSide(color: Colors.indigo.shade100),
-                          ),
-                        ],
-                      ),
-
-                      const Divider(),
-                      _buildDiagnosisChipDisplay(),
-                    ],
+              );
+            }
+      
+            final meals = _currentPlan.days.first.meals;
+      
+            // Check if controller is null (shouldn't happen here if data loaded, but for safety)
+            if (_tabController == null) {
+              return const Center(
+                child: Text('Tab Controller initialization failed.'),
+              );
+            }
+      
+            return Column(
+              children: [
+                // 🎯 CHANGE: Set initiallyExpanded to true to show the Plan details by default
+                ExpansionTile(
+                  initiallyExpanded: true,
+                  onExpansionChanged: (expanded) =>
+                      setState(() => _isGuidelinesExpanded = expanded),
+                  leading: const Icon(Icons.list_alt, color: Colors.blueGrey),
+                  title: const Text(
+                    'Assignments',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-
-                  _buildGuidelineSelectionSection(context),
-                ],
-              ),
-
-              const Divider(height: 1),
-              Material(
-                elevation: 2,
-                child: meals.isEmpty
-                    ? null
-                    : TabBar(
-                  // Use the null-checked controller
-                  controller: _tabController!,
-                  isScrollable: true,
-                  labelColor: Colors.indigo,
-                  unselectedLabelColor: Colors.grey,
-                  tabs: meals.map((m) => Tab(text: m.mealName)).toList(),
-                ),
-              ),
-
-              Expanded(
-                child: TabBarView(
-                  // Use the null-checked controller
-                  controller: _tabController!,
-                  children: meals
-                      .map(
-                        (meal) => MealEntryList(
-                      meal: meal,
-                      allFoodItems: _allFoodItems,
-                      addItemToMeal: _addItemToMeal,
-                      addAlternativeToItem: _addAlternativeToItem,
-                      removeAlternativeFromItem: _removeAlternativeFromItem,
-                      removeItemFromMeal: _removeItemFromMeal,
+                  children: [
+                    _buildMasterPlanDetailsForm(),
+                    _buildVitalsLinker(),
+                    Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.only(
+                                top: 4.0,
+                                bottom: 4.0,
+                                left: 10.0,
+                                right: 10.0,
+                              ),
+                              child: Text(
+                                'Diagnosis',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              icon: Icon(
+                                Icons.search,
+                                size: 18,
+                                color: Colors.indigo,
+                              ),
+                              label: Text(
+                                _selectedDiagnosisIds.isEmpty
+                                    ? 'Select Diagnosis'
+                                    : 'Edit Diagnoses (${_selectedDiagnosisIds.length})',
+                                style: const TextStyle(
+                                  color: Colors.indigo,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              onPressed: _showDiagnosisSelectionDialog,
+                              // backgroundColor: Colors.indigo.shade50,
+                              // side: BorderSide(color: Colors.indigo.shade100),
+                            ),
+                          ],
+                        ),
+      
+                        const Divider(),
+                        _buildDiagnosisChipDisplay(),
+                      ],
                     ),
-                  )
-                      .toList(),
+      
+                    _buildGuidelineSelectionSection(context),
+                  ],
                 ),
-              ),
-
-              //     _buildSaveButton(),
-            ],
-          );
-        },
+      
+                const Divider(height: 1),
+                Material(
+                  elevation: 2,
+                  child: meals.isEmpty
+                      ? null
+                      : TabBar(
+                    // Use the null-checked controller
+                    controller: _tabController!,
+                    isScrollable: true,
+                    labelColor: Colors.indigo,
+                    unselectedLabelColor: Colors.grey,
+                    tabs: meals.map((m) => Tab(text: m.mealName)).toList(),
+                  ),
+                ),
+      
+                Expanded(
+                  child: TabBarView(
+                    // Use the null-checked controller
+                    controller: _tabController!,
+                    children: meals
+                        .map(
+                          (meal) => MealEntryList(
+                        meal: meal,
+                        allFoodItems: _allFoodItems,
+                        addItemToMeal: _addItemToMeal,
+                        addAlternativeToItem: _addAlternativeToItem,
+                        removeAlternativeFromItem: _removeAlternativeFromItem,
+                        removeItemFromMeal: _removeItemFromMeal,
+                      ),
+                    )
+                        .toList(),
+                  ),
+                ),
+      
+                //     _buildSaveButton(),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

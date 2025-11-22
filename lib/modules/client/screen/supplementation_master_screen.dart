@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/modules/client/screen/Suppliment_master_service.dart';
 import 'package:nutricare_client_management/modules/client/screen/supplement_master_entry_dialog.dart';
 import 'package:nutricare_client_management/modules/client/screen/suppliment_master_model.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 class SupplementationMasterScreen extends StatefulWidget {
   const SupplementationMasterScreen({super.key});
@@ -81,72 +83,75 @@ class _SupplementationMasterScreenState extends State<SupplementationMasterScree
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Supplementation Master'),
       ),
-      body: FutureBuilder<List<SupplimentMasterModel>>(
-        future: _supplementationFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No supplementations found. Tap + to add one.'));
-          }
+      body: SafeArea(
+        child: FutureBuilder<List<SupplimentMasterModel>>(
+          future: _supplementationFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No supplementations found. Tap + to add one.'));
+            }
 
-          final supplementations = snapshot.data!;
+            final supplementations = snapshot.data!;
 
-          return ListView.builder(
-            itemCount: supplementations.length,
-            itemBuilder: (context, index) {
-              final supplementation = supplementations[index];
+            return ListView.builder(
+              itemCount: supplementations.length,
+              itemBuilder: (context, index) {
+                final supplementation = supplementations[index];
 
-              // Swipe-to-Delete Implementation
-              return Dismissible(
-                key: ValueKey(supplementation.id),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  color: Colors.red,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: const Icon(Icons.delete, color: Colors.white),
-                ),
-                confirmDismiss: (direction) async {
-                  return await showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Confirm Deletion'),
-                      content: Text('Are you sure you want to delete "${supplementation.enName}"?'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-                        ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
-                      ],
-                    ),
-                  );
-                },
-                onDismissed: (direction) {
-                  _deleteSupplementation(supplementation.id);
-                },
-                child: ListTile(
-                  // Added Leading Icon 💊
-                  leading: const Icon(Icons.medication_outlined, color: Colors.green),
-                  title: Text(supplementation.enName),
-                  subtitle: Text('ID: ${supplementation.id}'),
-                  // Edit Functionality
-                  trailing: IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue),
-                    onPressed: () => _editSupplementation(supplementation),
+                // Swipe-to-Delete Implementation
+                return Dismissible(
+                  key: ValueKey(supplementation.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
                   ),
-                  onTap: () => _editSupplementation(supplementation),
-                ),
-              );
-            },
-          );
-        },
+                  confirmDismiss: (direction) async {
+                    return await showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Confirm Deletion'),
+                        content: Text('Are you sure you want to delete "${supplementation.enName}"?'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+                          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+                        ],
+                      ),
+                    );
+                  },
+                  onDismissed: (direction) {
+                    _deleteSupplementation(supplementation.id);
+                  },
+                  child: ListTile(
+                    // Added Leading Icon 💊
+                    leading: const Icon(Icons.medication_outlined, color: Colors.green),
+                    title: Text(supplementation.enName),
+                    subtitle: Text('ID: ${supplementation.id}'),
+                    // Edit Functionality
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      onPressed: () => _editSupplementation(supplementation),
+                    ),
+                    onTap: () => _editSupplementation(supplementation),
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
       // Add Functionality
       floatingActionButton: FloatingActionButton(

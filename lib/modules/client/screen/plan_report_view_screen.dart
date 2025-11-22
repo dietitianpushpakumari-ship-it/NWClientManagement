@@ -4,6 +4,8 @@ import 'package:printing/printing.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
 import 'package:nutricare_client_management/helper/diet_plan_pdf_generator.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 
 class PlanReportViewScreen extends StatelessWidget {
@@ -50,11 +52,10 @@ class PlanReportViewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: Text('${client.name}\'s ${plan.name} Report'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         actions: [
           // 🎯 Printing/Sharing action button
           IconButton(
@@ -66,17 +67,19 @@ class PlanReportViewScreen extends StatelessWidget {
       ),
 
       // 🎯 Use PdfPreview widget for mobile report view and print options
-      body: PdfPreview(
-        allowSharing: true,
-        allowPrinting: true,
-        canChangePageFormat: false, // Typically locked for a diet plan
-        canDebug: false,
-        //name: '${client.name.replaceAll(' ', '_')}_${plan.name.replaceAll(' ', '_')}_DietPlan.pdf',
+      body: SafeArea(
+        child: PdfPreview(
+          allowSharing: true,
+          allowPrinting: true,
+          canChangePageFormat: false, // Typically locked for a diet plan
+          canDebug: false,
+          //name: '${client.name.replaceAll(' ', '_')}_${plan.name.replaceAll(' ', '_')}_DietPlan.pdf',
 
-        // This function will be called whenever the PDF needs to be generated (e.g., for preview)
-        build: (PdfPageFormat format) => DietPlanPdfGenerator.generatePlanPdf(
-          clientPlan: plan,
-          client: client,
+          // This function will be called whenever the PDF needs to be generated (e.g., for preview)
+          build: (PdfPageFormat format) => DietPlanPdfGenerator.generatePlanPdf(
+            clientPlan: plan,
+            client: client,
+          ),
         ),
       ),
     );

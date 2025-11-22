@@ -7,6 +7,8 @@ import 'package:nutricare_client_management/scheduler/disease_tag.dart';
 
 import 'content_management_screen.dart';
 import 'content_detail_screen.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 
 class ContentLibraryScreen extends StatefulWidget {
@@ -102,36 +104,37 @@ class _ContentLibraryScreenState extends State<ContentLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Content Library'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
       ),
-      body: StreamBuilder<List<DietitianContentModel>>(
-        stream: _contentService.streamAllContent(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading content: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No content posts found. Tap + to create one.'));
-          }
-
-          final contentList = snapshot.data!;
-          return ListView.builder(
-            padding: const EdgeInsets.all(16.0),
-            itemCount: contentList.length,
-            itemBuilder: (context, index) {
-              return _buildContentTile(contentList[index]);
-            },
-          );
-        },
+      body: SafeArea(
+        child: StreamBuilder<List<DietitianContentModel>>(
+          stream: _contentService.streamAllContent(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error loading content: ${snapshot.error}'));
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No content posts found. Tap + to create one.'));
+            }
+            
+            final contentList = snapshot.data!;
+            return ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: contentList.length,
+              itemBuilder: (context, index) {
+                return _buildContentTile(contentList[index]);
+              },
+            );
+          },
+        ),
       ),
-
+    
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateAndRefresh(const ContentManagementScreen()),
         label: const Text('New Post'),

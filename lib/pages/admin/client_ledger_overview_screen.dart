@@ -7,6 +7,8 @@ import '../../modules/package/model/package_assignment_model.dart';
 import '../../screens/payment_ledger_screen.dart';
 import '../../modules/package/service/package_payment_service.dart';
 
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+
 
 // Helper class and Enum (Ensure these are at the top level of the file)
 enum PaymentFilter { all, fullyPaid, pending, partiallyPaid, notPaid }
@@ -208,10 +210,10 @@ class _ClientLedgerOverviewScreenState extends State<ClientLedgerOverviewScreen>
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Ledger Overview'),
-        backgroundColor: Colors.blueGrey,
         // 🎯 NEW: Toggle button for the header card
         actions: [
           IconButton(

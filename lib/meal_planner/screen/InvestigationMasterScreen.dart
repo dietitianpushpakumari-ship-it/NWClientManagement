@@ -1,6 +1,7 @@
 // lib/screens/investigation_master_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 import 'package:nutricare_client_management/meal_planner/screen/investigation_master_entry_dialog.dart';
 import 'package:nutricare_client_management/modules/client/screen/investigation_master_model.dart';
 import 'package:nutricare_client_management/modules/client/screen/investigation_master_service.dart';
@@ -85,69 +86,71 @@ class _InvestigationMasterScreenState extends State<InvestigationMasterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Investigation Master'),
       ),
-      body: FutureBuilder<List<InvestigationMasterModel>>(
-        future: _investigationFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No investigations found. Tap + to add one.'));
-          }
-
-          final investigations = snapshot.data!;
-
-          return ListView.builder(
-            itemCount: investigations.length,
-            itemBuilder: (context, index) {
-              final investigation = investigations[index];
-
-              // 🎯 Swipe-to-Delete Implementation
-              return Dismissible(
-                key: ValueKey(investigation.id), // Unique key is mandatory
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  color: Colors.red,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: const Icon(Icons.delete, color: Colors.white),
-                ),
-                confirmDismiss: (direction) async {
-                  return await showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Confirm Deletion'),
-                      content: Text('Are you sure you want to delete "${investigation.enName}"?'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-                        ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
-                      ],
-                    ),
-                  );
-                },
-                onDismissed: (direction) {
-                  _deleteInvestigation(investigation.id);
-                },
-                child: ListTile(
-                  leading: const Icon(Icons.science, color: Colors.indigo),
-                  title: Text(investigation.enName),
-                  // 🎯 Edit Functionality
-                  trailing: IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue),
-                    onPressed: () => _editInvestigation(investigation),
+      body: SafeArea(
+        child: FutureBuilder<List<InvestigationMasterModel>>(
+          future: _investigationFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No investigations found. Tap + to add one.'));
+            }
+            
+            final investigations = snapshot.data!;
+            
+            return ListView.builder(
+              itemCount: investigations.length,
+              itemBuilder: (context, index) {
+                final investigation = investigations[index];
+            
+                // 🎯 Swipe-to-Delete Implementation
+                return Dismissible(
+                  key: ValueKey(investigation.id), // Unique key is mandatory
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
                   ),
-                  onTap: () => _editInvestigation(investigation), // Also edit on tap
-                ),
-              );
-            },
-          );
-        },
+                  confirmDismiss: (direction) async {
+                    return await showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Confirm Deletion'),
+                        content: Text('Are you sure you want to delete "${investigation.enName}"?'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+                          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+                        ],
+                      ),
+                    );
+                  },
+                  onDismissed: (direction) {
+                    _deleteInvestigation(investigation.id);
+                  },
+                  child: ListTile(
+                    leading: const Icon(Icons.science, color: Colors.indigo),
+                    title: Text(investigation.enName),
+                    // 🎯 Edit Functionality
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      onPressed: () => _editInvestigation(investigation),
+                    ),
+                    onTap: () => _editInvestigation(investigation), // Also edit on tap
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
       // 🎯 Add Functionality
       floatingActionButton: FloatingActionButton(

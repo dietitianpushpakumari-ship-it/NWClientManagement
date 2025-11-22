@@ -5,6 +5,7 @@ import 'package:nutricare_client_management/helper/language_config.dart';
 import 'package:nutricare_client_management/modules/master/model/ServingUnit.dart';
 import 'package:nutricare_client_management/modules/master/service/serving_unit_service.dart';
 import 'package:provider/provider.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 
 
@@ -120,113 +121,114 @@ class _ServingUnitEntryPageState extends State<ServingUnitEntryPage> {
   @override
   Widget build(BuildContext context) {
     final bool isEdit = widget.unitToEdit != null;
-
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: Text(isEdit ? 'Edit Serving Unit' : 'Add New Serving Unit'),
-        backgroundColor: Colors.teal,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- Core Fields ---
-              TextFormField(
-                controller: _enNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name (English) *',
-                  border: OutlineInputBorder(),
-                  hintText: 'e.g., Gram',
-                ),
-                validator: (value) => value!.isEmpty ? 'English Name is required' : null,
-              ),
-              const SizedBox(height: 15),
-
-              TextFormField(
-                controller: _abbreviationController,
-                decoration: const InputDecoration(
-                  labelText: 'Abbreviation/Symbol *',
-                  border: OutlineInputBorder(),
-                  hintText: 'e.g., g',
-                ),
-                validator: (value) => value!.isEmpty ? 'Abbreviation is required' : null,
-              ),
-              const SizedBox(height: 15),
-
-              // --- Base Unit Dropdown ---
-              DropdownButtonFormField<String>(
-                value: _baseUnit,
-                decoration: const InputDecoration(
-                  labelText: 'Base Unit Type *',
-                  border: OutlineInputBorder(),
-                  hintText: 'Select physical type (Mass/Volume)',
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'mass', child: Text('Mass (e.g., g, oz)')),
-                  DropdownMenuItem(value: 'volume', child: Text('Volume (e.g., ml, cup)')),
-                ],
-                onChanged: (value) {
-                  setState(() => _baseUnit = value);
-                },
-              ),
-              const SizedBox(height: 30),
-
-              // --- Localization Section Header ---
-              Text(
-                'Translations',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.teal.shade700,
-                ),
-              ),
-              const Divider(),
-
-              // --- Localization Fields ---
-              // Loop through all supported languages to generate fields
-              ...supportedLanguageCodes.map((code) {
-                // Skip English since it's the core field
-                if (code == 'en') return const SizedBox.shrink();
-
-                final languageName = supportedLanguages[code]!;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 15.0),
-                  child: TextFormField(
-                    controller: _localizedControllers[code],
-                    decoration: InputDecoration(
-                      labelText: 'Name ($languageName)',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.translate),
-                      hintText: 'Enter the translation in $languageName',
-                    ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- Core Fields ---
+                TextFormField(
+                  controller: _enNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name (English) *',
+                    border: OutlineInputBorder(),
+                    hintText: 'e.g., Gram',
                   ),
-                );
-              }).toList(),
-
-              const SizedBox(height: 40),
-
-              // --- Save Button ---
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _saveUnit,
-                icon: _isLoading
-                    ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                )
-                    : const Icon(Icons.save),
-                label: Text(isEdit ? 'Update Unit' : 'Save Unit'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white,
+                  validator: (value) => value!.isEmpty ? 'English Name is required' : null,
                 ),
-              ),
-            ],
+                const SizedBox(height: 15),
+
+                TextFormField(
+                  controller: _abbreviationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Abbreviation/Symbol *',
+                    border: OutlineInputBorder(),
+                    hintText: 'e.g., g',
+                  ),
+                  validator: (value) => value!.isEmpty ? 'Abbreviation is required' : null,
+                ),
+                const SizedBox(height: 15),
+
+                // --- Base Unit Dropdown ---
+                DropdownButtonFormField<String>(
+                  value: _baseUnit,
+                  decoration: const InputDecoration(
+                    labelText: 'Base Unit Type *',
+                    border: OutlineInputBorder(),
+                    hintText: 'Select physical type (Mass/Volume)',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'mass', child: Text('Mass (e.g., g, oz)')),
+                    DropdownMenuItem(value: 'volume', child: Text('Volume (e.g., ml, cup)')),
+                  ],
+                  onChanged: (value) {
+                    setState(() => _baseUnit = value);
+                  },
+                ),
+                const SizedBox(height: 30),
+
+                // --- Localization Section Header ---
+                Text(
+                  'Translations',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal.shade700,
+                  ),
+                ),
+                const Divider(),
+
+                // --- Localization Fields ---
+                // Loop through all supported languages to generate fields
+                ...supportedLanguageCodes.map((code) {
+                  // Skip English since it's the core field
+                  if (code == 'en') return const SizedBox.shrink();
+
+                  final languageName = supportedLanguages[code]!;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 15.0),
+                    child: TextFormField(
+                      controller: _localizedControllers[code],
+                      decoration: InputDecoration(
+                        labelText: 'Name ($languageName)',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.translate),
+                        hintText: 'Enter the translation in $languageName',
+                      ),
+                    ),
+                  );
+                }).toList(),
+
+                const SizedBox(height: 40),
+
+                // --- Save Button ---
+                ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _saveUnit,
+                  icon: _isLoading
+                      ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  )
+                      : const Icon(Icons.save),
+                  label: Text(isEdit ? 'Update Unit' : 'Save Unit'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -10,6 +10,9 @@ class MasterMealName {
   final bool isDeleted;
   final DateTime? createdDate;
   final int order;
+  // 🎯 NEW FIELDS for Time Range
+  final String? startTime; // Format: "HH:mm"
+  final String? endTime;   // Format: "HH:mm"
 
   const MasterMealName({
     this.id = '',
@@ -18,6 +21,8 @@ class MasterMealName {
     this.isDeleted = false,
     this.createdDate,
     this.order = 99,
+    this.startTime,
+    this.endTime,
   }
   );
 
@@ -37,6 +42,8 @@ class MasterMealName {
       isDeleted: data['isDeleted'] ?? false,
       createdDate: (data['createdDate'] as Timestamp?)?.toDate(),
       order: (data['order'] as num?)?.toInt() ?? 99,
+      startTime: data['startTime'] as String?,
+      endTime: data['endTime'] as String?,
     );
   }
 
@@ -50,9 +57,34 @@ class MasterMealName {
       'createdDate': createdDate != null ? Timestamp.fromDate(createdDate!) : FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'order': order,
+      'startTime': startTime,
+      'endTime': endTime,
     };
   }
 
   @override
-  List<Object?> get props => [id, enName, nameLocalized, isDeleted, createdDate,order];
+  List<Object?> get props => [id, enName, nameLocalized, isDeleted, createdDate,order,startTime,endTime];
+
+
+  MasterMealName copyWith({
+    String? id,
+    String? enName,
+    Map<String, String>? nameLocalized,
+    bool? isDeleted,
+    DateTime? createdDate,
+    int? order,
+    String? startTime,
+    String? endTime,
+  }) {
+    return MasterMealName(
+      id: id ?? this.id,
+      enName: enName ?? this.enName,
+      nameLocalized: nameLocalized ?? this.nameLocalized,
+      isDeleted: isDeleted ?? this.isDeleted,
+      createdDate: createdDate ?? this.createdDate,
+      order: order ?? this.order,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+    );
+  }
 }

@@ -8,7 +8,7 @@ import 'package:nutricare_client_management/modules/master/service/master_diet_p
 import 'package:nutricare_client_management/modules/master/model/diet_plan_category.dart';
 import 'package:nutricare_client_management/modules/master/service/diet_plan_category_service.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
-
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class MasterPlanSelectionPage extends StatefulWidget {
   final ClientModel client;
@@ -81,7 +81,8 @@ class _MasterPlanSelectionPageState extends State<MasterPlanSelectionPage> {
       bool isCurrentlyAssigned,
       ) {
     final actionText = isCurrentlyAssigned ? 'UNASSIGN' : 'ASSIGN';
-    final actionColor = isCurrentlyAssigned ? Colors.red : Colors.green.shade700;
+    final actionColor =
+    isCurrentlyAssigned ? Colors.red : Colors.green.shade700;
 
     showDialog(
       context: dialogContext,
@@ -115,46 +116,102 @@ class _MasterPlanSelectionPageState extends State<MasterPlanSelectionPage> {
 
   // --- UI Builders ---
 
-  Widget _buildGroupHeader(String title, Color color) {
+  Widget _buildGroupHeader(String title, Color color, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.only(top: 16.0, bottom: 8.0, left: 16.0, right: 16.0),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: color,
-        ),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildPlanListItem(
       BuildContext context, MasterDietPlanModel plan, bool isAssigned) {
-    final buttonColor = isAssigned ? Colors.red.shade700 : Colors.green.shade700;
+    final buttonColor =
+    isAssigned ? Colors.red.shade50 : Colors.green.shade50;
+    final buttonTextColor =
+    isAssigned ? Colors.red.shade700 : Colors.green.shade700;
     final buttonLabel = isAssigned ? 'Unassign' : 'Assign';
-    final buttonIcon = isAssigned ? Icons.cancel : Icons.send;
+    final buttonIcon = isAssigned ? Icons.remove_circle_outline : Icons.add_circle_outline;
 
     return Card(
-      elevation: 2,
-      margin: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
-      child: ListTile(
-        title: Text(
-          plan.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(plan.description),
-        trailing: ElevatedButton.icon(
-          onPressed: () => _confirmToggle(context, plan, isAssigned),
-          icon: Icon(buttonIcon, size: 18),
-          label: Text(buttonLabel),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: buttonColor,
-            foregroundColor: Colors.white,
-          ),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    plan.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+                // Status Badge
+                if (isAssigned)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Active',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green),
+                    ),
+                  ),
+              ],
+            ),
+            if (plan.description.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                plan.description,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _confirmToggle(context, plan, isAssigned),
+                icon: Icon(buttonIcon, size: 18, color: buttonTextColor),
+                label: Text(buttonLabel),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: buttonTextColor,
+                  backgroundColor: buttonColor,
+                  side: BorderSide(color: buttonTextColor.withOpacity(0.3)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -162,137 +219,161 @@ class _MasterPlanSelectionPageState extends State<MasterPlanSelectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    // NOTE: This assumes DietPlanCategoryService is provided higher up in the widget tree
-    final _categoryService = Provider.of<DietPlanCategoryService>(context, listen: false);
+    final _categoryService =
+    Provider.of<DietPlanCategoryService>(context, listen: false);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Assign Plan to ${widget.client.name}'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
+      appBar: CustomGradientAppBar(
+        title: const Text('Assign Meal Template'),
       ),
-      body: Column(
-        children: [
-          // FILTER WIDGET
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: StreamBuilder<List<DietPlanCategory>>(
-              stream: _categoryService.streamAllActive(),
-              builder: (context, snapshot) {
-                // ... (Category dropdown logic remains the same) ...
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox.shrink();
-                }
-                final categories = snapshot.data ?? [];
+      body: SafeArea(
+        child: Column(
+          children: [
+            // --- FILTER WIDGET ---
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                  child: StreamBuilder<List<DietPlanCategory>>(
+                    stream: _categoryService.streamAllActive(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const LinearProgressIndicator(minHeight: 2);
+                      }
+                      final categories = snapshot.data ?? [];
 
-                // Placeholder logic to update filter:
-                if (_selectedCategoryId != null && categories.any((c) => c.id == _selectedCategoryId)) {
-                  // Logic to update _activeFilterIds if needed
-                }
+                      final dropdownItems = [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('All Categories', style: TextStyle(fontWeight: FontWeight.w500)),
+                        ),
+                        ...categories.map(
+                              (category) => DropdownMenuItem<String>(
+                            value: category.id,
+                            child: Text(category.enName),
+                          ),
+                        ),
+                      ];
 
-                final dropdownItems = [
-                  const DropdownMenuItem<String>(
-                    value: null,
-                    child: Text('All Categories'),
+                      return DropdownButtonHideUnderline(
+                        child: DropdownButtonFormField<String>(
+                          // 🎯 FIX 1: Added isExpanded: true to prevent overflow
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Filter by Diet Category',
+                            border: InputBorder.none,
+                            icon: Icon(Icons.filter_list, color: Colors.indigo),
+                          ),
+                          value: _selectedCategoryId,
+                          items: dropdownItems,
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              _selectedCategoryId = newValue;
+                              _activeFilterIds =
+                              newValue == null ? null : [newValue];
+                            });
+                          },
+                        ),
+                      );
+                    },
                   ),
-                  ...categories.map(
-                        (category) => DropdownMenuItem<String>(
-                      value: category.id,
-                      child: Text(category.enName),
-                    ),
-                  ),
-                ];
-
-                return DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Filter by Diet Category',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.filter_list),
-                  ),
-                  value: _selectedCategoryId,
-                  items: dropdownItems,
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedCategoryId = newValue;
-                      _activeFilterIds = newValue == null ? null : [newValue];
-                    });
-                  },
-                );
-              },
-            ),
-          ),
-
-          // 🎯 COMBINED MASTER PLAN LISTS (Grouped)
-          Expanded(
-            child: StreamBuilder<List<MasterDietPlanModel>>(
-              // 1. Stream all master plans based on the category filter
-              stream: _masterService.streamAllPlansByCategoryIds(
-                categoryIds: _activeFilterIds,
+                ),
               ),
-              builder: (context, masterPlansSnapshot) {
-                if (masterPlansSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (masterPlansSnapshot.hasError) {
-                  return Center(
-                    child: Text('Error loading templates: ${masterPlansSnapshot.error}'),
-                  );
-                }
-
-                final allPlans = masterPlansSnapshot.data ?? [];
-
-                // 2. Stream all assigned plan IDs for the current client
-                return StreamBuilder<List<String>>(
-                  stream: _clientService.streamAssignedPlanIds(widget.client.id),
-                  initialData: const [],
-                  builder: (context, assignedIdsSnapshot) {
-                    final assignedIds = assignedIdsSnapshot.data?.toSet() ?? {};
-
-                    // 3. Separate plans into assigned and unassigned groups
-                    final assignedPlans = allPlans
-                        .where((plan) => assignedIds.contains(plan.id))
-                        .toList();
-                    final unassignedPlans = allPlans
-                        .where((plan) => !assignedIds.contains(plan.id))
-                        .toList();
-
-                    // 4. Combine all list items into a single scrollable list
-                    return ListView(
-                      children: [
-                        // --- Assigned Plans Group ---
-                        if (assignedPlans.isNotEmpty) ...[
-                          _buildGroupHeader('Assigned Plans (${assignedPlans.length})', Colors.red[900]!),
-                          ...assignedPlans
-                              .map((plan) => _buildPlanListItem(context, plan, true))
-                              .toList(),
-                          const Divider(),
-                        ],
-
-                        // --- Unassigned Plans Group ---
-                        _buildGroupHeader('Available Plans (${unassignedPlans.length})', Colors.green[900]!),
-                        if (unassignedPlans.isEmpty)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(20.0),
-                              child: Text('All plans are currently assigned or no plans match the filter.'),
-                            ),
-                          )
-                        else
-                          ...unassignedPlans
-                              .map((plan) => _buildPlanListItem(context, plan, false))
-                              .toList(),
-                        const SizedBox(height: 20),
-                      ],
-                    );
-                  },
-                );
-              },
             ),
-          ),
-        ],
+
+            // --- PLAN LISTS ---
+            Expanded(
+              child: StreamBuilder<List<MasterDietPlanModel>>(
+                stream: _masterService.streamAllPlansByCategoryIds(
+                  categoryIds: _activeFilterIds,
+                ),
+                builder: (context, masterPlansSnapshot) {
+                  if (masterPlansSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (masterPlansSnapshot.hasError) {
+                    return Center(
+                      child: Text(
+                          'Error loading templates: ${masterPlansSnapshot.error}'),
+                    );
+                  }
+
+                  final allPlans = masterPlansSnapshot.data ?? [];
+
+                  return StreamBuilder<List<String>>(
+                    stream:
+                    _clientService.streamAssignedPlanIds(widget.client.id),
+                    initialData: const [],
+                    builder: (context, assignedIdsSnapshot) {
+                      final assignedIds =
+                          assignedIdsSnapshot.data?.toSet() ?? {};
+
+                      final assignedPlans = allPlans
+                          .where((plan) => assignedIds.contains(plan.id))
+                          .toList();
+                      final unassignedPlans = allPlans
+                          .where((plan) => !assignedIds.contains(plan.id))
+                          .toList();
+
+                      return ListView(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        children: [
+                          // --- Assigned Plans Group ---
+                          if (assignedPlans.isNotEmpty) ...[
+                            _buildGroupHeader(
+                                'Currently Assigned (${assignedPlans.length})',
+                                Colors.indigo.shade700,
+                                Icons.check_circle),
+                            ...assignedPlans
+                                .map((plan) =>
+                                _buildPlanListItem(context, plan, true))
+                                .toList(),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 10),
+                              child: Divider(),
+                            ),
+                          ],
+
+                          // --- Unassigned Plans Group ---
+                          _buildGroupHeader(
+                              'Available Templates (${unassignedPlans.length})',
+                              Colors.grey.shade800,
+                              Icons.dashboard_customize),
+
+                          if (unassignedPlans.isEmpty)
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(30.0),
+                                child: Column(
+                                  children: [
+                                    Icon(Icons.search_off, size: 40, color: Colors.grey.shade400),
+                                    const SizedBox(height: 10),
+                                    const Text(
+                                      'No matching plans found.',
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else
+                            ...unassignedPlans
+                                .map((plan) =>
+                                _buildPlanListItem(context, plan, false))
+                                .toList(),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

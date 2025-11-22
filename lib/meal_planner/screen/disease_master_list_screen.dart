@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/meal_planner/screen/disease_master_entry_screen.dart';
 import 'package:nutricare_client_management/meal_planner/screen/disease_master_model.dart';
 import 'package:nutricare_client_management/meal_planner/screen/disease_master_service.dart';
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class DiseaseMasterListScreen extends StatefulWidget {
   const DiseaseMasterListScreen({super.key});
@@ -79,79 +80,79 @@ class _DiseaseMasterListScreenState extends State<DiseaseMasterListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
+      appBar: CustomGradientAppBar(
         title: const Text('Disease Master Record'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        centerTitle: true,
       ),
       // --- List (LIVT) Screen with real-time updates ---
-      body: StreamBuilder<List<DiseaseMasterModel>>(
-        stream: _service.getActiveDiseases(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
-              child: Text(
-                'No diseases found. Tap the "+" button to add one.',
-                style: TextStyle(color: Colors.grey),
-              ),
-            );
-          }
-
-          final diseases = snapshot.data!;
-
-          return ListView.builder(
-            itemCount: diseases.length,
-            itemBuilder: (context, index) {
-              final disease = diseases[index];
-
-              // --- Swipe to Delete (Swipe to Delete) ---
-              return Dismissible(
-                key: ValueKey(disease.id),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  color: Colors.red,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  child: const Icon(Icons.delete_forever, color: Colors.white),
-                ),
-                confirmDismiss: (direction) async {
-                  _confirmSoftDelete(disease);
-                  return false; // Prevent immediate dismissal, handle deletion via dialog
-                },
-                child: Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  child: ListTile(
-                    leading: const Icon(Icons.healing, color: Colors.red),
-                    title: Text(
-                      disease.enName,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    subtitle: disease.nameLocalized.isNotEmpty
-                        ? Text('Localized: ${disease.nameLocalized.values.join(', ')}')
-                        : null,
-
-                    // --- Edit (LIVT) ---
-                    trailing: const Icon(Icons.edit, color: Colors.indigo),
-                    onTap: () => _navigateToAddEdit(disease: disease),
-                  ),
+      body: SafeArea(
+        child: StreamBuilder<List<DiseaseMasterModel>>(
+          stream: _service.getActiveDiseases(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(
+                child: Text(
+                  'No diseases found. Tap the "+" button to add one.',
+                  style: TextStyle(color: Colors.grey),
                 ),
               );
-            },
-          );
-        },
+            }
+
+            final diseases = snapshot.data!;
+
+            return ListView.builder(
+              itemCount: diseases.length,
+              itemBuilder: (context, index) {
+                final disease = diseases[index];
+
+                // --- Swipe to Delete (Swipe to Delete) ---
+                return Dismissible(
+                  key: ValueKey(disease.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: const Icon(Icons.delete_forever, color: Colors.white),
+                  ),
+                  confirmDismiss: (direction) async {
+                    _confirmSoftDelete(disease);
+                    return false; // Prevent immediate dismissal, handle deletion via dialog
+                  },
+                  child: Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    child: ListTile(
+                      leading: const Icon(Icons.healing, color: Colors.red),
+                      title: Text(
+                        disease.enName,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: disease.nameLocalized.isNotEmpty
+                          ? Text('Localized: ${disease.nameLocalized.values.join(', ')}')
+                          : null,
+
+                      // --- Edit (LIVT) ---
+                      trailing: const Icon(Icons.edit, color: Colors.indigo),
+                      onTap: () => _navigateToAddEdit(disease: disease),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
       // --- Add (Add) Button ---
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateToAddEdit(),
-        backgroundColor: Colors.indigo,
+        backgroundColor: colorScheme.secondary,
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
