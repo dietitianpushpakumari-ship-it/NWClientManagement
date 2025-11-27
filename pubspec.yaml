@@ -60,7 +60,8 @@ dependencies:
   audioplayers: ^6.5.1    # For playing audio
   syncfusion_flutter_pdf: ^24.1.41 # For PDF Compression
   cached_network_image: ^3.3.1
-
+  fl_chart: ^1.1.1
+  collection: ^1.19.1
 
 dev_dependencies:
   flutter_test:

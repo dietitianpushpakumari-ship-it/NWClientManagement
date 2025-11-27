@@ -1,9 +1,7 @@
-// lib/models/client_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutricare_client_management/modules/package/model/package_assignment_model.dart';
 
 class ClientModel {
-  // Primary Firestore Document ID (Auto-generated UUID)
   final String id;
   final String name;
   final String mobile;
@@ -12,31 +10,17 @@ class ClientModel {
   final DateTime dob;
   final String? photoUrl;
   final String? tag;
-  final int? age; //
+  final int? age;
 
-  // 🎯 NEW FIELD: Address
   final String? address;
-
-  // 🎯 NEW FIELD: Alternative Mobile Number
   final String? altMobile;
-
-  // Login ID, can be mobile or a 10-digit system ID
   final String loginId;
-
-  // Status is strictly 'Active' or 'Inactive'
-  final String status;
+  final String status; // 'Active', 'Inactive'
   final bool isSoftDeleted;
-
-  // Tracks if the password has been set (Credential created)
   final bool hasPasswordSet;
   final Map<String, PackageAssignmentModel> packageAssignments;
-
-  // 🎯 NEW FIELD: Agreement URL (for uploaded file)
   final String? agreementUrl;
-
-
-  final String? patientId; // 5-digit auto-generated ID
-
+  final String? patientId;
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
   final String? createdBy;
@@ -44,8 +28,11 @@ class ClientModel {
   final bool isArchived;
   final String? whatsappNumber;
 
+  // 🎯 NEW FIELD: Client Type Classification
+  // Values: 'new', 'one_time', 'active', 'expired'
+  final String clientType;
 
-  ClientModel( {
+  ClientModel({
     required this.id,
     required this.name,
     required this.mobile,
@@ -54,23 +41,23 @@ class ClientModel {
     required this.dob,
     this.age,
     this.photoUrl,
-    required this.loginId, // Must be provided
-    this.status = 'Inactive', // Default to Inactive
+    required this.loginId,
+    this.status = 'Inactive',
     this.isSoftDeleted = false,
     this.hasPasswordSet = false,
     this.packageAssignments = const {},
     this.tag,
-    this.address, // 🎯 ADDED
-    this.altMobile, // 🎯 ADDED
-    this.agreementUrl, // 🎯 ADDED
+    this.address,
+    this.altMobile,
+    this.agreementUrl,
     required this.patientId,
     this.createdAt,
     this.updatedAt,
     this.createdBy,
     this.lastModifiedBy,
     this.isArchived = false,
-    this.whatsappNumber
-
+    this.whatsappNumber,
+    this.clientType = 'new', // 🎯 Default
   });
 
   factory ClientModel.fromFirestore(DocumentSnapshot doc) {
@@ -90,22 +77,18 @@ class ClientModel {
       email: data['email'] ?? '',
       gender: data['gender'] ?? '',
       dob: (data['dob'] as Timestamp?)?.toDate() ?? DateTime.now(),
-     // dob: (data['dob'] as Timestamp).toDate(),
       age: data['age'] ?? 0,
       photoUrl: data['photoUrl'],
       tag: data['tag'] as String?,
-
       loginId: data['loginId'] ?? data['mobile'] ?? '',
       status: data['status'] ?? 'Inactive',
       isSoftDeleted: data['isSoftDeleted'] ?? false,
       hasPasswordSet: data['hasPasswordSet'] ?? false,
       packageAssignments: packages,
-
-      // 🎯 NEW FIELDS MAPPING
       address: data['address'] as String?,
       altMobile: data['altMobile'] as String?,
       agreementUrl: data['agreementUrl'] as String?,
-        patientId:data['patientId'] as String?,
+      patientId: data['patientId'] as String?,
       createdAt: data['createdAt'] ?? Timestamp.now(),
       updatedAt: data['updatedAt'] ?? Timestamp.now(),
       createdBy: data['createdBy'] ?? 'unknown',
@@ -113,6 +96,8 @@ class ClientModel {
       isArchived: data['isArchived'] ?? false,
       whatsappNumber: data['whatsappNumber'] ?? '',
 
+      // 🎯 Map New Field
+      clientType: data['clientType'] ?? 'new',
     );
   }
 
@@ -126,15 +111,11 @@ class ClientModel {
       'age': age,
       'photoUrl': photoUrl,
       'tag': tag,
-      'loginId': loginId, // Save the chosen login ID
+      'loginId': loginId,
       'status': status,
       'isSoftDeleted': isSoftDeleted,
       'hasPasswordSet': hasPasswordSet,
-      'activePackages': packageAssignments.map(
-        (key, value) => MapEntry(key, value.toMap()),
-      ),
-
-      // 🎯 NEW FIELDS TO MAP
+      'activePackages': packageAssignments.map((key, value) => MapEntry(key, value.toMap())),
       'address': address,
       'altMobile': altMobile,
       'agreementUrl': agreementUrl,
@@ -144,7 +125,10 @@ class ClientModel {
       'lastModifiedBy': lastModifiedBy,
       'patientId': patientId,
       'isArchived': isArchived,
-      'whatsappNumber' : whatsappNumber,
+      'whatsappNumber': whatsappNumber,
+
+      // 🎯 Save New Field
+      'clientType': clientType,
     };
   }
 
@@ -165,6 +149,7 @@ class ClientModel {
     String? patientId,
     bool? isArchived,
     String? whatsappNumber,
+    String? clientType, // 🎯 New Param
   }) {
     return ClientModel(
       id: id ?? this.id,
@@ -182,10 +167,8 @@ class ClientModel {
       photoUrl: photoUrl ?? this.photoUrl,
       patientId: this.patientId,
       isArchived: this.isArchived,
-      whatsappNumber: this.whatsappNumber
-
+      whatsappNumber: this.whatsappNumber,
+      clientType: clientType ?? this.clientType, // 🎯 Copy
     );
   }
 }
-
-

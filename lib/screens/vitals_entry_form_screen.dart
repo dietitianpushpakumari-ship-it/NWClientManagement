@@ -1,1247 +1,454 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/services.dart';
-import 'package:nutricare_client_management/meal_planner/screen/disease_master_model.dart';
-import 'package:nutricare_client_management/meal_planner/screen/disease_master_service.dart';
-
-// 🎯 ADJUST THESE IMPORTS TO YOUR PROJECT STRUCTURE
+import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart'; // Or generic header if unavailable
+import 'package:nutricare_client_management/admin/labvital/body_vitals_section.dart';
+import 'package:nutricare_client_management/admin/labvital/clinical_model.dart';
+import 'package:nutricare_client_management/admin/labvital/clinical_profile_section.dart';
+import 'package:nutricare_client_management/helper/lab_vitals_data.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
-
-
-// ----------------------------------------------------------------------
-// --- STUB DEFINITIONS (Necessary Helpers) ---
-// ----------------------------------------------------------------------
-
-class LabTest {
-  final String displayName;
-  final String unit;
-  final String category;
-  final String referenceRange;
-
-  const LabTest({
-    required this.displayName,
-    required this.unit,
-    required this.category,
-    required this.referenceRange,
-  });
-}
-
-class LabVitalsData {
-  static const Map<String, LabTest> allLabTests = {
-    // --- BLOOD SUGAR / DIABETES PROFILE ---
-    'fasting_glucose': LabTest(
-      displayName: 'Fasting Glucose',
-      unit: 'mg/dL',
-      category: 'Blood Sugar',
-      referenceRange: '< 100',
-    ),
-    'pp_glucose': LabTest(
-      displayName: 'Postprandial Glucose',
-      unit: 'mg/dL',
-      category: 'Blood Sugar',
-      referenceRange: '< 140',
-    ),
-    'hba1c': LabTest(
-      displayName: 'HbA1c',
-      unit: '%',
-      category: 'Blood Sugar',
-      referenceRange: '4.0 - 5.6',
-    ),
-
-    // --- LIPID PROFILE ---
-    'total_cholesterol': LabTest(
-      displayName: 'Total Cholesterol',
-      unit: 'mg/dL',
-      category: 'Lipid Profile',
-      referenceRange: '< 200',
-    ),
-    'hdl_cholesterol': LabTest(
-      displayName: 'HDL Cholesterol',
-      unit: 'mg/dL',
-      category: 'Lipid Profile',
-      referenceRange: '> 40',
-    ),
-    'ldl_cholesterol': LabTest(
-      displayName: 'LDL Cholesterol',
-      unit: 'mg/dL',
-      category: 'Lipid Profile',
-      referenceRange: '< 100',
-    ),
-    'triglycerides': LabTest(
-      displayName: 'Triglycerides',
-      unit: 'mg/dL',
-      category: 'Lipid Profile',
-      referenceRange: '< 150',
-    ),
-
-    // --- LIVER FUNCTION TEST (LFT) ---
-    'sgpt_alt': LabTest(
-      displayName: 'SGPT/ALT',
-      unit: 'U/L',
-      category: 'Liver Profile',
-      referenceRange: '< 45',
-    ),
-    'sgot_ast': LabTest(
-      displayName: 'SGOT/AST',
-      unit: 'U/L',
-      category: 'Liver Profile',
-      referenceRange: '< 35',
-    ),
-    'total_bilirubin': LabTest(
-      displayName: 'Total Bilirubin',
-      unit: 'mg/dL',
-      category: 'Liver Profile',
-      referenceRange: '0.3 - 1.2',
-    ),
-
-    // --- KIDNEY FUNCTION TEST (KFT) ---
-    'serum_creatinine': LabTest(
-      displayName: 'Serum Creatinine',
-      unit: 'mg/dL',
-      category: 'Kidney Profile',
-      referenceRange: '0.6 - 1.2',
-    ),
-    'bun': LabTest(
-      displayName: 'BUN (Urea)',
-      unit: 'mg/dL',
-      category: 'Kidney Profile',
-      referenceRange: '7 - 20',
-    ),
-
-    // --- THYROID PROFILE ---
-    'tsh': LabTest(
-      displayName: 'TSH',
-      unit: 'mIU/L',
-      category: 'Thyroid',
-      referenceRange: '0.4 - 4.0',
-    ),
-    'free_t3': LabTest(
-      displayName: 'Free T3',
-      unit: 'pg/mL',
-      category: 'Thyroid',
-      referenceRange: '2.0 - 4.4',
-    ),
-    'free_t4': LabTest(
-      displayName: 'Free T4',
-      unit: 'ng/dL',
-      category: 'Thyroid',
-      referenceRange: '0.8 - 1.8',
-    ),
-
-    // --- VITAMINS, MINERALS & OTHERS ---
-    'vitamin_d': LabTest(
-      displayName: 'Vitamin D (25-OH)',
-      unit: 'ng/mL',
-      category: 'Vitamins & Minerals',
-      referenceRange: '30 - 100',
-    ),
-    'ferritin': LabTest(
-      displayName: 'Ferritin',
-      unit: 'ng/mL',
-      category: 'Vitamins & Minerals',
-      referenceRange: '15 - 150 (F) | 20 - 250 (M)',
-    ),
-    'serum_iron': LabTest(
-      displayName: 'Serum Iron',
-      unit: 'µg/dL',
-      category: 'Vitamins & Minerals',
-      referenceRange: '60 - 170',
-    ),
-    'uric_acid': LabTest(
-      displayName: 'Uric Acid',
-      unit: 'mg/dL',
-      category: 'Vitamins & Minerals',
-      referenceRange: '2.4 - 6.0 (F) | 3.4 - 7.0 (M)',
-    ),
-    'crp': LabTest(
-      displayName: 'C-Reactive Protein (CRP)',
-      unit: 'mg/L',
-      category: 'Inflammation',
-      referenceRange: '< 1.0',
-    ),
-
-    // --- ELECTROLYTES ---
-    'sodium': LabTest(
-      displayName: 'Sodium (Na+)',
-      unit: 'mmol/L',
-      category: 'Electrolytes',
-      referenceRange: '135 - 145',
-    ),
-    'potassium': LabTest(
-      displayName: 'Potassium (K+)',
-      unit: 'mmol/L',
-      category: 'Electrolytes',
-      referenceRange: '3.5 - 5.1',
-    ),
-  };
-
-  static List<String> get labCategories =>
-      allLabTests.values.map((v) => v.category).toSet().toList();
-}
-
-final List<String> _foodHabits = ['Non-Vegetarian', 'Vegetarian', 'Eggetarian', 'Vegan'];
-final List<String> _activityTypes = [
-  'Sedentary (Little to no exercise)',
-  'Light (1-3 days/week)',
-  'Moderate (3-5 days/week)',
-  'Active (6-7 days/week)',
-  'Very Active (Intense daily)'
-];
-final List<String> _drinkingOptions = ['No', 'Socially/Occasional', 'Weekly', 'Daily'];
-final List<String> _smokingOptions = ['No', 'Occasionally', 'Daily (Few)', 'Daily (Heavy)'];
-
-class DiseaseHistoryEntry {
-  final String diseaseId;
-  final String diseaseName;
-  final String duration;
-
-  const DiseaseHistoryEntry({
-    required this.diseaseId,
-    required this.diseaseName,
-    required this.duration,
-  });
-
-  DiseaseHistoryEntry copyWith({
-    String? diseaseId,
-    String? diseaseName,
-    String? duration,
-  }) {
-    return DiseaseHistoryEntry(
-      diseaseId: diseaseId ?? this.diseaseId,
-      diseaseName: diseaseName ?? this.diseaseName,
-      duration: duration ?? this.duration,
-    );
-  }
-}
 
 class VitalsEntryPage extends StatefulWidget {
   final String clientId;
   final String clientName;
-  final VitalsModel? vitalsToEdit;
   final VoidCallback onVitalsSaved;
   final bool isFirstConsultation;
+  final VitalsModel? vitalsToEdit;
 
   const VitalsEntryPage({
     super.key,
     required this.clientId,
     required this.clientName,
-    this.vitalsToEdit,
     required this.onVitalsSaved,
-    required this.isFirstConsultation
+    required this.isFirstConsultation,
+    this.vitalsToEdit,
   });
 
   @override
   State<VitalsEntryPage> createState() => _VitalsEntryPageState();
 }
 
-class _VitalsEntryPageState extends State<VitalsEntryPage>
-    with SingleTickerProviderStateMixin {
+class _VitalsEntryPageState extends State<VitalsEntryPage> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   late TabController _tabController;
+  bool _isSaving = false;
+  DateTime _selectedDate = DateTime.now();
 
-  final DiseaseMasterService _diseaseService = DiseaseMasterService();
-  late Future<List<DiseaseMasterModel>> _diseaseMasterFuture;
+  // --- STATE: Clinical Profile ---
+  List<String> _selectedDiagnosisIds = []; // Storing IDs (or Names if simple strings)
+  Map<String, String> _medicalHistory = {}; // Key: Disease Name, Value: Duration
+  List<String> _selectedComplaints = [];
+  List<String> _selectedAllergies = [];
+  List<PrescribedMedication> _prescribedMedications = [];
+  final _medicationController = TextEditingController(); // For legacy/unstructured notes
 
-  List<DiseaseMasterModel> _availableDiseases = [];
-  String? _currentSelectedDiseaseName;
-
-  // --- CONTROLLERS ---
-  final _heightController = TextEditingController();
-  final _heightFeetController = TextEditingController();
-  final _heightInchesController = TextEditingController();
-  String _heightUnit = 'cm';
+  // --- STATE: Body & Lifestyle ---
   final _weightController = TextEditingController();
-  final _bfpController = TextEditingController();
-  final _notesController = TextEditingController();
-
+  final _heightController = TextEditingController();
   final _waistController = TextEditingController();
   final _hipController = TextEditingController();
-  final _chestController = TextEditingController();
+  final _fatController = TextEditingController();
 
-  final Map<String, TextEditingController> _labControllers = Map.fromIterable(
-    LabVitalsData.allLabTests.keys,
-    key: (key) => key,
-    value: (_) => TextEditingController(),
-  );
+  final _bpSysController = TextEditingController();
+  final _bpDiaController = TextEditingController();
+  final _hrController = TextEditingController();
+  final _spo2Controller = TextEditingController();
 
-  // 🎯 NEW: Track which lab sections are visible
-  final Set<String> _visibleLabCategories = {};
+  // Labs (Dynamic based on LabVitalsData keys)
+  final Map<String, TextEditingController> _labControllers = {};
 
+  // Lifestyle
   String? _foodHabit;
-  String? _activityType;
-  String? _drinkingStatus;
-  final _drinkingLimitController = TextEditingController();
-  String? _smokingStatus;
-  final _smokingLimitController = TextEditingController();
-  final _otherHabitsController = TextEditingController();
-
-  final TextEditingController _complaintsController = TextEditingController();
-  final TextEditingController _medicationController = TextEditingController();
-  final TextEditingController _allergiesController = TextEditingController();
-  final TextEditingController _restrictedDietController = TextEditingController();
-
-  final Map<String, TextEditingController> _historyDurationControllers = {};
-  List<DiseaseHistoryEntry> _diseaseHistory = [];
-
-  DateTime _selectedDate = DateTime.now();
-  bool _isLoading = false;
-
-  double _bmi = 0.0;
-  double _idealBodyWeightKg = 0.0;
-
-  VitalsService vitalsService = VitalsService();
-  bool _isMeasurementsExpanded = false;
+  String? _activityLevel;
+  bool _smoking = false;
+  final _smokingCtrl = TextEditingController();
+  bool _alcohol = false;
+  final _alcoholCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _diseaseMasterFuture = _diseaseService.getActiveDiseasesList();
 
-    _heightController.addListener(_calculateVitals);
-    _heightFeetController.addListener(_handleFeetInchChange);
-    _heightInchesController.addListener(_handleFeetInchChange);
-    _weightController.addListener(_calculateVitals);
+    // Initialize controllers for ALL lab tests defined in configuration
+    for(var key in LabVitalsData.allLabTests.keys) {
+      _labControllers[key] = TextEditingController();
+    }
 
     if (widget.vitalsToEdit != null) {
-      if (widget.vitalsToEdit!.medicalHistoryDurations != null) {
-        final historyStrings = widget.vitalsToEdit!.medicalHistoryDurations!.split(',');
-        _diseaseHistory = historyStrings
-            .where((s) => s.contains(':'))
-            .map((s) {
-          final parts = s.split(':');
-          final diseaseName = parts[0].trim();
-          final duration = parts[1].trim();
+      _populateData(widget.vitalsToEdit!);
+    }
+  }
 
-          final controller = TextEditingController(text: duration);
-          _historyDurationControllers[diseaseName] = controller;
+  void _populateData(VitalsModel data) {
+    _selectedDate = data.date;
 
-          controller.addListener(() {
-            _updateHistoryDuration(diseaseName, controller.text.trim());
-          });
+    // --- Populate Clinical Data ---
+    _selectedDiagnosisIds = List.from(data.diagnosis);
 
-          return DiseaseHistoryEntry(
-            diseaseName: diseaseName,
-            duration: duration,
-            diseaseId: diseaseName,
-          );
-        }).toList();
+    // History Logic: Parse "Diabetes: 5yrs, HTN: 2yrs" format if duration map missing
+    if (data.medicalHistoryDurations != null && data.medicalHistoryDurations!.isNotEmpty) {
+      final entries = data.medicalHistoryDurations!.split(', ');
+      for(var e in entries) {
+        final parts = e.split(':');
+        if(parts.length > 1) {
+          _medicalHistory[parts[0].trim()] = parts[1].trim();
+        } else {
+          _medicalHistory[e.trim()] = "";
+        }
       }
-      _initializeForEdit(widget.vitalsToEdit!);
     } else {
-      _calculateVitals();
+      // Fallback for older data format
+      for(var h in data.medicalHistory) {
+        _medicalHistory[h] = "";
+      }
+    }
+
+    // Parse Comma Separated Lists or use direct lists if model updated
+    _selectedComplaints = (data.complaints?.split(',') ?? [])
+        .where((s) => s.trim().isNotEmpty)
+        .map((e) => e.trim())
+        .toList();
+
+    _selectedAllergies = (data.foodAllergies?.split(',') ?? [])
+        .where((s) => s.trim().isNotEmpty)
+        .map((e) => e.trim())
+        .toList();
+
+    // Medications (New List Structure)
+    _prescribedMedications = List.from(data.prescribedMedications);
+
+    // Fallback for legacy medication string if list is empty
+    if (_prescribedMedications.isEmpty && data.existingMedication != null && data.existingMedication!.isNotEmpty) {
+      // Optional: logic to parse string "Dolo (1-0-1)" into objects,
+      // for now we just put it in the legacy text field
+      _medicationController.text = data.existingMedication!;
+    }
+
+    // --- Populate Body Data ---
+    if(data.weightKg > 0) _weightController.text = data.weightKg.toString();
+    if(data.heightCm > 0) _heightController.text = data.heightCm.toString();
+    if(data.waistCm != null) _waistController.text = data.waistCm.toString();
+    if(data.hipCm != null) _hipController.text = data.hipCm.toString();
+    if(data.bodyFatPercentage > 0) _fatController.text = data.bodyFatPercentage.toString();
+
+    if(data.bloodPressureSystolic != null) _bpSysController.text = data.bloodPressureSystolic.toString();
+    if(data.bloodPressureDiastolic != null) _bpDiaController.text = data.bloodPressureDiastolic.toString();
+    if(data.heartRate != null) _hrController.text = data.heartRate.toString();
+    if(data.spO2Percentage != null) _spo2Controller.text = data.spO2Percentage.toString();
+
+    // Populate Labs
+    data.labResults.forEach((k, v) {
+      if(_labControllers.containsKey(k)) {
+        _labControllers[k]!.text = v;
+      }
+    });
+
+    // --- Populate Lifestyle ---
+    _foodHabit = data.foodHabit;
+    _activityLevel = data.activityType;
+    if(data.otherLifestyleHabits?.containsKey('Smoking') ?? false) {
+      _smoking = true;
+      _smokingCtrl.text = data.otherLifestyleHabits!['Smoking']!;
+    }
+    if(data.otherLifestyleHabits?.containsKey('Alcohol') ?? false) {
+      _alcohol = true;
+      _alcoholCtrl.text = data.otherLifestyleHabits!['Alcohol']!;
     }
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _heightController.removeListener(_calculateVitals);
-    _heightFeetController.removeListener(_handleFeetInchChange);
-    _heightInchesController.removeListener(_handleFeetInchChange);
-
-    _heightController.dispose();
-    _heightFeetController.dispose();
-    _heightInchesController.dispose();
-
-    _weightController.removeListener(_calculateVitals);
-    _weightController.dispose();
-    _bfpController.dispose();
-
-    _complaintsController.dispose();
     _medicationController.dispose();
-    _allergiesController.dispose();
-    _restrictedDietController.dispose();
-
-    _historyDurationControllers.values.forEach((controller) => controller.dispose());
-
-    _notesController.dispose();
-    _labControllers.values.forEach((controller) => controller.dispose());
+    _weightController.dispose();
+    _heightController.dispose();
     _waistController.dispose();
     _hipController.dispose();
-    _chestController.dispose();
-    _drinkingLimitController.dispose();
-    _smokingLimitController.dispose();
-    _otherHabitsController.dispose();
-
+    _fatController.dispose();
+    _bpSysController.dispose();
+    _bpDiaController.dispose();
+    _hrController.dispose();
+    _spo2Controller.dispose();
+    _smokingCtrl.dispose();
+    _alcoholCtrl.dispose();
+    for(var c in _labControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  void _addDiseaseToHistory() {
-    if (_currentSelectedDiseaseName != null) {
-      final diseaseName = _currentSelectedDiseaseName!;
-      final isAlreadyAdded = _diseaseHistory.any((e) => e.diseaseName == diseaseName);
-      if (isAlreadyAdded) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$diseaseName is already added.')));
-        return;
-      }
-      final disease = _availableDiseases.firstWhere(
-            (d) => d.enName == diseaseName,
-        orElse: () => const DiseaseMasterModel(id: '', enName: '', nameLocalized: {}),
-      );
-      if (disease.id.isNotEmpty) {
-        final newEntry = DiseaseHistoryEntry(
-          diseaseId: disease.id,
-          diseaseName: disease.enName,
-          duration: '',
-        );
-        final newController = TextEditingController();
-        _historyDurationControllers[disease.enName] = newController;
-        newController.addListener(() {
-          _updateHistoryDuration(disease.enName, newController.text.trim());
-        });
-        setState(() {
-          _diseaseHistory.add(newEntry);
-          _currentSelectedDiseaseName = null;
-        });
-      }
-    }
-  }
-
-  void _updateHistoryDuration(String diseaseName, String newDuration) {
-    final entryIndex = _diseaseHistory.indexWhere((e) => e.diseaseName == diseaseName);
-    if (entryIndex != -1) {
-      _diseaseHistory[entryIndex] = _diseaseHistory[entryIndex].copyWith(duration: newDuration);
-    }
-  }
-
-  void _removeDiseaseFromHistory(String diseaseName) {
-    setState(() {
-      _diseaseHistory.removeWhere((e) => e.diseaseName == diseaseName);
-      final controller = _historyDurationControllers.remove(diseaseName);
-      controller?.dispose();
-    });
-  }
-
-  void _initializeForEdit(VitalsModel vitals) {
-    _selectedDate = vitals.date;
-    final heightCm = vitals.heightCm;
-    _heightController.text = heightCm.toStringAsFixed(1);
-
-    if (heightCm > 0) {
-      final totalInches = heightCm / 2.54;
-      final feet = (totalInches / 12).floor();
-      final inches = totalInches % 12;
-      _heightFeetController.text = feet.toString();
-      _heightInchesController.text = inches.toStringAsFixed(1);
-    }
-
-    _weightController.text = vitals.weightKg.toStringAsFixed(1);
-    _bfpController.text = vitals.bodyFatPercentage.toStringAsFixed(1);
-    _notesController.text = vitals.notes ?? '';
-
-    _bmi = vitals.bmi;
-    _idealBodyWeightKg = vitals.idealBodyWeightKg;
-
-    final storedFoodHabit = vitals.foodHabit;
-    if (storedFoodHabit != null && storedFoodHabit.isNotEmpty && _foodHabits.contains(storedFoodHabit)) {
-      _foodHabit = storedFoodHabit;
-    } else {
-      _foodHabit = null;
-    }
-
-    final storedActivityType = vitals.activityType;
-    if (storedActivityType != null && storedActivityType.isNotEmpty && _activityTypes.contains(storedActivityType)) {
-      _activityType = storedActivityType;
-    } else {
-      _activityType = null;
-    }
-
-    if (vitals.measurements.containsKey('waist')) {
-      _waistController.text = vitals.measurements['waist']!.toStringAsFixed(1);
-    }
-    if (vitals.measurements.containsKey('hip')) {
-      _hipController.text = vitals.measurements['hip']!.toStringAsFixed(1);
-    }
-    if (vitals.measurements.containsKey('chest')) {
-      _chestController.text = vitals.measurements['chest']!.toStringAsFixed(1);
-    }
-
-    // 🎯 PRE-SELECT LAB CATEGORIES THAT HAVE DATA
-    LabVitalsData.allLabTests.keys.forEach((key) {
-      if (vitals.labResults.containsKey(key)) {
-        _labControllers[key]!.text = vitals.labResults[key]!;
-        final category = LabVitalsData.allLabTests[key]!.category;
-        _visibleLabCategories.add(category);
-      }
-    });
-
-    final Map<String, String> habits = vitals.otherLifestyleHabits ?? {};
-    _drinkingStatus = habits['drinkingStatus'];
-    _drinkingLimitController.text = habits['drinkingLimit'] ?? '';
-    _smokingStatus = habits['smokingStatus'];
-    _smokingLimitController.text = habits['smokingLimit'] ?? '';
-    _otherHabitsController.text = habits['otherHabits'] ?? '';
-
-    _complaintsController.text = vitals.complaints ?? '';
-    _medicationController.text = vitals.existingMedication ?? '';
-    _allergiesController.text = vitals.foodAllergies ?? '';
-    _restrictedDietController.text = vitals.restrictedDiet ?? '';
-  }
-
-  void _handleFeetInchChange() {
-    if (!mounted || _heightUnit != 'ft/in') return;
-    final feet = double.tryParse(_heightFeetController.text) ?? 0.0;
-    final inches = double.tryParse(_heightInchesController.text) ?? 0.0;
-    double heightCm = 0.0;
-    if (feet > 0 || inches > 0) {
-      final totalInches = (feet * 12) + inches;
-      heightCm = totalInches * 2.54;
-    }
-    if (_heightController.text != heightCm.toString()) {
-      _heightController.text = heightCm.toString();
-      _calculateVitals();
-    }
-  }
-
-  void _calculateVitals() {
-    if (!mounted) return;
-    final heightCm = double.tryParse(_heightController.text) ?? 0.0;
-    final weightKg = double.tryParse(_weightController.text) ?? 0.0;
-    double newBmi = 0.0;
-    double newIbw = 0.0;
-    if (heightCm > 0 && weightKg > 0) {
-      final heightMeters = heightCm / 100;
-      newBmi = weightKg / (heightMeters * heightMeters);
-      final heightInches = heightCm / 2.54;
-      final inchesOver5Feet = heightInches - 60;
-      if (inchesOver5Feet > 0) {
-        newIbw = 50.0 + (2.3 * inchesOver5Feet);
-      } else {
-        newIbw = 50.0;
-      }
-    }
-    if (_bmi.toStringAsFixed(1) != newBmi.toStringAsFixed(1) ||
-        _idealBodyWeightKg.toStringAsFixed(1) != newIbw.toStringAsFixed(1)) {
-      setState(() {
-        _bmi = newBmi;
-        _idealBodyWeightKg = newIbw;
-      });
-    }
-  }
-
-  Map<String, double> _getMeasurements() {
-    final results = <String, double>{};
-    void addMeasurement(String key, TextEditingController controller) {
-      final value = double.tryParse(controller.text.trim());
-      if (value != null && value > 0) {
-        results[key] = value;
-      }
-    }
-    addMeasurement('waist', _waistController);
-    addMeasurement('hip', _hipController);
-    addMeasurement('chest', _chestController);
-    return results;
-  }
-
-  Map<String, String> _getLabResults() {
-    final results = <String, String>{};
-    _labControllers.forEach((key, controller) {
-      if (controller.text.isNotEmpty) {
-        results[key] = controller.text.trim();
-      }
-    });
-    return results;
-  }
-
-  Map<String, String> _getLifestyleHabits() {
-    final habits = <String, String>{};
-    habits['drinkingStatus'] = _drinkingStatus ?? '';
-    if (_drinkingStatus != 'No' && _drinkingStatus != null) {
-      habits['drinkingLimit'] = _drinkingLimitController.text.trim();
-    } else {
-      habits['drinkingLimit'] = '';
-    }
-    habits['smokingStatus'] = _smokingStatus ?? '';
-    if (_smokingStatus != 'No' && _smokingStatus != null) {
-      habits['smokingLimit'] = _smokingLimitController.text.trim();
-    } else {
-      habits['smokingLimit'] = '';
-    }
-    habits['otherHabits'] = _otherHabitsController.text.trim();
-    return habits;
-  }
-
-  void _saveForm() async {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) {
-      _tabController.animateTo(0);
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please correct invalid fields before saving."))
+      );
       return;
     }
-    setState(() { _isLoading = true; });
-    _calculateVitals();
-    final vitalsId = widget.vitalsToEdit?.id ?? '';
-    final medicalHistoryString = _diseaseHistory
-        .map((e) => '${e.diseaseName}:${e.duration}')
-        .join(',');
-    final VitalsModel newVitals = VitalsModel(
-      id: vitalsId,
-      clientId: widget.clientId,
-      date: _selectedDate,
-      heightCm: double.tryParse(_heightController.text) ?? 0.0,
-      bmi: _bmi,
-      idealBodyWeightKg: _idealBodyWeightKg,
-      weightKg: double.tryParse(_weightController.text) ?? 0.0,
-      bodyFatPercentage: double.tryParse(_bfpController.text) ?? 0.0,
-      measurements: _getMeasurements(),
-      labResults: _getLabResults(),
-      notes: _notesController.text.isEmpty ? null : _notesController.text.trim(),
-      labReportUrls: widget.vitalsToEdit?.labReportUrls ?? [],
-      foodHabit: _foodHabit,
-      activityType: _activityType,
-      otherLifestyleHabits: _getLifestyleHabits(),
-      complaints: _complaintsController.text.trim(),
-      existingMedication: _medicationController.text.trim(),
-      foodAllergies: _allergiesController.text.trim(),
-      restrictedDiet: _restrictedDietController.text.trim(),
-      medicalHistoryDurations: medicalHistoryString,
-      isFirstConsultation: widget.isFirstConsultation,
-    );
+
+    setState(() => _isSaving = true);
+
     try {
-      if (widget.vitalsToEdit?.id != null) {
-        await vitalsService.updateVitals(newVitals);
-      } else {
-        await vitalsService.addVitals(newVitals);
-      }
-      widget.onVitalsSaved();
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save vitals: $e')));
-    } finally {
-      if (mounted) setState(() { _isLoading = false; });
-    }
-  }
+      // 1. Calculations & Conversions
+      double h = double.tryParse(_heightController.text) ?? 0;
+      double w = double.tryParse(_weightController.text) ?? 0;
+      double bmi = (h > 0 && w > 0) ? w / ((h/100)*(h/100)) : 0;
+      double ibw = (h > 0) ? 22 * ((h/100)*(h/100)) : 0; // Simple IBW logic
 
-  // ----------------------------------------------------------------------
-  // --- UI BUILDER METHODS ---
-  // ----------------------------------------------------------------------
+      // 2. Format Data for Storage
+      // Convert Map back to string for legacy support or display purposes
+      String historyStr = _medicalHistory.entries.map((e) => "${e.key}:${e.value}").join(", ");
 
-  Widget _buildDateSelection() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Text(
-            'Record Date: ${DateFormat('dd MMM yyyy').format(_selectedDate)}',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        TextButton.icon(
-          onPressed: () async {
-            final DateTime? pickedDate = await showDatePicker(
-              context: context,
-              initialDate: _selectedDate,
-              firstDate: DateTime(2000),
-              lastDate: DateTime.now(),
-            );
-            if (pickedDate != null && pickedDate != _selectedDate) {
-              setState(() {
-                _selectedDate = pickedDate;
-              });
-            }
-          },
-          icon: const Icon(Icons.calendar_today),
-          label: const Text('Change'),
-        ),
-      ],
-    );
-  }
+      // Lab Results Map
+      Map<String, String> labs = {};
+      _labControllers.forEach((k, v) {
+        if(v.text.trim().isNotEmpty) labs[k] = v.text.trim();
+      });
 
-  // 🎯 MISSING METHOD RESTORED
-  Widget _buildVitalsSection() {
-    return Column(
-      children: [
-        const _SectionHeader(
-          title: 'Physical Vitals',
-          icon: Icons.monitor_weight,
-        ),
-        Card(
-          elevation: 2,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                _buildDateSelection(),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Height Unit',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      ToggleButtons(
-                        isSelected: [_heightUnit == 'cm', _heightUnit == 'ft/in'],
-                        onPressed: (index) {
-                          setState(() {
-                            _heightUnit = index == 0 ? 'cm' : 'ft/in';
-                            _calculateVitals();
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(8),
-                        children: const [
-                          Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('cm')),
-                          Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('ft/in')),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                if (_heightUnit == 'cm')
-                  TextFormField(
-                    controller: _heightController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
-                    decoration: const InputDecoration(labelText: 'Height (cm)*', border: OutlineInputBorder(), suffixText: 'cm'),
-                    validator: (value) {
-                      final val = double.tryParse(value ?? '');
-                      if (val == null || val <= 0) return 'Please enter valid height';
-                      return null;
-                    },
-                  )
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _heightFeetController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Feet (ft)*', border: OutlineInputBorder()),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _heightInchesController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'Inches (in)*', border: OutlineInputBorder()),
-                        ),
-                      ),
-                    ],
-                  ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _weightController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Weight (kg)*', border: OutlineInputBorder(), suffixText: 'kg'),
-                  validator: (value) => (value == null || double.tryParse(value)! <= 0) ? 'Please enter valid weight' : null,
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildCalculatedValue('BMI', _bmi),
-                    _buildCalculatedValue('IBW (kg)', _idealBodyWeightKg),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+      // Lifestyle Map
+      Map<String, String> habits = {};
+      if(_smoking) habits['Smoking'] = _smokingCtrl.text;
+      if(_alcohol) habits['Alcohol'] = _alcoholCtrl.text;
 
-  // 🎯 MISSING METHOD RESTORED
-  Widget _buildCalculatedValue(String label, double value) {
-    return Column(
-      children: [
-        Text(
-          value > 0 ? value.toStringAsFixed(1) : 'N/A',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: value > 0 ? Colors.indigo : Colors.grey.shade500,
-          ),
-        ),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      ],
-    );
-  }
+      // 3. Create Model
+      final model = VitalsModel(
+        id: widget.vitalsToEdit?.id ?? '',
+        clientId: widget.clientId,
+        date: _selectedDate,
+        isFirstConsultation: widget.isFirstConsultation,
 
-  Widget _buildLabCategorySelector() {
-    final categories = LabVitalsData.labCategories;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10.0),
-      child: Wrap(
-        spacing: 8.0,
-        runSpacing: 4.0,
-        children: categories.map((category) {
-          final isSelected = _visibleLabCategories.contains(category);
-          return FilterChip(
-            label: Text(category, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : Colors.black87)),
-            selected: isSelected,
-            selectedColor: Colors.indigo,
-            backgroundColor: Colors.grey.shade200,
-            checkmarkColor: Colors.white,
-            onSelected: (bool selected) {
-              setState(() {
-                if (selected) {
-                  _visibleLabCategories.add(category);
-                } else {
-                  _visibleLabCategories.remove(category);
-                }
-              });
-            },
-          );
-        }).toList(),
-      ),
-    );
-  }
+        // Anthro
+        heightCm: h,
+        weightKg: w,
+        bmi: bmi,
+        idealBodyWeightKg: ibw,
+        bodyFatPercentage: double.tryParse(_fatController.text) ?? 0,
+        waistCm: double.tryParse(_waistController.text),
+        hipCm: double.tryParse(_hipController.text),
+        measurements: {}, // Deprecated or extra measurements
 
-  Widget _buildGroupedLabCards() {
-    final Map<String, List<String>> testsByCategory = {};
-    LabVitalsData.allLabTests.forEach((key, testData) {
-      final category = testData.category;
-      if (_visibleLabCategories.contains(category)) {
-        testsByCategory.putIfAbsent(category, () => []).add(key);
-      }
-    });
+        // Vitals
+        bloodPressureSystolic: int.tryParse(_bpSysController.text),
+        bloodPressureDiastolic: int.tryParse(_bpDiaController.text),
+        heartRate: int.tryParse(_hrController.text),
+        spO2Percentage: double.tryParse(_spo2Controller.text),
 
-    if (testsByCategory.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Center(child: Text('Select a lab profile above to enter results.', style: TextStyle(color: Colors.grey))),
+        // Clinical Profile
+        diagnosis: _selectedDiagnosisIds,
+        medicalHistory: _medicalHistory.keys.toList(),
+        medicalHistoryDurations: historyStr,
+        complaints: _selectedComplaints.join(", "),
+        foodAllergies: _selectedAllergies.join(", "),
+
+        prescribedMedications: _prescribedMedications, // 🎯 NEW LIST
+        existingMedication: _medicationController.text, // Legacy notes
+
+        // Lab & Lifestyle
+        labResults: labs,
+        foodHabit: _foodHabit,
+        activityType: _activityLevel,
+        otherLifestyleHabits: habits,
       );
+
+      // 4. Save to Service
+      await VitalsService().saveVitals(model);
+
+      // 5. Notify & Return
+      widget.onVitalsSaved();
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vitals saved successfully!"), backgroundColor: Colors.green));
+        Navigator.pop(context);
+      }
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error saving vitals: $e"), backgroundColor: Colors.red));
+    } finally {
+      if(mounted) setState(() => _isSaving = false);
     }
-
-    return Column(
-      children: testsByCategory.entries.map((entry) {
-        final category = entry.key;
-        final testKeys = entry.value;
-
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 16),
-          child: ExpansionTile(
-            initiallyExpanded: true,
-            title: Text(
-              category,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
-            ),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: testKeys.map((key) {
-                    final testData = LabVitalsData.allLabTests[key]!;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: TextFormField(
-                        controller: _labControllers[key],
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: testData.displayName,
-                          border: const OutlineInputBorder(),
-                          suffixText: testData.unit,
-                          hintText: 'Ref: ${testData.referenceRange}',
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildMetricsLabTabContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildVitalsSection(), // Now defined!
-          const SizedBox(height: 20),
-          Card(
-            elevation: 2,
-            child: ExpansionTile(
-              initiallyExpanded: _isMeasurementsExpanded,
-              onExpansionChanged: (val) => setState(() => _isMeasurementsExpanded = val),
-              leading: const Icon(Icons.accessibility, color: Colors.indigo),
-              title: const Text('Body Measurements', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      _buildMeasurementInput(controller: _waistController, label: 'Waist Circumference', unit: 'cm'),
-                      _buildMeasurementInput(controller: _hipController, label: 'Hip Circumference', unit: 'cm'),
-                      _buildMeasurementInput(controller: _chestController, label: 'Chest Circumference', unit: 'cm'),
-                    ],
-                  ),
-                )
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          const _SectionHeader(
-            title: 'Lab Results',
-            icon: Icons.medical_services,
-          ),
-          const Text("Select profiles to fill:", style: TextStyle(fontWeight: FontWeight.w500)),
-          _buildLabCategorySelector(),
-          _buildGroupedLabCards(),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMeasurementInput({required TextEditingController controller, required String label, required String unit}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: InputDecoration(labelText: '$label ($unit)', border: const OutlineInputBorder(), suffixText: unit),
-      ),
-    );
-  }
-
-  Widget _buildClinicalLifestyleTabContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Card(
-            elevation: 2,
-            child: ExpansionTile(
-              initiallyExpanded: false,
-              leading: const Icon(Icons.local_hospital, color: Colors.indigo),
-              title: const Text('Existing Medication', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: TextFormField(
-                    controller: _medicationController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Current Medications',
-                      hintText: 'e.g., Metformin 500mg BID',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          _buildMedicalHistorySelector(),
-          const SizedBox(height: 20),
-
-          Card(
-            elevation: 2,
-            child: ExpansionTile(
-              initiallyExpanded: false,
-              leading: const Icon(Icons.no_food, color: Colors.indigo),
-              title: const Text('Allergies & Restrictions', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        controller: _allergiesController,
-                        maxLines: 2,
-                        decoration: const InputDecoration(labelText: 'Food Allergies', border: OutlineInputBorder()),
-                      ),
-                      const SizedBox(height: 15),
-                      TextFormField(
-                        controller: _restrictedDietController,
-                        maxLines: 2,
-                        decoration: const InputDecoration(labelText: 'Dietary Restrictions', border: OutlineInputBorder()),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          Card(
-            elevation: 2,
-            child: ExpansionTile(
-              initiallyExpanded: false,
-              leading: const Icon(Icons.person_outline, color: Colors.indigo),
-              title: const Text('Lifestyle Habits', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      DropdownButtonFormField<String>(
-                        value: _foodHabit,
-                        decoration: const InputDecoration(labelText: 'Food Habit', border: OutlineInputBorder()),
-                        items: _foodHabits.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                        onChanged: (val) => setState(() => _foodHabit = val),
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: _activityType,
-                        decoration: const InputDecoration(labelText: 'Activity Level', border: OutlineInputBorder()),
-                        items: _activityTypes.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                        onChanged: (val) => setState(() => _activityType = val),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildHabitInput(
-                        title: 'Drinking Habit',
-                        value: (_drinkingStatus?.isEmpty ?? true) ? null : _drinkingStatus,
-                        options: _drinkingOptions,
-                        onChanged: (val) => setState(() => _drinkingStatus = val),
-                        limitLabel: 'Frequency',
-                        limitController: _drinkingLimitController,
-                      ),
-                      _buildHabitInput(
-                        title: 'Smoking Habit',
-                        value: (_smokingStatus?.isEmpty ?? true) ? null : _smokingStatus,
-                        options: _smokingOptions,
-                        onChanged: (val) => setState(() => _smokingStatus = val),
-                        limitLabel: 'Frequency',
-                        limitController: _smokingLimitController,
-                      ),
-                      TextFormField(
-                        controller: _otherHabitsController,
-                        maxLines: 2,
-                        decoration: const InputDecoration(labelText: 'Other Habits', border: OutlineInputBorder()),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          Card(
-            elevation: 2,
-            child: ExpansionTile(
-              initiallyExpanded: false,
-              leading: const Icon(Icons.edit_note, color: Colors.indigo),
-              title: const Text('Notes', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: TextFormField(
-                    controller: _notesController,
-                    maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Additional Notes', border: OutlineInputBorder()),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHabitInput({required String title, required String? value, required List<String> options, required ValueChanged<String?> onChanged, required String limitLabel, required TextEditingController limitController}) {
-    final showLimit = value != 'No' && value != null;
-    return Column(
-      children: [
-        DropdownButtonFormField<String>(
-          value: value,
-          decoration: InputDecoration(labelText: title, border: const OutlineInputBorder()),
-          items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: onChanged,
-        ),
-        if (showLimit)
-          Padding(
-            padding: const EdgeInsets.only(top: 10.0, bottom: 16.0),
-            child: TextFormField(
-              controller: limitController,
-              decoration: InputDecoration(labelText: limitLabel, border: const OutlineInputBorder()),
-            ),
-          )
-        else
-          const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  Widget _buildMedicalHistorySelector() {
-    return FutureBuilder<List<DiseaseMasterModel>>(
-      future: _diseaseMasterFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator()));
-        }
-        if (snapshot.hasError) {
-          return Center(child: Padding(padding: const EdgeInsets.all(16.0), child: Text('Error loading diseases: ${snapshot.error}')));
-        }
-
-        _availableDiseases = snapshot.data ?? [];
-        final availableDiseaseNames = _availableDiseases.map((d) => d.enName).toList();
-        final currentlyAddedNames = _diseaseHistory.map((e) => e.diseaseName).toSet();
-        final dropdownOptions = availableDiseaseNames.where((name) => !currentlyAddedNames.contains(name)).toList();
-
-        return Card(
-          elevation: 2,
-          child: ExpansionTile(
-            initiallyExpanded: false, // Collapsed by default
-            leading: const Icon(Icons.history_edu, color: Colors.indigo),
-            title: const Text('Chronic Medical History', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            value: _currentSelectedDiseaseName,
-                            decoration: const InputDecoration(
-                              labelText: 'Select Disease',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(5),
-                                bottomLeft: Radius.circular(5),
-                              )),
-                              isDense: true,
-                            ),
-                            items: dropdownOptions.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
-                            onChanged: (value) => setState(() => _currentSelectedDiseaseName = value),
-                          ),
-                        ),
-                        Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: _currentSelectedDiseaseName != null ? Colors.indigo : Colors.grey.shade400,
-                            borderRadius: const BorderRadius.only(topRight: Radius.circular(5), bottomRight: Radius.circular(5)),
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.add, color: Colors.white),
-                            onPressed: _currentSelectedDiseaseName != null ? _addDiseaseToHistory : null,
-                            tooltip: 'Add Disease',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-                    if (_diseaseHistory.isNotEmpty)
-                      Column(
-                        children: _diseaseHistory.map((entry) {
-                          final controller = _historyDurationControllers[entry.diseaseName]!;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10.0),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: controller,
-                                    decoration: InputDecoration(
-                                      labelText: entry.diseaseName,
-                                      hintText: 'Duration',
-                                      isDense: true,
-                                      border: const OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  onPressed: () => _removeDiseaseFromHistory(entry.diseaseName),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      )
-                    else
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text('No diseases added yet.', style: TextStyle(color: Colors.grey)),
-                      )
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: Text(widget.vitalsToEdit != null ? 'Edit Vitals' : 'New Vitals Entry'),
-        actions: [
-          if (_isLoading)
-            const Center(child: Padding(padding: EdgeInsets.only(right: 16.0), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))))
-          else
-            IconButton(
-              icon: const Icon(Icons.save),
-              onPressed: _saveForm,
-              tooltip: 'Save',
-            ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(icon: Icon(Icons.monitor_weight), text: 'Metrics & Labs'),
-            Tab(icon: Icon(Icons.medical_services), text: 'Clinical Profile'),
-          ],
-        ),
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildMetricsLabTabContent(),
-                    _buildClinicalLifestyleTabContent(),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  const _SectionHeader({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10.0),
-      child: Row(
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Stack(
         children: [
-          Icon(icon, color: Colors.indigo, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.indigo,
+          // Ambient Background Glow
+          Positioned(
+            top: -100,
+            right: -80,
+            child: Container(
+                width: 300,
+                height: 300,
+                decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: Colors.indigo.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)
+                    ]
+                )
+            ),
+          ),
+
+          SafeArea(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  // 1. Custom Header
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
+                            ),
+                            child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
+                          ),
+                        ),
+                        const Text(
+                            "Client Intake Form",
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))
+                        ),
+                        // Save Button
+                        ElevatedButton.icon(
+                          onPressed: _isSaving ? null : _save,
+                          icon: _isSaving
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Icon(Icons.check, size: 18),
+                          label: const Text("SAVE"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // 2. Date Picker
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200)
+                    ),
+                    child: ListTile(
+                      dense: true,
+                      title: Text(
+                          "Consultation Date: ${DateFormat('dd MMM yyyy').format(_selectedDate)}",
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)
+                      ),
+                      trailing: const Icon(Icons.calendar_today, color: Colors.indigo, size: 20),
+                      onTap: () async {
+                        final d = await showDatePicker(
+                            context: context,
+                            initialDate: _selectedDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now()
+                        );
+                        if(d != null) setState(() => _selectedDate = d);
+                      },
+                    ),
+                  ),
+
+                  // 3. Tabs
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5)],
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: BoxDecoration(
+                          color: Colors.indigo.shade50,
+                          borderRadius: BorderRadius.circular(12)
+                      ),
+                      labelColor: Colors.indigo,
+                      unselectedLabelColor: Colors.grey,
+                      labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      tabs: const [
+                        Tab(text: "Body & Labs", icon: Icon(Icons.science_outlined)),
+                        Tab(text: "Clinical Profile", icon: Icon(Icons.medical_services_outlined)),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // 4. Content Views
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        // TAB 1: Body Vitals
+                        BodyVitalsSection(
+                          weightController: _weightController,
+                          heightController: _heightController,
+                          waistController: _waistController,
+                          hipController: _hipController,
+                          fatController: _fatController,
+                          bpSysController: _bpSysController,
+                          bpDiaController: _bpDiaController,
+                          hrController: _hrController,
+                          spo2Controller: _spo2Controller,
+                          labControllers: _labControllers,
+
+                          foodHabit: _foodHabit,
+                          onFoodHabitChanged: (v) => setState(() => _foodHabit = v),
+                          activityLevel: _activityLevel,
+                          onActivityLevelChanged: (v) => setState(() => _activityLevel = v),
+                          smoking: _smoking,
+                          onSmokingChanged: (v) => setState(() => _smoking = v),
+                          smokingFreqController: _smokingCtrl,
+                          alcohol: _alcohol,
+                          onAlcoholChanged: (v) => setState(() => _alcohol = v),
+                          alcoholFreqController: _alcoholCtrl,
+                        ),
+
+                        // TAB 2: Clinical Profile
+                        ClinicalProfileSection(
+                          selectedDiagnosisIds: _selectedDiagnosisIds,
+                          medicalHistoryWithDuration: _medicalHistory,
+                          selectedComplaints: _selectedComplaints,
+                          selectedAllergies: _selectedAllergies,
+
+                          // Medication
+                          prescribedMedications: _prescribedMedications,
+                          medicationController: _medicationController,
+                          onMedicationsChanged: (list) => setState(() => _prescribedMedications = list),
+
+                          // Callbacks
+                          onDiagnosesChanged: (list) => setState(() => _selectedDiagnosisIds = list),
+                          onHistoryChanged: (map) => setState(() => _medicalHistory = map),
+
+                          // Individual Add/Remove (if using chips directly)
+                          onAddComplaint: (v) => setState(() => _selectedComplaints.add(v)),
+                          onRemoveComplaint: (v) => setState(() => _selectedComplaints.remove(v)),
+                          onAddAllergy: (v) => setState(() => _selectedAllergies.add(v)),
+                          onRemoveAllergy: (v) => setState(() => _selectedAllergies.remove(v)),
+
+                          // 🎯 BULK UPDATES from Multi-Select Dialog
+                          onComplaintsListChanged: (list) => setState(() => _selectedComplaints = list),
+                          onAllergiesListChanged: (list) => setState(() => _selectedAllergies = list),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

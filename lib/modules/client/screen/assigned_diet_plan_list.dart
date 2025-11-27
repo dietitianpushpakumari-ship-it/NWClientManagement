@@ -1,26 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:printing/printing.dart'; // For PDF Logic if needed
 import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
-import 'package:nutricare_client_management/helper/diet_plan_pdf_generator.dart';
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_entry_screen.dart';
 import 'package:nutricare_client_management/modules/client/screen/plan_report_view_screen.dart';
 import 'package:nutricare_client_management/modules/client/services/client_diet_plan_service.dart';
-
-// --- Enums and Utility Functions ---
-
-enum PlanGroup { active, archived, draft }
-
-PlanGroup getPlanGroup(ClientDietPlanModel plan) {
-  if (plan.isDeleted) return PlanGroup.archived;
-  if (plan.isActive) return PlanGroup.active;
-  if (plan.isArchived) return PlanGroup.archived;
-  return PlanGroup.draft;
-}
-
-// --- Main Screen Widget ---
 
 class AssignedDietPlanListScreen extends StatefulWidget {
   final ClientModel client;
@@ -33,22 +18,20 @@ class AssignedDietPlanListScreen extends StatefulWidget {
   });
 
   @override
-  State<AssignedDietPlanListScreen> createState() =>
-      _AssignedDietPlanListScreenState();
+  State<AssignedDietPlanListScreen> createState() => _AssignedDietPlanListScreenState();
 }
 
-class _AssignedDietPlanListScreenState
-    extends State<AssignedDietPlanListScreen> {
+class _AssignedDietPlanListScreenState extends State<AssignedDietPlanListScreen> {
+  final ClientDietPlanService _service = ClientDietPlanService();
   bool _isArchiveExpanded = false;
-  bool _isDraftExpanded = true; // Default expand drafts for easier access
 
-  // --- Navigation/Action Handlers ---
+  // --- ACTIONS ---
 
-  void _navigateToEntryScreen({String? planId, ClientDietPlanModel? plan}) {
+  void _openPlanDetail(ClientDietPlanModel plan) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ClientDietPlanEntryPage(
-          planId: planId,
+          planId: plan.id,
           initialPlan: plan,
           onMealPlanSaved: widget.onMealPlanSaved,
         ),
@@ -56,428 +39,328 @@ class _AssignedDietPlanListScreenState
     );
   }
 
-  void _editPlan(ClientDietPlanModel plan) {
-    _navigateToEntryScreen(planId: plan.id, plan: plan);
-  }
-
   void _createNewPlan() {
-    _navigateToEntryScreen();
-  }
-
-  void _viewPlanReport(ClientDietPlanModel plan) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) =>
-            PlanReportViewScreen(client: widget.client, plan: plan),
+        builder: (context) => ClientDietPlanEntryPage(
+          onMealPlanSaved: widget.onMealPlanSaved,
+        ),
       ),
     );
   }
 
-  // Toggle Freeze/Ready Status
-  Future<void> _toggleReadyStatus(
-      ClientDietPlanModel plan,
-      ClientDietPlanService service,
-      ) async {
-    final bool isReady = plan.isReadyToDeliver;
-    final String action = isReady ? 'Unfreezing' : 'Freezing';
-    final String status = isReady ? 'Unfrozen' : 'Ready to Deliver';
+  void _viewReport(ClientDietPlanModel plan) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PlanReportViewScreen(client: widget.client, plan: plan),
+      ),
+    );
+  }
 
+  Future<void> _setAsPrimary(ClientDietPlanModel plan) async {
     try {
-      final updatedPlan = plan.copyWith(isReadyToDeliver: !isReady);
-      await service.savePlan(updatedPlan);
+      await _service.setAsPrimary(widget.client.id, plan.id);
       widget.onMealPlanSaved();
-
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Plan $status successfully.'),
-            backgroundColor: isReady ? Colors.orange.shade700 : Colors.blue.shade700,
-          ),
-        );
-      }
+      if (mounted) _showSnackbar('Plan "${plan.name}" is now Primary.', Colors.green);
     } catch (e) {
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$action failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (mounted) _showSnackbar('Failed to set primary: $e', Colors.red);
     }
   }
 
-  // Delete/Archive Confirmation
-  Future<void> _confirmAndDelete(
-      ClientDietPlanModel plan,
-      ClientDietPlanService service,
-      ) async {
-    final bool? shouldDelete = await showDialog<bool>(
+  Future<void> _toggleLock(ClientDietPlanModel plan) async {
+    try {
+      final newStatus = !plan.isReadyToDeliver;
+      final updated = plan.copyWith(isReadyToDeliver: newStatus);
+      await _service.savePlan(updated);
+      widget.onMealPlanSaved();
+      if (mounted) _showSnackbar(newStatus ? 'Plan Locked.' : 'Plan Unlocked for editing.', Colors.blue);
+    } catch (e) {
+      if (mounted) _showSnackbar('Error: $e', Colors.red);
+    }
+  }
+
+  Future<void> _toggleProvisional(ClientDietPlanModel plan) async {
+    try {
+      await _service.toggleProvisional(plan.id, plan.isProvisional);
+      widget.onMealPlanSaved();
+      if (mounted) _showSnackbar(plan.isProvisional ? 'Marked as Final.' : 'Marked as Provisional.', Colors.orange);
+    } catch (e) {
+      if (mounted) _showSnackbar('Error: $e', Colors.red);
+    }
+  }
+
+  Future<void> _deletePlan(ClientDietPlanModel plan) async {
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: Text(
-          'Are you sure you want to permanently delete the plan "${plan.name}"? This action cannot be undone.',
-        ),
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Delete"),
+        content: const Text("This will move the plan to archived history. Continue?"),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
           ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text("Delete"),
+          )
         ],
       ),
     );
 
-    if (shouldDelete == true) {
+    if (confirm == true) {
       try {
-        await service.deletePlan(plan.id);
-        if(mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Plan deleted successfully.')),
-          );
-        }
+        await _service.deletePlan(plan.id);
+        widget.onMealPlanSaved();
+        if (mounted) _showSnackbar('Plan deleted.', Colors.grey);
       } catch (e) {
-        if(mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to delete plan: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        if (mounted) _showSnackbar('Error: $e', Colors.red);
       }
     }
   }
 
-  // Toggle Active/Archive Status
-  Future<void> _togglePlanStatus(
-      ClientDietPlanModel plan,
-      bool newActiveState,
-      ) async {
-    final service = ClientDietPlanService();
-
-    try {
-      final updatedPlan = plan.copyWith(
-        isActive: newActiveState,
-        isArchived: !newActiveState,
-      );
-      await service.savePlan(updatedPlan);
-
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              newActiveState ? 'Plan set as Active.' : 'Plan Archived.',
-            ),
-            backgroundColor: newActiveState
-                ? Colors.green.shade700
-                : Colors.orange.shade700,
-          ),
-        );
-      }
-    } catch (e) {
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update plan status: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+  void _showSnackbar(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: color,
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
-  // --- Widget Builders ---
-
-  // 🎯 REVAMPED PLAN CARD
-  Widget _buildPlanCard(
-      ClientDietPlanModel plan,
-      ClientDietPlanService service,
-      PlanGroup group,
-      ) {
-    final bool isActive = group == PlanGroup.active;
-    final bool isReady = plan.isReadyToDeliver;
-
-    // Theme Colors based on status
-    final Color accentColor = isActive
-        ? Colors.green.shade700
-        : (group == PlanGroup.archived ? Colors.orange.shade800 : Colors.grey.shade700);
-    final Color cardBgColor = isActive ? Colors.green.shade50 : Colors.white;
-
-    return Dismissible(
-      key: ValueKey(plan.id),
-      direction: group != PlanGroup.active ? DismissDirection.endToStart : DismissDirection.none,
-      confirmDismiss: (direction) async {
-        if (direction == DismissDirection.endToStart) {
-          _confirmAndDelete(plan, service);
-          return false;
-        }
-        return false;
-      },
-      background: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.red.shade100,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: const Icon(Icons.delete_forever, color: Colors.red),
-      ),
-      child: Card(
-        elevation: 3,
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: accentColor.withOpacity(0.3), width: 1),
-        ),
-        color: cardBgColor,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- TOP ROW: Title & Status Icon ---
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: accentColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isActive ? Icons.check_circle : (isReady ? Icons.lock : Icons.edit_note),
-                      color: accentColor,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          plan.name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Assigned: ${DateFormat('MMM d, y').format(plan.assignedDate ?? DateTime.now())}',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (isReady)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'READY',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
-                      ),
-                    ),
-                ],
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Stack(
+        children: [
+          // Ambient Glow
+          Positioned(
+            top: -100, right: -100,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.teal.withOpacity(0.1), blurRadius: 80, spreadRadius: 20)],
               ),
             ),
+          ),
 
-            const Divider(height: 1),
-
-            // --- BOTTOM ROW: Action Buttons ---
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Left Side Actions
-                  Row(
+          SafeArea(
+            child: Column(
+              children: [
+                // Custom Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  child: Row(
                     children: [
-                      // Freeze/Ready
-                      IconButton(
-                        icon: Icon(
-                          isReady ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
-                          color: isReady ? Colors.orange : Colors.grey,
-                          size: 22,
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+                          child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
                         ),
-                        tooltip: isReady ? 'Unfreeze Plan' : 'Freeze Plan',
-                        onPressed: () => _toggleReadyStatus(plan, service),
                       ),
-                      // Edit
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined, color: Colors.indigo, size: 22),
-                        tooltip: 'Edit Plan',
-                        onPressed: () => _editPlan(plan),
-                      ),
-                      // View
-                      IconButton(
-                        icon: const Icon(Icons.visibility_outlined, color: Colors.blue, size: 22),
-                        tooltip: 'View Report',
-                        onPressed: () => _viewPlanReport(plan),
-                      ),
+                      const SizedBox(width: 16),
+                      const Text("Diet Plans", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
                     ],
                   ),
+                ),
 
-                  // Right Side Actions (Status Switch)
-                  if (!plan.isDeleted)
-                    Row(
-                      children: [
-                        Text(
-                          isActive ? 'Active' : 'Archived',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: isActive ? Colors.green : Colors.grey,
-                          ),
-                        ),
-                        Switch(
-                          value: isActive,
-                          onChanged: (val) => _togglePlanStatus(plan, val),
-                          activeColor: Colors.green,
-                          inactiveThumbColor: Colors.grey,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ],
-                    ),
+                // Plan List
+                Expanded(
+                  child: StreamBuilder<List<ClientDietPlanModel>>(
+                    stream: _service.streamAllNonDeletedPlansForClient(widget.client.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                      final allPlans = snapshot.data ?? [];
+
+                      if (allPlans.isEmpty) return _buildEmptyState();
+
+                      // Grouping
+                      final primaryPlan = allPlans.where((p) => p.isActive).toList();
+                      final otherPlans = allPlans.where((p) => !p.isActive && !p.isArchived).toList();
+                      final archivedPlans = allPlans.where((p) => p.isArchived).toList();
+
+                      return ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+                        children: [
+                          if (primaryPlan.isNotEmpty) ...[
+                            _buildSectionTitle("Primary Plan (Active)", Colors.green),
+                            _buildPlanCard(primaryPlan.first, isPrimary: true),
+                          ],
+
+                          if (otherPlans.isNotEmpty) ...[
+                            _buildSectionTitle("Drafts & Others", Colors.blueGrey),
+                            ...otherPlans.map((p) => _buildPlanCard(p)),
+                          ],
+
+                          if (archivedPlans.isNotEmpty) ...[
+                            _buildSectionTitle("Archive", Colors.orange),
+                            if (!_isArchiveExpanded)
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.history, size: 18),
+                                label: const Text("Show Archived Plans"),
+                                onPressed: () => setState(() => _isArchiveExpanded = true),
+                              ),
+                            if (_isArchiveExpanded)
+                              ...archivedPlans.map((p) => _buildPlanCard(p)),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createNewPlan,
+        backgroundColor: Colors.indigo,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text("New Plan", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildPlanCard(ClientDietPlanModel plan, {bool isPrimary = false}) {
+    final isLocked = plan.isReadyToDeliver;
+    final isProvisional = plan.isProvisional;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
+        border: isPrimary ? Border.all(color: Colors.green.withOpacity(0.5), width: 1.5) : null,
+      ),
+      child: InkWell(
+        onTap: () => _openPlanDetail(plan),
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          children: [
+            ListTile(
+              contentPadding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isPrimary ? Colors.green.shade50 : (isLocked ? Colors.blue.shade50 : Colors.orange.shade50),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isPrimary ? Icons.star : (isLocked ? Icons.lock : Icons.edit_note),
+                  color: isPrimary ? Colors.green.shade700 : (isLocked ? Colors.blue.shade700 : Colors.orange.shade700),
+                ),
+              ),
+              title: Text(
+                plan.name,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                "Created: ${DateFormat('MMM d, y').format(plan.assignedDate ?? DateTime.now())}",
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+              ),
+              // 🎯 ACTION MENU
+              trailing: PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.grey),
+                onSelected: (val) {
+                  switch(val) {
+                    case 'setPrimary': _setAsPrimary(plan); break;
+                    case 'toggleProvisional': _toggleProvisional(plan); break;
+                    case 'toggleLock': _toggleLock(plan); break;
+                    case 'preview': _viewReport(plan); break;
+                    case 'print': _viewReport(plan); break;
+                    case 'delete': _deletePlan(plan); break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (!isPrimary)
+                    const PopupMenuItem(value: 'setPrimary', child: Row(children: [Icon(Icons.check_circle_outline, size: 18, color: Colors.green), SizedBox(width: 10), Text("Set as Primary")])),
+
+                  PopupMenuItem(
+                      value: 'toggleProvisional',
+                      child: Row(children: [
+                        Icon(isProvisional ? Icons.verified : Icons.timelapse, size: 18, color: Colors.orange),
+                        const SizedBox(width: 10),
+                        Text(isProvisional ? "Mark as Final" : "Mark as Provisional")
+                      ])
+                  ),
+
+                  PopupMenuItem(
+                      value: 'toggleLock',
+                      child: Row(children: [
+                        Icon(isLocked ? Icons.lock_open : Icons.lock, size: 18, color: Colors.blue),
+                        const SizedBox(width: 10),
+                        Text(isLocked ? "Unlock Plan" : "Lock Plan")
+                      ])
+                  ),
+
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(value: 'preview', child: Row(children: [Icon(Icons.visibility, size: 18, color: Colors.grey), SizedBox(width: 10), Text("Preview")])),
+                  const PopupMenuItem(value: 'print', child: Row(children: [Icon(Icons.print, size: 18, color: Colors.grey), SizedBox(width: 10), Text("Print / PDF")])),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 18, color: Colors.red), SizedBox(width: 10), Text("Delete")])),
                 ],
               ),
             ),
+
+            // Status Badges
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  if (isPrimary) _buildTag("PRIMARY", Colors.green.shade700, Colors.green.shade50),
+                  _buildTag(isProvisional ? "PROVISIONAL" : "FINAL",
+                      isProvisional ? Colors.orange.shade800 : Colors.teal.shade800,
+                      isProvisional ? Colors.orange.shade50 : Colors.teal.shade50
+                  ),
+                  if (isLocked) _buildTag("LOCKED", Colors.blue.shade700, Colors.blue.shade50),
+
+                  const Spacer(),
+                  const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                ],
+              ),
+            )
           ],
         ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final clientPlanService = ClientDietPlanService();
+  Widget _buildTag(String label, Color text, Color bg) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: text)),
+    );
+  }
 
-    return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: const Text('Assigned Plans'),
-      ),
-      body: SafeArea(
-        child: StreamBuilder<List<ClientDietPlanModel>>(
-          stream: clientPlanService.streamAllNonDeletedPlansForClient(
-            widget.client.id,
-          ),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Text('Error loading plans: ${snapshot.error}'),
-              );
-            }
-
-            final allPlans = snapshot.data ?? [];
-
-            // Grouping
-            final activePlans = allPlans
-                .where((p) => getPlanGroup(p) == PlanGroup.active)
-                .toList();
-            final archivedPlans = allPlans
-                .where((p) => getPlanGroup(p) == PlanGroup.archived)
-                .toList();
-            final draftPlans = allPlans
-                .where((p) => getPlanGroup(p) == PlanGroup.draft)
-                .toList();
-
-            if (allPlans.isEmpty) {
-              return const Center(child: Text("No diet plans assigned yet."));
-            }
-
-            return ListView(
-              padding: const EdgeInsets.only(bottom: 80), // Space for FAB if added later
-              children: [
-                // 1. ACTIVE PLANS
-                if (activePlans.isNotEmpty) ...[
-                  _buildHeader('Active Plans', Colors.green.shade800),
-                  ...activePlans.map((plan) =>
-                      _buildPlanCard(plan, clientPlanService, PlanGroup.active)),
-                ],
-
-                // 2. DRAFT PLANS
-                if (draftPlans.isNotEmpty) ...[
-                  _buildHeader('Drafts', Colors.blueGrey.shade700, isCollapsible: true,
-                      isExpanded: _isDraftExpanded,
-                      onExpand: (val) => setState(() => _isDraftExpanded = val)),
-
-                  if (_isDraftExpanded)
-                    ...draftPlans.map((plan) =>
-                        _buildPlanCard(plan, clientPlanService, PlanGroup.draft)),
-                ],
-
-                // 3. ARCHIVED PLANS
-                if (archivedPlans.isNotEmpty) ...[
-                  _buildHeader('Archived History', Colors.orange.shade800, isCollapsible: true,
-                      isExpanded: _isArchiveExpanded,
-                      onExpand: (val) => setState(() => _isArchiveExpanded = val)),
-
-                  if (_isArchiveExpanded)
-                    ...archivedPlans.map((plan) =>
-                        _buildPlanCard(plan, clientPlanService, PlanGroup.archived)),
-                ],
-              ],
-            );
-          },
-        ),
-      ),
-      // Floating Action Button (Optional, if you want creating new plans from here)
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createNewPlan,
-        icon: const Icon(Icons.add),
-        label: const Text("New Plan"),
-        backgroundColor: Colors.indigo,
+  Widget _buildSectionTitle(String title, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Row(
+        children: [
+          Container(width: 4, height: 16, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+        ],
       ),
     );
   }
 
-  // Simple Section Header
-  Widget _buildHeader(String title, Color color, {bool isCollapsible = false, bool isExpanded = true, Function(bool)? onExpand}) {
-    if (isCollapsible) {
-      return Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          initiallyExpanded: isExpanded,
-          onExpansionChanged: onExpand,
-          title: Text(
-            title,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
-          ),
-          leading: Icon(Icons.folder_open, color: color),
-          // We handle children in the main ListView to prevent nesting scroll views
-          children: const [],
-          trailing: Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: color),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-      child: Row(
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.star, size: 20, color: color),
-          const SizedBox(width: 10),
-          Text(
-            title,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
-          ),
+          Icon(Icons.restaurant_menu, size: 60, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          Text("No diet plans assigned yet.", style: TextStyle(fontSize: 16, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text("Tap '+ New Plan' to create one.", style: TextStyle(fontSize: 14, color: Colors.grey.shade400)),
         ],
       ),
     );

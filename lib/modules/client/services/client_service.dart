@@ -662,6 +662,20 @@ class ClientService {
       return null;
     }
   }
+// ... inside ClientService class
 
+  // 🎯 NEW: Update Client Type (Manual Override)
+  Future<void> updateClientType(String clientId, String newType) async {
+    try {
+      await _clientCollection.doc(clientId).update({
+        'clientType': newType,
+        'updatedAt': FieldValue.serverTimestamp()
+      });
+    } catch (e) {
+      throw Exception("Failed to update client type: $e");
+    }
+  }
+
+// ... rest of class
 
 }

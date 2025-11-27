@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
+import 'package:nutricare_client_management/screens/dash/client_dashboard_screenv2.dart';
 
 class PendingClientListScreen extends StatefulWidget {
   const PendingClientListScreen({super.key});
@@ -11,204 +12,363 @@ class PendingClientListScreen extends StatefulWidget {
   State<PendingClientListScreen> createState() => _PendingClientListScreenState();
 }
 
-class _PendingClientListScreenState extends State<PendingClientListScreen> {
-  bool _isArchiveExpanded = false;
+class _PendingClientListScreenState extends State<PendingClientListScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  String _searchQuery = "";
+  final TextEditingController _searchController = TextEditingController();
 
-  // --- Core Firestore Update Logic ---
-
-  Future<void> _updateArchiveStatus(ClientModel client, bool isArchiving) async {
-    final String action = isArchiving ? 'Archiving' : 'Activating';
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('clients')
-          .doc(client.id)
-          .update({'isArchived': isArchiving});
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${client.name} successfully ${isArchiving ? 'archived' : 'activated'}.'),
-            backgroundColor: isArchiving ? Colors.orange : Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$action failed: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
   }
 
-  void _handleArchiveToggle(ClientModel client, bool isArchiving) {
-    final String actionTitle = isArchiving ? 'Archive' : 'Activate';
-    final String actionVerb = isArchiving ? 'archive' : 'activate';
-    final Color confirmColor = isArchiving ? Colors.orange.shade700 : Colors.green.shade700;
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('$actionTitle Patient'),
-          content: Text('Are you sure you want to $actionVerb ${client.name}?'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: confirmColor,
-                foregroundColor: Colors.white,
-              ),
-              child: Text(actionTitle),
-              onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
-                _updateArchiveStatus(client, isArchiving); // Execute the update
-              },
-            ),
-          ],
-        );
-      },
-    );
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
   }
 
-  // --- Navigation & Helper Widgets ---
-
-  void _startNewConsultation() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const ClientConsultationChecklistScreen(initialProfile: null),
-      ),
-    );
+  // 🎯 STREAM: Fetch All Clients
+  Stream<List<ClientModel>> _streamClients() {
+    return FirebaseFirestore.instance
+        .collection('clients')
+        .where('isSoftDeleted', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => ClientModel.fromFirestore(doc)).toList());
   }
-
-  Widget _buildClientTile(ClientModel client) {
-    final bool isArchived = client.isArchived ?? false;
-    final bool isSoftDeleted = client.isSoftDeleted ?? false;
-
-    if (isSoftDeleted) return const SizedBox.shrink();
-
-    final IconData archiveIcon = isArchived ? Icons.unarchive : Icons.archive;
-    final Color archiveColor = isArchived ? Colors.blue.shade700 : Colors.orange.shade700;
-    final String archiveTooltip = isArchived ? 'Activate Patient' : 'Archive Patient';
-    final Color tileColor = isArchived ? Colors.grey.shade50 : Colors.white;
-
-    return Card(
-      elevation: 1,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      color: tileColor,
-      child: ListTile(
-        title: Text(
-          client.name,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: isArchived ? Colors.black54 : Colors.black,
-          ),
-        ),
-        subtitle: Text(
-          'ID: ${client.patientId} | Mobile: ${client.mobile}',
-          style: TextStyle(color: isArchived ? Colors.black45 : Colors.black54),
-        ),
-        leading: Icon(
-          isArchived ? Icons.folder_zip : Icons.person_pin,
-          color: isArchived ? Colors.orange.shade300 : Colors.indigo,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: Icon(archiveIcon, color: archiveColor),
-              tooltip: archiveTooltip,
-              onPressed: () => _handleArchiveToggle(client, !isArchived),
-            ),
-            IconButton(
-              icon: const Icon(Icons.play_circle_fill, color: Colors.green),
-              tooltip: 'Resume Consultation',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ClientConsultationChecklistScreen(initialProfile: client),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Main Build Method ---
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomGradientAppBar(title: const Text('Resume Consultation')),
-      body: SafeArea(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('clients')
-                .where('isSoftDeleted', isEqualTo: false)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text('No client records found.'));
-              }
+      backgroundColor: const Color(0xFFF8F9FE),
 
-              final allClients = snapshot.data!.docs.map((doc) => ClientModel.fromFirestore(doc)).toList();
-
-              final activeClients = allClients.where((c) => c.isArchived != true).toList();
-              final archivedClients = allClients.where((c) => c.isArchived == true).toList();
-
-              return ListView(
-                // 🎯 FIX: Added bottom padding to prevent FAB overlap
-                padding: const EdgeInsets.only(bottom: 80),
-                children: [
-                  if (activeClients.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'Active Consultations (${activeClients.length})',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade700),
-                      ),
-                    ),
-                  ...activeClients.map((client) => _buildClientTile(client)).toList(),
-
-                  const Divider(),
-
-                  ExpansionTile(
-                    initiallyExpanded: _isArchiveExpanded,
-                    onExpansionChanged: (expanded) {
-                      setState(() {
-                        _isArchiveExpanded = expanded;
-                      });
-                    },
-                    leading: const Icon(Icons.archive, color: Colors.orange),
-                    title: Text(
-                      'Archived Patients (${archivedClients.length})',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade700),
-                    ),
-                    children: archivedClients.isEmpty
-                        ? [const Padding(padding: EdgeInsets.all(16.0), child: Text('No patients in archive.'))]
-                        : archivedClients.map((client) => _buildClientTile(client)).toList(),
-                  ),
-                ],
-              );
-            },
-          )),
-
+      // 🎯 NEW: FLOATING ACTION BUTTON
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _startNewConsultation,
-        label: const Text('New Consultation'),
-        icon: const Icon(Icons.person_add),
-        backgroundColor: Colors.green,
+        onPressed: () {
+          // Navigate to Checklist with NULL profile (Starts fresh creation flow)
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ClientConsultationChecklistScreen(initialProfile: null)),
+          );
+        },
+        backgroundColor: Colors.indigo,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text("Add Client", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        elevation: 4,
+      ),
+
+      body: Stack(
+        children: [
+          // 1. AMBIENT GLOW
+          Positioned(
+            top: -100, right: -100,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.1), blurRadius: 80, spreadRadius: 20)],
+              ),
+            ),
+          ),
+
+          SafeArea(
+            child: Column(
+              children: [
+                // 2. CUSTOM HEADER (No App Bar)
+                _buildHeader(),
+
+                // 3. SEARCH BAR
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildSearchBar(),
+                ),
+                const SizedBox(height: 20),
+
+                // 4. PILL TABS
+                _buildTabBar(),
+                const SizedBox(height: 16),
+
+                // 5. TAB VIEWS
+                Expanded(
+                  child: StreamBuilder<List<ClientModel>>(
+                    stream: _streamClients(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const Center(child: Text("No clients found."));
+                      }
+
+                      final allClients = snapshot.data!;
+                      // Filter by Search
+                      final filtered = allClients.where((c) =>
+                      c.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                          c.mobile.contains(_searchQuery)
+                      ).toList();
+
+                      // 🎯 SEGMENTATION LOGIC
+                      final newLeads = filtered.where((c) => c.clientType == 'new' || c.clientType.isEmpty).toList();
+                      final activeClients = filtered.where((c) => c.clientType == 'active').toList();
+                      final historyClients = filtered.where((c) => c.clientType == 'one_time' || c.clientType == 'expired').toList();
+
+                      return TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildClientList(newLeads, "Waiting for assignment", Colors.blueGrey, isNew: true),
+                          _buildClientList(activeClients, "Currently on plan", Colors.green, isActive: true),
+                          _buildClientList(historyClients, "Past consultations", Colors.orange, isHistory: true),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- HEADER ---
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+                  child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Text("Client Directory", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+            ],
+          ),
+          // Filter Icon (Visual only for now)
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.indigo.shade50, shape: BoxShape.circle),
+            child: const Icon(Icons.filter_list, color: Colors.indigo),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- SEARCH BAR ---
+  Widget _buildSearchBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (val) => setState(() => _searchQuery = val),
+        decoration: InputDecoration(
+          hintText: "Search by Name or Mobile...",
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+          prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+    );
+  }
+
+  // --- TABS ---
+  Widget _buildTabBar() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      height: 40,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: Colors.indigo,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
+        ),
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.grey.shade600,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        tabs: const [
+          Tab(text: "New / Pending"),
+          Tab(text: "Active Members"),
+          Tab(text: "History"),
+        ],
+      ),
+    );
+  }
+
+  // --- LIST BUILDER ---
+  Widget _buildClientList(List<ClientModel> clients, String emptyMsg, Color accentColor, {bool isNew = false, bool isActive = false, bool isHistory = false}) {
+    if (clients.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.folder_open, size: 60, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text("No clients here", style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      // 🎯 Added bottom padding so FAB doesn't cover the last item
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
+      itemCount: clients.length,
+      itemBuilder: (context, index) {
+        return _buildClientCard(clients[index], accentColor, isNew, isActive, isHistory);
+      },
+    );
+  }
+
+  // --- CLIENT CARD ---
+  Widget _buildClientCard(ClientModel client, Color color, bool isNew, bool isActive, bool isHistory) {
+    return GestureDetector(
+      // 🎯 Navigation Logic
+      onTap: () {
+        if (isNew) {
+          // New -> Onboarding Flow
+          Navigator.push(context, MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(initialProfile: client)));
+        } else {
+          // Active/History -> Dashboard
+          Navigator.push(context, MaterialPageRoute(builder: (_) => ClientDashboardScreen(client: client)));
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border(left: BorderSide(color: color, width: 4)),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                // Avatar
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: color.withOpacity(0.1),
+                  backgroundImage: client.photoUrl != null ? NetworkImage(client.photoUrl!) : null,
+                  child: client.photoUrl == null ? Text(client.name.isNotEmpty ? client.name[0] : '?', style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 18)) : null,
+                ),
+                const SizedBox(width: 16),
+
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(client.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.phone, size: 12, color: Colors.grey.shade500),
+                          const SizedBox(width: 4),
+                          Text(client.mobile, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                          const SizedBox(width: 10),
+                          if (client.patientId != null) ...[
+                            Icon(Icons.badge, size: 12, color: Colors.grey.shade500),
+                            const SizedBox(width: 4),
+                            Text(client.patientId!, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                          ]
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Status Chip
+                _buildStatusChip(client.clientType, color),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: Color(0xFFF0F0F0)),
+            const SizedBox(height: 12),
+
+            // 🎯 ACTION FOOTER
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (isNew)
+                  const Text("⚠️ Pending Assignment", style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.bold))
+                else if (isActive)
+                  const Text("🟢 Active Plan", style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold))
+                else
+                  const Text("🔴 Expired / One-time", style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
+
+                Row(
+                  children: [
+                    if (isNew)
+                      _buildActionBtn("Onboard", Icons.arrow_forward, Colors.indigo, () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(initialProfile: client)));
+                      }),
+                    if (!isNew)
+                      _buildActionBtn("Manage", Icons.settings, Colors.grey, () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => ClientDashboardScreen(client: client)));
+                      }),
+                  ],
+                )
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String type, Color color) {
+    String label = type.toUpperCase();
+    if (type.isEmpty) label = "NEW";
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
+    );
+  }
+
+  Widget _buildActionBtn(String label, IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+            const SizedBox(width: 4),
+            Icon(icon, size: 12, color: color),
+          ],
+        ),
       ),
     );
   }

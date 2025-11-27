@@ -61,7 +61,7 @@ class DietPlanPdfGenerator {
     final VitalsModel? vitals = vitalsList.isNotEmpty ? vitalsList.first : null;
 
     final guidelineList = await GuidelineService().fetchGuidelinesByIds(clientPlan.guidelineIds);
-    final diagnosisList =  await DiagnosisMasterService().fetchAllDiagnosisMasterByIds(clientPlan.diagnosisIds);
+    final diagnosisList = await DiagnosisMasterService().fetchAllDiagnosisMasterByIds(clientPlan.diagnosisIds);
     final investigationList =  await InvestigationMasterService().fetchAllInvestigationMasterByIds(clientPlan.investigationIds);
 
     final  dietitianInfo = await AdminProfileService().fetchAdminProfile();

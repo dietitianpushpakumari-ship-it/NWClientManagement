@@ -1,10 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nutricare_client_management/admin/patient_service.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
-
 
 class ClientPersonalInformationForm extends StatefulWidget {
   final Function(ClientModel) onProfileSaved;
@@ -17,284 +15,195 @@ class ClientPersonalInformationForm extends StatefulWidget {
   });
 
   @override
-  State<ClientPersonalInformationForm> createState() =>
-      _ClientPersonalInformationFormState();
+  State<ClientPersonalInformationForm> createState() => _ClientPersonalInformationFormState();
 }
 
-class _ClientPersonalInformationFormState
-    extends State<ClientPersonalInformationForm> {
+class _ClientPersonalInformationFormState extends State<ClientPersonalInformationForm> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final PatientIdService _patientIdService = PatientIdService();
 
-  final TextEditingController _clientNameController = TextEditingController();
-  final TextEditingController _mobileNumberController = TextEditingController();
-  final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _ageController = TextEditingController();
+  final TextEditingController _nameCtrl = TextEditingController();
+  final TextEditingController _mobileCtrl = TextEditingController();
+  final TextEditingController _addressCtrl = TextEditingController();
+  final TextEditingController _ageCtrl = TextEditingController();
 
   String? _gender;
   bool _isSaving = false;
   bool _isEditing = false;
-
   final List<String> _genders = ['Male', 'Female', 'Other'];
-  static const String _collectionName = 'clients'; // Temporary collection
 
   @override
   void initState() {
     super.initState();
-    _initializeForm();
-  }
-
-  void _initializeForm() {
     if (widget.initialProfile != null) {
       _isEditing = true;
-      final p = widget.initialProfile!;
-
-      _clientNameController.text = p.name;
-      _mobileNumberController.text = p.mobile;
-      _addressController.text = p.address!;
-      _gender = p.gender;
-      _ageController.text = p.age.toString();
+      _nameCtrl.text = widget.initialProfile!.name;
+      _mobileCtrl.text = widget.initialProfile!.mobile;
+      _addressCtrl.text = widget.initialProfile!.address ?? '';
+      _gender = widget.initialProfile!.gender;
+      _ageCtrl.text = widget.initialProfile!.age.toString();
     }
   }
 
   Future<void> _saveClient() async {
     if (!_formKey.currentState!.validate() || _gender == null) {
-      _showSnackbar('Please complete all required fields.', isError: true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fill all required fields."), backgroundColor: Colors.red));
       return;
     }
-    final String creatorUid = '';
-    /* final String? creatorUid = FirebaseAuth.instance.currentUser?.uid;
-    if (creatorUid == null) {
-      _showSnackbar('Error: Admin not logged in.', isError: true);
-      return;
-    }*/
-
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
 
     try {
-      String patientId;
-      String profileId = '';
+      String patientId = _isEditing ? widget.initialProfile!.patientId! : await _patientIdService.getNextPatientId();
+      String profileId = _isEditing ? widget.initialProfile!.id : "";
 
-      if (_isEditing) {
-        patientId = widget.initialProfile!.patientId!;
-        profileId = widget.initialProfile!.id;
-      } else {
-        // --- NEW: GENERATE UNIQUE 5-DIGIT PATIENT ID ---
-        patientId = await _patientIdService.getNextPatientId();
-      }
-
-      final clientData = {
-        'name': _clientNameController.text.trim(),
-        'mobile': _mobileNumberController.text.trim(),
-        'age': int.tryParse(_ageController.text) ?? 0,
+      final data = {
+        'name': _nameCtrl.text.trim(),
+        'mobile': _mobileCtrl.text.trim(),
+        'age': int.tryParse(_ageCtrl.text) ?? 0,
         'gender': _gender,
-        'address': _addressController.text.trim(),
+        'address': _addressCtrl.text.trim(),
         'patientId': patientId,
-        // 'isAuthenticatable': false,
         'isSoftDeleted': false,
-        'createdBy': creatorUid,
-        'lastModifiedBy': creatorUid,
         'isArchived': false,
+        'updatedAt': FieldValue.serverTimestamp(),
       };
 
       if (_isEditing) {
-        await _firestore.collection(_collectionName).doc(profileId).update({
-          ...clientData,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        await _firestore.collection('clients').doc(profileId).update(data);
       } else {
-        final docRef = await _firestore.collection(_collectionName).add({
-          ...clientData,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        profileId = docRef.id;
+        final doc = await _firestore.collection('clients').add({...data, 'createdAt': FieldValue.serverTimestamp()});
+        profileId = doc.id;
       }
 
-      _showSnackbar('Client profile saved. Patient ID: $patientId');
-
-      // 2. Construct and return the temporary profile object to the Stepper
       final tempProfile = ClientModel(
-        id: profileId,
-        patientId: patientId,
-        email: '',
-        loginId: '',
-        // Stubbed
-        name: clientData['name'] as String,
-        age: clientData['age'] as int,
-        mobile: clientData['mobile'] as String,
-        gender: clientData['gender'] as String,
-        address: clientData['address'] as String,
-        dob: Timestamp.now().toDate(),
-        // Stub
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        createdBy: creatorUid,
-        lastModifiedBy: creatorUid,
-        isArchived: false,
+          id: profileId, patientId: patientId, loginId: _mobileCtrl.text,
+          name: _nameCtrl.text, age: int.parse(_ageCtrl.text), mobile: _mobileCtrl.text,
+          gender: _gender!, address: _addressCtrl.text, dob: DateTime.now(), email: ''
       );
 
       widget.onProfileSaved(tempProfile);
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
+      if(mounted) Navigator.pop(context);
+
     } catch (e) {
-      _showSnackbar('Save failed: ${e.toString()}', isError: true);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
     } finally {
-      setState(() {
-        _isSaving = false;
-      });
+      setState(() => _isSaving = false);
     }
   }
 
-  void _showSnackbar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
-      ),
-    );
-  }
-
-  // 🎯 REVAMPED BUILD METHOD
   @override
   Widget build(BuildContext context) {
-    // 🎯 Use theme color for consistency
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
-        appBar: CustomGradientAppBar(
-          title: const Text('Personal Information'), // Text color on primary background
-        ),
-        // 🎯 ADD PADDING TO THE BODY
-        body:  SafeArea(
-          child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0), // Consistent padding
-          child: Form(
-            key: _formKey,
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Stack(
+        children: [
+          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 80, spreadRadius: 20)]))),
+
+          SafeArea(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch, // Stretch fields full width
-              children: <Widget>[
-                // Display Patient ID if editing
-                if (_isEditing)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 24.0), // More spacing
-                    child: Text(
-                      'Patient ID: ${widget.initialProfile!.patientId}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineSmall // Use a slightly larger, bold style
-                          ?.copyWith(color: colorScheme.primary),
+              children: [
+                // 1. GLASS HEADER
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]), child: const Icon(Icons.arrow_back, size: 20)),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(_isEditing ? "Edit Profile" : "New Client", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+
+                // 2. FORM
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_isEditing)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 20),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+                              child: Text("ID: ${widget.initialProfile!.patientId}", style: TextStyle(color: Colors.blue.shade800, fontWeight: FontWeight.bold)),
+                            ),
+
+                          _buildField("Full Name", _nameCtrl, Icons.person),
+                          const SizedBox(height: 16),
+                          Row(children: [
+                            Expanded(child: _buildField("Age", _ageCtrl, Icons.cake, isNumber: true)),
+                            const SizedBox(width: 16),
+                            Expanded(child: _buildDropdown()),
+                          ]),
+                          const SizedBox(height: 16),
+                          _buildField("Mobile Number", _mobileCtrl, Icons.phone, isNumber: true),
+                          const SizedBox(height: 16),
+                          _buildField("Address", _addressCtrl, Icons.home, maxLines: 3),
+
+                          const SizedBox(height: 40),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: _isSaving ? null : _saveClient,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.indigo,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 4,
+                              ),
+                              child: _isSaving ? const CircularProgressIndicator(color: Colors.white) : const Text("SAVE PROFILE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            ),
+                          )
+                        ],
+                      ),
                     ),
-                  ),
-
-                // --- Full Name ---
-                TextFormField(
-                  controller: _clientNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Client Full Name *',
-                    prefixIcon: Icon(Icons.person),
-                    border: OutlineInputBorder(), // Use OutlineInputBorder for definition
-                  ),
-                  validator: (v) => v!.isEmpty ? 'Name is required.' : null,
-                ),
-                const SizedBox(height: 16), // Consistent spacing
-
-                // --- Age ---
-                TextFormField(
-                  controller: _ageController,
-                  decoration: const InputDecoration(
-                    labelText: 'Age *',
-                    prefixIcon: Icon(Icons.cake),
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (v) => v!.isEmpty || int.tryParse(v) == null
-                      ? 'Valid age is required.'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-
-                // --- Mobile Number ---
-                TextFormField(
-                  controller: _mobileNumberController,
-                  decoration: const InputDecoration(
-                    labelText: 'Mobile Number *',
-                    prefixIcon: Icon(Icons.phone_android),
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.phone,
-                  validator: (v) => v!.isEmpty ? 'Mobile is required.' : null,
-                ),
-                const SizedBox(height: 16),
-
-                // --- Gender Dropdown ---
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Gender *',
-                    prefixIcon: Icon(Icons.accessibility),
-                    border: OutlineInputBorder(),
-                  ),
-                  value: _gender,
-                  items: _genders.map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _gender = newValue;
-                    });
-                  },
-                  validator: (v) => v == null ? 'Gender is required.' : null,
-                ),
-                const SizedBox(height: 16),
-
-                // --- Address ---
-                TextFormField(
-                  controller: _addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'Address (Optional)',
-                    prefixIcon: Icon(Icons.location_on),
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true, // Centers the label text vertically for multiline
-                  ),
-                  maxLines: 3, // Increased maxLines for a better look
-                ),
-
-                const SizedBox(height: 40),
-
-                // --- Save Button ---
-                ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _saveClient,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                    minimumSize: const Size.fromHeight(50), // Full width, decent height
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  icon: _isSaving
-                      ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                      : Icon(_isEditing ? Icons.edit : Icons.save),
-                  label: Text(
-                    _isEditing ? 'UPDATE PROFILE' : 'SAVE & PROCEED',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildField(String label, TextEditingController ctrl, IconData icon, {bool isNumber = false, int maxLines = 1}) {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]),
+      child: TextFormField(
+        controller: ctrl,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: Colors.indigo.shade300),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+        validator: (v) => v!.isEmpty ? "Required" : null,
+      ),
+    );
+  }
+
+  Widget _buildDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _gender,
+          hint: const Text("Gender"),
+          isExpanded: true,
+          items: _genders.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+          onChanged: (v) => setState(() => _gender = v),
         ),
       ),
     );

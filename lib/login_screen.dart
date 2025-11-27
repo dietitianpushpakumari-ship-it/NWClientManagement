@@ -1,11 +1,6 @@
+import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
-// 🎯 NOTE: Since AuthWrapper handles navigation on success,
-// you technically don't need this import for navigation,
-// but keep it if you use the screen elsewhere.
-// import 'package:nutricare_client_management/admin/admin_dashboard_Screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,249 +9,280 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final FirebaseAuth _auth = FirebaseAuth.instance; // 🎯 Firebase Auth Instance
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _auth = FirebaseAuth.instance;
 
   bool _isLoading = false;
   bool _isPasswordVisible = false;
+
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    _animController.forward();
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
-  // 🎯 CORE LOGIN LOGIC (Asynchronous)
   void _handleLogin() async {
     if (_formKey.currentState?.validate() == true) {
-      // 1. Start Loading
-      setState(() {
-        _isLoading = true;
-      });
-
+      setState(() => _isLoading = true);
       try {
-        // 2. Perform actual Firebase sign-in
         await _auth.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
-
-        // 3. SUCCESS: Authentication succeeded
-        // The AuthWrapper will detect the session change and navigate automatically.
-        // We just show a quick message and stop loading.
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login successful! Redirecting...'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // DO NOT manually navigate here: AuthWrapper handles it.
-
       } on FirebaseAuthException catch (e) {
-        // 4. FAILURE: Catch specific Firebase errors
-        String errorMessage = 'Login failed. Please check your credentials.';
-
-        if (e.code == 'user-not-found' || e.code == 'wrong-password') {
-          errorMessage = 'Invalid email or password.';
-        } else if (e.code == 'invalid-email') {
-          errorMessage = 'The email address is not valid.';
-        } else if (e.code == 'network-request-failed') {
-          errorMessage = 'Network error. Check your connection.';
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-        );
-
-      } catch (e) {
-        // 5. General error handling (e.g., network issues)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An unexpected error occurred: ${e.toString()}'), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message ?? "Login failed"),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
       } finally {
-        // 6. Stop Loading (always runs)
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: const Text('Admin Login'),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // --- 1. App Icon/Logo Placeholder ---
-                Icon(
-                  Icons.lock_person,
-                  size: 100,
-                  color: colorScheme.primary,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Sign In to NutriCare Admin',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // --- 2. Email Field ---
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: const Icon(Icons.email),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    filled: true,
-                    fillColor: colorScheme.surfaceVariant.withOpacity(0.2),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!value.contains('@') || !value.contains('.')) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // --- 3. Password Field ---
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: !_isPasswordVisible,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    filled: true,
-                    fillColor: colorScheme.surfaceVariant.withOpacity(0.2),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-
-                // --- 4. Login Button ---
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 5,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 3,
-                    ),
-                  )
-                      : const Text(
-                    'LOGIN',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // --- Forgot Password Link ---
-                TextButton(
-                  onPressed: () {
-                    // Implement Forgot Password navigation
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Forgot Password link clicked')),
-                    );
-                  },
-                  child: Text(
-                    'Forgot Password?',
-                    style: TextStyle(color: colorScheme.secondary),
-                  ),
-                ),
-                const SizedBox(height: 60),
-
-                // --- 5. Footer/Sign Up Link ---
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Don't have an account?",
-                      style: TextStyle(color: colorScheme.onSurfaceVariant),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        // Implement Sign Up navigation
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Sign Up link clicked')),
-                        );
-                      },
-                      child: Text(
-                        'Sign Up',
-                        style: TextStyle(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.bold
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+      body: Stack(
+        children: [
+          // 1. Gradient Background
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  theme.colorScheme.primary.withOpacity(0.1),
+                  Colors.white,
+                  theme.colorScheme.surface,
+                ],
+              ),
             ),
           ),
-        ),
+
+          // 2. Abstract Shapes (FIXED GLOW)
+          Positioned(
+            top: -80, left: -50,
+            child: Container(
+              width: 200, height: 200,
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // 🎯 FIX: Use boxShadow for glow
+                  boxShadow: [
+                    BoxShadow(color: theme.colorScheme.primary.withOpacity(0.15), blurRadius: 40, spreadRadius: 10)
+                  ]
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 100, right: -50,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // 🎯 FIX: Use boxShadow for glow
+                  boxShadow: [
+                    BoxShadow(color: theme.colorScheme.secondary.withOpacity(0.05), blurRadius: 60, spreadRadius: 20)
+                  ]
+              ),
+            ),
+          ),
+
+          // 3. Main Content
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: SlideTransition(
+                  position: _slideAnim,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Logo / Icon
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.colorScheme.primary.withOpacity(0.2),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            )
+                          ],
+                        ),
+                        child: Icon(Icons.security_rounded, size: 40, color: theme.colorScheme.primary),
+                      ),
+                      const SizedBox(height: 24),
+
+                      Text(
+                        "Welcome Back",
+                        style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Sign in to manage your practice",
+                        style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 40),
+
+                      // 4. The Glass Card Form
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            padding: const EdgeInsets.all(32),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(color: Colors.white.withOpacity(0.8)),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))
+                              ],
+                            ),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _buildPremiumTextField(
+                                    controller: _emailController,
+                                    label: "Email Address",
+                                    icon: Icons.email_outlined,
+                                    theme: theme,
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _buildPremiumTextField(
+                                    controller: _passwordController,
+                                    label: "Password",
+                                    icon: Icons.lock_outline,
+                                    isPassword: true,
+                                    isVisible: _isPasswordVisible,
+                                    onVisibilityToggle: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                                    theme: theme,
+                                  ),
+
+                                  const SizedBox(height: 12),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () {
+                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Feature coming soon")));
+                                      },
+                                      child: const Text("Forgot Password?", style: TextStyle(fontWeight: FontWeight.w600)),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 24),
+
+                                  // Login Button
+                                  SizedBox(
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      onPressed: _isLoading ? null : _handleLogin,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: theme.colorScheme.primary,
+                                        foregroundColor: Colors.white,
+                                        elevation: 8,
+                                        shadowColor: theme.colorScheme.primary.withOpacity(0.4),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      ),
+                                      child: _isLoading
+                                          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                                          : const Text("LOGIN", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 30),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text("Don't have an account? ", style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                          GestureDetector(
+                            onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Contact Support to register."))),
+                            child: Text("Contact Support", style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold)),
+                          )
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _buildPremiumTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required ThemeData theme,
+    bool isPassword = false,
+    bool isVisible = false,
+    VoidCallback? onVisibilityToggle,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: isPassword && !isVisible,
+      style: const TextStyle(fontWeight: FontWeight.w500),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+      ).let((_) => InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.grey.shade600),
+        prefixIcon: Icon(icon, color: theme.colorScheme.primary),
+        suffixIcon: isPassword
+            ? IconButton(
+          icon: Icon(isVisible ? Icons.visibility : Icons.visibility_off, color: Colors.grey),
+          onPressed: onVisibilityToggle,
+        )
+            : null,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: theme.colorScheme.primary, width: 2)),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      )),
+      validator: (value) => (value == null || value.isEmpty) ? "Required" : null,
+    );
+  }
+}
+
+extension ScopeFunctions<T> on T {
+  R let<R>(R Function(T) block) => block(this);
 }

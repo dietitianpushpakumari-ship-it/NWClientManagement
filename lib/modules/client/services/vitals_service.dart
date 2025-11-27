@@ -1,127 +1,49 @@
-// lib/services/vitals_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:logger/logger.dart';
-import '../model/vitals_model.dart'; // Ensure this models exists
-
-// Assuming you have a logger instance initialized globally or in your services file
-final Logger _logger = Logger(/* ... */);
+import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 
 class VitalsService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  CollectionReference _getVitalsCollection() {
-    // Stores vitals in clients/{clientId}/vitals
-    // return _firestore.collection('clients').doc(clientId).collection('vitals');
-    return _firestore.collection('clientVitals');
-  }
-
-  // --- CREATE/ADD NEW VITALS RECORD ---
-
-  Future<void> addVitals(VitalsModel vitals) async {
-    _logger.i('Adding new vitals record for client: ${vitals.clientId}');
+  // 🎯 1. SAVE VITALS (Create or Update)
+  Future<void> saveVitals(VitalsModel vitals) async {
     try {
-      await _getVitalsCollection().add(vitals.toMap());
-    } catch (e, stack) {
-      _logger.e(
-        'Error adding vitals: ${e.toString()}',
-        error: e,
-        stackTrace: stack,
-      );
-      throw Exception('Failed to add vitals record.');
+      final data = vitals.toMap();
+      // Ensure timestamp is set correctly
+      data['updatedAt'] = FieldValue.serverTimestamp();
+
+      if (vitals.id.isEmpty) {
+        // New Record
+        data['createdAt'] = FieldValue.serverTimestamp();
+        await _db.collection('vitals').add(data);
+      } else {
+        // Update Existing
+        await _db.collection('vitals').doc(vitals.id).update(data);
+      }
+    } catch (e) {
+      throw Exception("Failed to save vitals: $e");
     }
   }
 
-  // --- READ/RETRIEVAL: GET ALL VITALS FOR HISTORY ---
+  // 🎯 2. DELETE VITALS
+  Future<void> deleteVitals(String clientId, String recordId) async {
+    try {
+      await _db.collection('vitals').doc(recordId).delete();
+    } catch (e) {
+      throw Exception("Failed to delete vitals: $e");
+    }
+  }
 
+  // 🎯 3. GET VITALS (History)
   Future<List<VitalsModel>> getClientVitals(String clientId) async {
     try {
-      final snapshot = await _getVitalsCollection()
+      final snapshot = await _db.collection('vitals')
           .where('clientId', isEqualTo: clientId)
-          .orderBy('date', descending: true) // Sort by most recent first
+          .orderBy('date', descending: true)
           .get();
 
-      return snapshot.docs
-          .map((doc) => VitalsModel.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => VitalsModel.fromFirestore(doc)).toList();
     } catch (e) {
-      _logger.e('Error fetching vitals: ${e.toString()}');
-      return [];
-    }
-  }
-
-  // await _clientCollection.where('assignedDietPlanIds', isEqualTo: mobile).limit(1).get();
-  Future<List<VitalsModel>> getClientMappedVitals(
-    String clientId,
-    String planId,
-  ) async {
-    try {
-      final snapshot = await _getVitalsCollection()
-          .where('assignedDietPlanIds', arrayContains: planId)
-          .orderBy('date', descending: true) // Sort by most recent first
-          .get();
-
-      return snapshot.docs
-          .map((doc) => VitalsModel.fromFirestore(doc))
-          .toList();
-    } catch (e) {
-      _logger.e('Error fetching vitals: ${e.toString()}');
-      return [];
-    }
-  }
-
-  // --- UPDATE EXISTING VITALS RECORD ---
-
-  Future<void> updateVitals(VitalsModel vitals) async {
-    if (vitals.id.isEmpty) {
-      throw Exception('Vitals ID is required for update.');
-    }
-    _logger.i(
-      'Updating vitals record ${vitals.id} for client: ${vitals.clientId}',
-    );
-    try {
-      await _getVitalsCollection(
-      ).doc(vitals.id).update(vitals.toMap());
-    } catch (e, stack) {
-      _logger.e(
-        'Error updating vitals: ${e.toString()}',
-        error: e,
-        stackTrace: stack,
-      );
-      throw Exception('Failed to update vitals record.');
-    }
-  }
-
-  // --- DELETE VITALS RECORD ---
-
-  Future<void> deleteVitals(String clientId, String recordId) async {
-    _logger.i('Deleting vitals record $recordId for client: $clientId');
-    try {
-      await _getVitalsCollection().doc(recordId).delete();
-    } catch (e, stack) {
-      _logger.e(
-        'Error deleting vitals: ${e.toString()}',
-        error: e,
-        stackTrace: stack,
-      );
-      throw Exception('Failed to delete vitals record.');
-    }
-  }
-
-  Future<void> updateAssignedDietPlans(
-    String clientId,
-    String id,
-    List<String> finalAssignedIds,
-  ) async {
-    try {
-      await _getVitalsCollection(
-      ).doc(id).update({'assignedDietPlanIds': finalAssignedIds});
-    } catch (e, stack) {
-      _logger.e(
-        'Error updating vitals: ${e.toString()}',
-        error: e,
-        stackTrace: stack,
-      );
-      throw Exception('Failed to update vitals record.');
+      throw Exception("Failed to fetch vitals: $e");
     }
   }
 }

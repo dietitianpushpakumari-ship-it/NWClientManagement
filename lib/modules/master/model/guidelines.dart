@@ -52,4 +52,21 @@ class Guideline {
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
+  Guideline copyWith({
+    String? id,
+    String? enTitle,
+    Map<String, String>? titleLocalized,
+    bool? isDeleted,
+    DateTime? createdDate,
+    List<String>? dietPlanCategoryIds,
+  }) {
+    return Guideline(
+      id: id ?? this.id,
+      enTitle: enTitle ?? this.enTitle,
+      titleLocalized: titleLocalized ?? this.titleLocalized,
+      isDeleted: isDeleted ?? this.isDeleted,
+      createdDate: createdDate ?? this.createdDate,
+      dietPlanCategoryIds: dietPlanCategoryIds ?? this.dietPlanCategoryIds,
+    );
+  }
 }

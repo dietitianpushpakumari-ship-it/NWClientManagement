@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/admin/authwrapper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,242 +11,260 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _pageController = PageController(initialPage: 0);
+  final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // 🎯 UPDATED DATA: Incorporating Diet Plans, Tracking, Goals, and Reminders/Alarms
   final List<Map<String, dynamic>> onboardingData = [
     {
-      "heading": "Personalized Diet Plans",
-      "description": "Create and manage patient-specific diet plans tailored to their unique health needs and dietary preferences.",
-      "icon": Icons.restaurant_menu_rounded, // Feature: Diet Plan Creation
+      "heading": "Precision Care",
+      "description": "Design personalized diet plans with clinical precision. Tailor every macro and micro for your patients' unique needs.",
+      "icon": Icons.verified_user_outlined,
     },
     {
-      "heading": "Track & Monitor Progress",
-      "description": "Monitor client activity, log vitals, and track progress towards targeted health goals in real-time.",
-      "icon": Icons.query_stats_rounded, // Feature: Tracking & Goals
+      "heading": "Real-Time Vitals",
+      "description": "Monitor client progress instantly. Track steps, hydration, sleep, and vital signs in a unified dashboard.",
+      "icon": Icons.monitor_heart_outlined,
     },
     {
-      "heading": "Smart Reminders & Alarms",
-      "description": "Configure custom alarms and reminders for meals, hydration, and medication to keep patients on track.",
-      "icon": Icons.alarm_on_rounded, // 🎯 NEW Feature: Reminders & Alarms
+      "heading": "Automated Nudges",
+      "description": "Set smart alarms for meals and habits. Let the system handle the reminders while you focus on the care.",
+      "icon": Icons.notifications_active_outlined,
     },
     {
-      "heading": "Comprehensive Care",
-      "description": "From onboarding to daily management, access all the tools you need to ensure your patients' success.",
-      "icon": Icons.health_and_safety_rounded,
+      "heading": "Master Control",
+      "description": "A powerful command center for your practice. Manage clients, content, and schedules seamlessly.",
+      "icon": Icons.admin_panel_settings_outlined,
     },
   ];
 
   void _completeOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
-    // Set flag to true so the user bypasses this screen next time
     await prefs.setBool('hasSeenOnboarding', true);
 
     if (!mounted) return;
-    // Navigate to the AuthWrapper (or Login) when done
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const AuthWrapper()),
     );
   }
 
   @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final backgroundGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        colorScheme.primaryContainer,
+        colorScheme.surface,
+        colorScheme.surface,
+      ],
+    );
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
-      body: SafeArea(
-        child: Column(
-          children: <Widget>[
-            // --- 1. SKIP BUTTON (Top Right) ---
-            Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16.0, top: 8.0),
-                child: TextButton(
-                  onPressed: _completeOnboarding,
-                  child: Text(
-                    'Skip',
-                    style: TextStyle(
-                      color: colorScheme.secondary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+      body: Stack(
+        children: [
+          // 1. Background Layer
+          Container(decoration: BoxDecoration(gradient: backgroundGradient)),
 
-            // --- 2. SLIDING CONTENT AREA ---
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: onboardingData.length,
-                onPageChanged: (int page) {
-                  setState(() => _currentPage = page);
-                },
-                itemBuilder: (context, index) => _OnboardingPage(
-                  data: onboardingData[index],
-                ),
-              ),
-            ),
-
-            // --- 3. BOTTOM CONTROLS (Dots & Button) ---
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
-              child: Column(
-                children: [
-                  // Dots Indicator
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      onboardingData.length,
-                          (index) => _buildDot(context, index: index),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Main Action Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (_currentPage == onboardingData.length - 1) {
-                          _completeOnboarding();
-                        } else {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 400),
-                            curve: Curves.easeInOut,
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: colorScheme.onPrimary,
-                        elevation: 4,
-                        shadowColor: colorScheme.primary.withOpacity(0.4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: Text(
-                        _currentPage == onboardingData.length - 1
-                            ? 'Get Started'
-                            : 'Next',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
+          // 2. Decorative Background Glow (FIXED)
+          Positioned(
+            top: -100,
+            right: -100,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                // 🎯 FIX: Moved blurRadius into boxShadow
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withOpacity(0.2),
+                    blurRadius: 60,
+                    spreadRadius: 20,
+                  )
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
+          ),
 
-  // Helper: Animated Dot
-  Widget _buildDot(BuildContext context, {required int index}) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    final bool isActive = _currentPage == index;
+          // 3. Main Content
+          Column(
+            children: [
+              Expanded(
+                flex: 3,
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: onboardingData.length,
+                  onPageChanged: (int page) => setState(() => _currentPage = page),
+                  itemBuilder: (context, index) => _PremiumOnboardingPage(
+                    data: onboardingData[index],
+                    isActive: _currentPage == index,
+                  ),
+                ),
+              ),
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      height: 8,
-      width: isActive ? 32 : 8, // Elongate active dot
-      decoration: BoxDecoration(
-        color: isActive ? colorScheme.primary : colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(4),
+              // 4. Bottom Glass Sheet
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(32, 40, 32, 40),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface.withOpacity(0.8),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                      border: Border(top: BorderSide(color: Colors.white.withOpacity(0.5))),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            onboardingData.length,
+                                (index) => AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              height: 6,
+                              width: _currentPage == index ? 32 : 8,
+                              decoration: BoxDecoration(
+                                color: _currentPage == index
+                                    ? colorScheme.primary
+                                    : colorScheme.outlineVariant,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        Row(
+                          children: [
+                            if (_currentPage != onboardingData.length - 1)
+                              TextButton(
+                                onPressed: _completeOnboarding,
+                                child: Text(
+                                  "Skip",
+                                  style: TextStyle(color: colorScheme.secondary, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+
+                            const Spacer(),
+
+                            ElevatedButton(
+                              onPressed: () {
+                                if (_currentPage == onboardingData.length - 1) {
+                                  _completeOnboarding();
+                                } else {
+                                  _pageController.nextPage(
+                                    duration: const Duration(milliseconds: 500),
+                                    curve: Curves.easeOutQuint,
+                                  );
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: colorScheme.primary,
+                                foregroundColor: colorScheme.onPrimary,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 8,
+                                shadowColor: colorScheme.primary.withOpacity(0.4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _currentPage == onboardingData.length - 1 ? "Get Started" : "Next",
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.arrow_forward, size: 18),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-// --- Helper Widget: Single Page Content ---
-class _OnboardingPage extends StatelessWidget {
+class _PremiumOnboardingPage extends StatelessWidget {
   final Map<String, dynamic> data;
+  final bool isActive;
 
-  const _OnboardingPage({required this.data});
+  const _PremiumOnboardingPage({required this.data, required this.isActive});
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    final TextTheme textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      padding: const EdgeInsets.all(32.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          // --- Feature Icon/Illustration ---
-          // Using a Container with a soft background to highlight the icon
-          Container(
-            height: 280,
-            width: 280,
-            decoration: BoxDecoration(
-              color: colorScheme.primary.withOpacity(0.08),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Container(
-                height: 220,
-                width: 220,
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorScheme.primary.withOpacity(0.15),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                      offset: const Offset(0, 10),
-                    )
-                  ],
-                ),
-                child: Icon(
-                  data["icon"],
-                  size: 100,
-                  color: colorScheme.primary,
-                ),
+        children: [
+          AnimatedScale(
+            scale: isActive ? 1.0 : 0.8,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutBack,
+            child: Container(
+              height: 200,
+              width: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.15),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 15),
+                  ),
+                ],
+              ),
+              child: Icon(
+                data['icon'],
+                size: 80,
+                color: theme.colorScheme.primary,
               ),
             ),
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 60),
 
-          // --- Heading ---
-          Text(
-            data["heading"]!,
-            style: textTheme.headlineSmall?.copyWith(
-              color: Colors.black87,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
+          AnimatedOpacity(
+            opacity: isActive ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 500),
+            child: Column(
+              children: [
+                Text(
+                  data['heading'],
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.onSurface,
+                    letterSpacing: -0.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  data['description'],
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.6,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-
-          // --- Description ---
-          Text(
-            data["description"]!,
-            style: textTheme.bodyLarge?.copyWith(
-              color: Colors.grey.shade600,
-              height: 1.5,
-              fontSize: 16,
-            ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),

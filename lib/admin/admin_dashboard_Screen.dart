@@ -4,33 +4,26 @@ import 'package:nutricare_client_management/admin/admin_dashboard_home_screen.da
 import 'package:nutricare_client_management/admin/admin_inbox_screen.dart';
 import 'package:nutricare_client_management/admin/admin_more_screen.dart';
 import 'package:nutricare_client_management/admin/all_meeting_screen.dart';
-import 'package:nutricare_client_management/admin/services/library_uploader.dart';
-import 'package:nutricare_client_management/admin/services/quiz_uploader.dart';
 
-import 'custom_gradient_app_bar.dart';
+// 🎯 NOTE: I removed the 'Uploader' imports since we removed the App Bar buttons.
+// You should move those upload actions to the "Master Setup" screen if you still need them.
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
-
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  final  _admin = FirebaseAuth.instance.currentUser ?? 'admin';
-  int _selectedIndex = 0; // Index of the currently selected tab
+  int _selectedIndex = 0;
 
-  // List of all screens corresponding to the BottomNavigationBar items
   static const List<Widget> _widgetOptions = <Widget>[
-    AdminDashboardHomeScreen(), // Index 0: Home
-    AllMeetingsScreen(),
-    AdminInboxScreen(),
-    Text("On development"),
-    // Index 1: Payments
-    // ClientLedgerOverviewScreen(),         // Index 2: Client
-    //MasterSetupPage(),            // Index 3: Planner
-    AdminMoreScreen()
+    AdminDashboardHomeScreen(), // Index 0: Home (Has its own Custom Header now)
+    AllMeetingsScreen(),        // Index 1: Meetings
+    AdminInboxScreen(),         // Index 2: Inbox
+    Center(child: Text("Notifications (Coming Soon)")), // Index 3: Placeholder
+    AdminMoreScreen()           // Index 4: More
   ];
 
   void _onItemTapped(int index) {
@@ -39,96 +32,46 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     });
   }
 
-  void _logout() async {
-    await FirebaseAuth.instance.signOut();
-    // The AuthWrapper in main.dart will automatically detect the sign-out
-    // and navigate back to LoginChoiceScreen.
-  }
-
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-        appBar: _selectedIndex == 0
-            ? CustomGradientAppBar(
-        //  centerTitle: false,
-          title: const Text('Nutricare Wellness Planner'),
-        //  backgroundColor: colorScheme.primary,
-          //foregroundColor: colorScheme.onPrimary,
-          // --- CHANGES HERE ---
-        //  elevation: 10, // Add a visible shadow
-          //shadowColor: Colors.black45, // Make the shadow distinct
-          // --- END OF CHANGES ---
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.notifications),
-              onPressed: () {
-                // TODO: Implement logic to show notifications screen/dialog
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Notifications button pressed')),
-                );
-              },
-            ),
-            IconButton(
-              icon: Icon(Icons.cloud_upload),
-              onPressed: () async {
-                await LibraryUploader().uploadLibrary();
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Library Updated!")));
+      // 🎯 FIX: Removed 'appBar' entirely.
+      // The Home screen now draws its own premium header behind the status bar.
 
+      body: _widgetOptions.elementAt(_selectedIndex),
 
-              },
-                // Inside CoachTab build method or any other screen
-
-            ),
-
-            IconButton(
-              icon: Icon(Icons.cloud_upload),
-              onPressed: () async {
-                await QuizUploader().uploadQuizBank();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Quiz Bank Uploaded!")));
-              },
-            )
-          ],
-        )
-            : null,
-
-        // Display the screen corresponding to the selected index
-        body:
-        Center(
-            child: _widgetOptions.elementAt(_selectedIndex),
-
-        ),
-
-        // --- BOTTOM NAVIGATION BAR ---
-        bottomNavigationBar: BottomNavigationBar(
-          items: const <BottomNavigationBarItem>[
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.payment),
-              label: 'Activity Tracker',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people),
-              label: 'Posts',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.event_note),
-              label: 'Notification',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings),
-              label: 'More',
-            ),
-          ],
-          currentIndex: _selectedIndex,
-          selectedItemColor: Colors.indigo, // Highlight the current tab
-          unselectedItemColor: Colors.grey,
-          type: BottomNavigationBarType.fixed, // Use fixed type for 5 items
-          onTap: _onItemTapped,
-        ),
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_rounded),
+            label: 'Dashboard',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_month_rounded),
+            label: 'Schedule',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.chat_bubble_rounded),
+            label: 'Inbox',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications_rounded),
+            label: 'Alerts',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.grid_view_rounded),
+            label: 'More',
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        selectedItemColor: Colors.indigo,
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        showUnselectedLabels: true,
+        onTap: _onItemTapped,
+        elevation: 10,
+        backgroundColor: Colors.white,
+      ),
     );
   }
 }

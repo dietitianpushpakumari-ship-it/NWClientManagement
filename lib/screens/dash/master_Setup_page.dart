@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nutricare_client_management/admin/habit_master_screen.dart';
 import 'package:nutricare_client_management/meal_planner/screen/InvestigationMasterScreen.dart';
 import 'package:nutricare_client_management/meal_planner/screen/dash/diet_plan_master_dashboard.dart';
 import 'package:nutricare_client_management/meal_planner/screen/disease_master_list_screen.dart';
@@ -149,6 +150,14 @@ class _MasterSetupPageState extends State<MasterSetupPage> {
                   icon: Icons.coronavirus_rounded, // Or Icons.sick
                   color: Colors.deepOrange,
                   onTap: () => _navigateToModule(context, const DiseaseMasterListScreen()),
+                ),
+                _buildModuleItem(
+                  context,
+                  title: 'Habit Master',
+                  subtitle: 'Manage Habits list',
+                  icon: Icons.coronavirus_rounded, // Or Icons.sick
+                  color: Colors.deepOrange,
+                  onTap: () => _navigateToModule(context, const HabitMasterScreen()),
                 ),
               ],
             ),

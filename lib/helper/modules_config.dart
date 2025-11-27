@@ -192,9 +192,7 @@ class _VitalsEntryPageState extends State<VitalsEntryPage> with SingleTickerProv
 
     try {
       if (widget.vitalsToEdit?.id != null) {
-        await VitalsService().updateVitals(newVitals);
-      } else {
-        await VitalsService().addVitals(newVitals);
+        await VitalsService().saveVitals(newVitals);
       }
 
       // 🎯 CRITICAL: Call the callback so the previous screen knows to refresh

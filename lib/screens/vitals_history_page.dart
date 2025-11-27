@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
-import 'package:nutricare_client_management/helper/lab_vitals_data.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
-import 'package:nutricare_client_management/screens/vitals_entry_form_screen.dart' hide LabVitalsData;
-
-
-// Uses the new data
+import 'package:nutricare_client_management/screens/vitals_entry_form_screen.dart';
 
 class VitalsHistoryPage extends StatefulWidget {
   final String clientId;
@@ -16,7 +11,7 @@ class VitalsHistoryPage extends StatefulWidget {
   const VitalsHistoryPage({
     super.key,
     required this.clientId,
-    required this.clientName
+    required this.clientName,
   });
 
   @override
@@ -25,363 +20,321 @@ class VitalsHistoryPage extends StatefulWidget {
 
 class _VitalsHistoryPageState extends State<VitalsHistoryPage> {
   late Future<List<VitalsModel>> _vitalsFuture;
-  VitalsService vitalsService = VitalsService();
+  final VitalsService _service = VitalsService();
 
   @override
   void initState() {
     super.initState();
-    _vitalsFuture = _loadVitals();
+    _refresh();
   }
 
-  Future<List<VitalsModel>> _loadVitals() {
-    return vitalsService.getClientVitals(widget.clientId);
-  }
-
-  void _navigateAndRefresh(Widget page) async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (context) => page));
+  void _refresh() {
     setState(() {
-      _vitalsFuture = _loadVitals();
+      _vitalsFuture = _service.getClientVitals(widget.clientId);
     });
   }
 
-  void _deleteRecord(VitalsModel record) async {
-    final confirmed = await showDialog<bool>(
+  // --- ACTIONS ---
+  Future<void> _deleteRecord(VitalsModel record) async {
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Delete'),
-        content: Text('Are you sure you want to delete the record from ${DateFormat.yMMMd().format(record.date)}?'),
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Deletion"),
+        content: Text("Delete vitals record from ${DateFormat.yMMMd().format(record.date)}?"),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text("Delete"),
+          ),
         ],
       ),
-    ) ?? false;
+    );
 
-    if (confirmed) {
+    if (confirm == true) {
       try {
-        await vitalsService.deleteVitals(widget.clientId, record.id);
-        setState(() {
-          _vitalsFuture = _loadVitals();
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Record deleted.')),
-          );
-        }
+        await _service.deleteVitals(widget.clientId, record.id);
+        _refresh();
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record deleted.")));
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete record: $e')),
-          );
-        }
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
       }
     }
   }
 
-  // 🎯 CORE LOGIC FIX: Ensures correct parsing of all range types (X-Y, <X, >Y).
-  Color _getLabValueColor(String key, String value, {bool isMale = true}) {
-    final test = LabVitalsData.allLabTests[key];
-    if (test == null || value.isEmpty || test.referenceRange.isEmpty) {
-      return Colors.black87;
-    }
-
-    try {
-      final numValue = num.tryParse(value);
-      if (numValue == null) return Colors.black87;
-
-      // 1. Clean the reference range string from gender specifics
-      String reference = test.referenceRange;
-      if (reference.contains('(M)') || reference.contains('(F)')) {
-        // For male, take the part before (M)
-        if (isMale) {
-          reference = reference.split('(M)').first.trim();
-        } else {
-          // For female, find the part containing (F), and remove the (F) tag.
-          // This is a slightly more robust way to handle the second part of a comma-separated range.
-          final femalePart = reference.split(',').last.trim();
-          reference = femalePart.replaceAll(RegExp(r'\s*\([^)]*\)'), '').trim();
-        }
-        // Final fallback to remove any lingering gender tag
-        reference = reference.replaceAll(RegExp(r'\s*\([^)]*\)'), '').trim();
-      }
-
-      // 2. Check and compare based on the cleaned reference string format
-
-      // Standard Range: X - Y (e.g., "70 - 100")
-      if (reference.contains('-')) {
-        final parts = reference.split('-').map((s) => s.trim()).toList();
-        if (parts.length == 2) {
-          final min = num.tryParse(parts[0]);
-          final max = num.tryParse(parts[1]);
-
-          if (min != null && max != null && (numValue < min || numValue > max)) {
-            return Colors.red.shade700; // Out of range
-          }
-        }
-      }
-      // Maximum Limit: < X (e.g., "< 200")
-      else if (reference.trim().startsWith('<')) {
-        // Extract the number after the '<' symbol
-        final maxStr = reference.substring(reference.indexOf('<') + 1).trim();
-        final max = num.tryParse(maxStr);
-        if (max != null && numValue >= max) {
-          return Colors.red.shade700; // Too high
-        }
-      }
-      // Minimum Limit: > Y (e.g., "> 40")
-      else if (reference.trim().startsWith('>')) {
-        // Extract the number after the '>' symbol
-        final minStr = reference.substring(reference.indexOf('>') + 1).trim();
-        final min = num.tryParse(minStr);
-        if (min != null && numValue <= min) {
-          return Colors.red.shade700; // Too low
-        }
-      }
-
-      return Colors.green.shade700; // In range
-
-    } catch (e) {
-      return Colors.black87; // Parsing error
-    }
-  }
-
-  // Helper widget to build detail rows with value, label, and reference
-  Widget _buildDetailRow(String label, String value, String reference, {Color? highlightColor, Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          // Label
-          SizedBox(
-            width: 130, // Increased width for longer lab test names
-            child: Text('$label:', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.blueGrey)),
-          ),
-          // Value (Color-coded)
-          SizedBox(
-            width: 80,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: valueColor ?? highlightColor ?? Colors.black87,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          // Reference Range
-          Expanded(
-            child: Text(
-              'Ref: $reference',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 12,
-                fontStyle: FontStyle.italic,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ),
-        ],
+  void _editRecord(VitalsModel record) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VitalsEntryPage(
+          clientId: widget.clientId,
+          clientName: widget.clientName,
+          onVitalsSaved: _refresh,
+          isFirstConsultation: record.isFirstConsultation,
+          vitalsToEdit: record,
+        ),
       ),
     );
   }
 
-  Widget _buildRecordActions(VitalsModel record) {
-    return PopupMenuButton<String>(
-      onSelected: (value) {
-        if (value == 'edit') {
-          _navigateAndRefresh(VitalsEntryPage(
-            clientId: widget.clientId,
-            clientName: widget.clientName,
-            vitalsToEdit: record, onVitalsSaved: () {  }, isFirstConsultation: record.isFirstConsultation,
-          ));
-        } else if (value == 'delete') {
-          _deleteRecord(record);
-        }
-      },
-      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-        const PopupMenuItem<String>(
-          value: 'edit',
-          child: ListTile(
-            leading: Icon(Icons.edit),
-            title: Text('Edit'),
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'delete',
-          child: ListTile(
-            leading: Icon(Icons.delete, color: Colors.red),
-            title: Text('Delete'),
-          ),
-        ),
-      ],
-      icon: const Icon(Icons.more_vert),
-    );
-  }
-
-  Color _getStatusColor(VitalsModel record, List<VitalsModel> history) {
-    final recordIndex = history.indexOf(record);
-    if (recordIndex + 1 < history.length) {
-      final previousRecord = history[recordIndex + 1];
-      // Positive trend (weight loss) is green
-      if (record.weightKg < previousRecord.weightKg) {
-        return Colors.green;
-      }
-      // Negative trend (weight gain) is red
-      else if (record.weightKg > previousRecord.weightKg) {
-        return Colors.red;
-      }
-    }
-    return Colors.grey;
-  }
+  // =================================================================
+  // 🎨 PREMIUM UI
+  // =================================================================
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: Text('Vitals list'),
-      ),
-      body: SafeArea(
-        child: FutureBuilder<List<VitalsModel>>(
-          future: _vitalsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('Error loading data: ${snapshot.error}'));
-            }
-            // Sort by date descending (most recent first)
-            final vitalsHistory = snapshot.data ?? [];
-            vitalsHistory.sort((a, b) => b.date.compareTo(a.date));
-
-            if (vitalsHistory.isEmpty) {
-              return const Center(child: Text('No vitals records found. Tap "+" to add one.'));
-            }
-
-            return ListView.builder(
-              padding: const EdgeInsets.all(8.0),
-              itemCount: vitalsHistory.length,
-              itemBuilder: (context, index) {
-                final record = vitalsHistory[index];
-                final trendColor = _getStatusColor(record, vitalsHistory);
-
-                return Card(
-                  elevation: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 8.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: trendColor.withOpacity(0.5), width: 2),
+      backgroundColor: const Color(0xFFF8F9FE), // Premium background
+      body: Stack(
+        children: [
+          // 1. Ambient Glow (Top Right)
+          Positioned(
+            top: -100,
+            right: -80,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.indigo.withOpacity(0.1),
+                    blurRadius: 80,
+                    spreadRadius: 30,
                   ),
-                  child: ExpansionTile(
-                    tilePadding: const EdgeInsets.only(left: 16.0, right: 8.0),
-                    leading: CircleAvatar(
-                      backgroundColor: trendColor,
-                      child: Text(
-                        '${record.weightKg.toStringAsFixed(1)}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ],
+              ),
+            ),
+          ),
+
+          SafeArea(
+            child: Column(
+              children: [
+                // 2. Custom Header (No AppBar)
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+                                ],
+                              ),
+                              child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          const Text(
+                            "Vitals History",
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    title: Text(
-                      DateFormat.yMMMd().format(record.date),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    subtitle: Text(
-                      record.bodyFatPercentage > 0
-                          ? 'Weight: ${record.weightKg} kg, BFP: ${record.bodyFatPercentage}%'
-                          : 'Weight: ${record.weightKg} kg',
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-                    ),
-                    trailing: _buildRecordActions(record),
-                    children: <Widget>[
-                      Padding(
-                        padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // --- Physical Vitals (Simplified) ---
-                            _buildDetailRow('Weight', '${record.weightKg} kg', 'Physical Measurement', highlightColor: Colors.teal),
-                            if (record.bodyFatPercentage > 0)
-                              _buildDetailRow('Body Fat %', '${record.bodyFatPercentage}%', 'Physical Measurement', highlightColor: Colors.teal),
-
-                            // --- Lab Results Grouped by Profile ---
-                            if (record.labResults.isNotEmpty) ...[
-                              const Divider(height: 20),
-
-                              // Dynamic grouping and display of all lab results
-                              ...LabVitalsData.labTestGroups.entries.map((entry) {
-                                final groupName = entry.key;
-                                final testKeys = entry.value;
-
-                                // Filter to only include tests with results in the current record
-                                final testsWithResults = testKeys
-                                    .where((key) => record.labResults.containsKey(key) && record.labResults[key]!.isNotEmpty)
-                                    .toList();
-
-                                if (testsWithResults.isEmpty) return const SizedBox.shrink();
-
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 10.0, bottom: 8.0),
-                                      child: Text(
-                                          '--- $groupName ---',
-                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blueGrey.shade700)
-                                      ),
-                                    ),
-                                    ...testsWithResults.map((key) {
-                                      final test = LabVitalsData.allLabTests[key];
-                                      final value = record.labResults[key]!;
-                                      final reference = test?.referenceRange ?? 'N/A';
-                                      final unit = test?.unit ?? '';
-
-                                      return _buildDetailRow(
-                                        test?.displayName ?? key,
-                                        '$value $unit',
-                                        '$reference $unit',
-                                        // Color code based on range check
-                                        valueColor: _getLabValueColor(key, value, isMale: true),
-                                      );
-                                    }).toList(),
-                                  ],
-                                );
-                              }).toList(),
-                            ],
-
-                            // --- Notes ---
-                            if (record.notes?.isNotEmpty == true) ...[
-                              const Divider(height: 20),
-                              _buildDetailRow('Notes', record.notes!, 'Comments'),
-                            ],
-
-                            if (record.labReportUrls.isNotEmpty)
-                              _buildDetailRow('Reports', 'View ${record.labReportUrls.length} files', 'Files'),
-                          ],
-                        ),
-                      ),
+                      // Optional: Filter icon or similar could go here
                     ],
                   ),
-                );
-              },
-            );
-          },
-        ),
+                ),
+
+                // 3. History List
+                Expanded(
+                  child: FutureBuilder<List<VitalsModel>>(
+                    future: _vitalsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final list = snapshot.data ?? [];
+                      // Ensure sorted by date desc
+                      list.sort((a, b) => b.date.compareTo(a.date));
+
+                      if (list.isEmpty) return _buildEmptyState();
+
+                      return ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 80), // Bottom padding for FAB
+                        itemCount: list.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 16),
+                        itemBuilder: (context, index) => _buildPremiumCard(list[index]),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
 
-      // --- FLOATING ACTION BUTTON (Create) ---
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _navigateAndRefresh(VitalsEntryPage(
-            clientId: widget.clientId,
-            clientName: widget.clientName, onVitalsSaved: () {  }, isFirstConsultation: false,
-          ));
-        },
-        child: const Icon(Icons.add),
-        backgroundColor: colorScheme.secondary,
-        tooltip: 'Add New Vitals Record',
+      // 4. Floating Action Button
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VitalsEntryPage(
+              clientId: widget.clientId,
+              clientName: widget.clientName,
+              onVitalsSaved: _refresh,
+              isFirstConsultation: false,
+            ),
+          ),
+        ),
+        backgroundColor: Colors.indigo,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text("Log Vitals", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        elevation: 4,
       ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.monitor_heart_outlined, size: 60, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          Text("No vitals recorded yet", style: TextStyle(fontSize: 16, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumCard(VitalsModel record) {
+    final dateStr = DateFormat('dd MMM yyyy').format(record.date);
+
+    // Calculate BMI Status for Color Coding
+    Color statusColor = Colors.green;
+    String statusLabel = "Normal";
+    if (record.bmi > 25) {
+      statusColor = Colors.orange;
+      statusLabel = "Overweight";
+    } else if (record.bmi > 30) {
+      statusColor = Colors.red;
+      statusLabel = "Obese";
+    } else if (record.bmi < 18.5 && record.bmi > 0) {
+      statusColor = Colors.blue;
+      statusLabel = "Underweight";
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))
+        ],
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.calendar_today, size: 16, color: Colors.indigo),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(dateStr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                ],
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_horiz, color: Colors.grey),
+                onSelected: (val) => val == 'edit' ? _editRecord(record) : _deleteRecord(record),
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'edit', child: Text("Edit Record")),
+                  const PopupMenuItem(value: 'delete', child: Text("Delete Record", style: TextStyle(color: Colors.red))),
+                ],
+              ),
+            ],
+          ),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, color: Color(0xFFF0F0F0)),
+          ),
+
+          // Metrics Grid
+          Row(
+            children: [
+              _buildMetricColumn("Weight", "${record.weightKg} kg", Icons.monitor_weight_outlined, Colors.blue),
+              const SizedBox(width: 20),
+              _buildMetricColumn("BMI", record.bmi > 0 ? record.bmi.toStringAsFixed(1) : "-", Icons.calculate_outlined, statusColor),
+              const SizedBox(width: 20),
+              _buildMetricColumn("BP", record.bloodPressureSystolic != null ? "${record.bloodPressureSystolic}/${record.bloodPressureDiastolic}" : "-", Icons.favorite_outline, Colors.red),
+            ],
+          ),
+
+          // Lab & Clinical Badges
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (record.labResults.isNotEmpty)
+                _buildBadge("${record.labResults.length} Labs", Colors.teal),
+              if (record.diagnosis.isNotEmpty)
+                _buildBadge("${record.diagnosis.length} Conditions", Colors.purple),
+              if (record.prescribedMedications.isNotEmpty)
+                _buildBadge("${record.prescribedMedications.length} Meds", Colors.orange),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricColumn(String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
     );
   }
 }

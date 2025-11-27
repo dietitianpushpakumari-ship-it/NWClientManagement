@@ -356,6 +356,40 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen>
     }
   }
 
+  void _showChangeTypeDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Change Client Type"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTypeOption(ctx, "New / Pending", "new", Colors.grey),
+            _buildTypeOption(ctx, "One-Time Consultation", "one_time", Colors.orange),
+            _buildTypeOption(ctx, "Active Member", "active", Colors.green),
+            _buildTypeOption(ctx, "Expired / Past", "expired", Colors.red),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeOption(BuildContext ctx, String label, String value, Color color) {
+    final isSelected = _currentClient.clientType == value;
+    return ListTile(
+      leading: Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: color),
+      title: Text(label, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: color)),
+      onTap: () async {
+        Navigator.pop(ctx);
+        if (!isSelected) {
+          await _clientService.updateClientType(_currentClient.id, value);
+          _refreshClientData(); // Reload UI
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Client marked as $label")));
+        }
+      },
+    );
+  }
+
   Widget _buildProfileTab(ClientModel client) {
     // Function to navigate and refresh, accepting a section to focus on
     void navigateToEdit({
@@ -374,14 +408,44 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen>
     }
 
     final hasActivePackage = client.packageAssignments.values.any(
-      (p) => p.isActive,
+          (p) => p.isActive,
     );
+
+    // 🎯 HELPER: Get Display Name & Color for Type
+    String typeLabel = "New Lead";
+    Color typeColor = Colors.grey;
+    IconData typeIcon = Icons.person_outline;
+
+    switch (client.clientType) {
+      case 'active': typeLabel = "Active Member"; typeColor = Colors.green; typeIcon = Icons.verified; break;
+      case 'one_time': typeLabel = "One-Time Consult"; typeColor = Colors.orange; typeIcon = Icons.timelapse; break;
+      case 'expired': typeLabel = "Expired / Past"; typeColor = Colors.red; typeIcon = Icons.history; break;
+      default: typeLabel = "New / Pending"; typeColor = Colors.blueGrey; typeIcon = Icons.person_add;
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 🎯 1. NEW: CLIENT STATUS CARD
+          Card(
+            elevation: 4,
+            color: typeColor.withOpacity(0.1),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: typeColor.withOpacity(0.3))),
+            margin: const EdgeInsets.only(bottom: 20),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              leading: CircleAvatar(backgroundColor: typeColor, child: Icon(typeIcon, color: Colors.white)),
+              title: Text("Current Status", style: TextStyle(color: typeColor, fontSize: 12, fontWeight: FontWeight.bold)),
+              subtitle: Text(typeLabel, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+              trailing: ElevatedButton(
+                onPressed: _showChangeTypeDialog,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: typeColor, elevation: 0, side: BorderSide(color: typeColor)),
+                child: const Text("Change"),
+              ),
+            ),
+          ),
           // 1. Personal & Contact Information
           _buildSectionCard(
             context,
