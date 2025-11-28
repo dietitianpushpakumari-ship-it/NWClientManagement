@@ -171,7 +171,7 @@ class _ClientContentSchedulerTabState extends State<ClientContentSchedulerTab> {
               onPressed: _isSaving ? null : _saveSchedule,
               icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_task, color: Colors.white),
               label: Text('SCHEDULE CONTENT', style: const TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+              style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
             ),
           ),
           const SizedBox(height: 40),

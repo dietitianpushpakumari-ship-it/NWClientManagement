@@ -1,7 +1,9 @@
+import 'dart:ui';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/admin_analytics_service.dart';
+import 'package:nutricare_client_management/screens/dash/client_dashboard_screenv2.dart';
+import 'package:nutricare_client_management/modules/client/services/client_service.dart'; // To fetch full client model for navigation
 
 class AdminAnalyticsScreen extends StatefulWidget {
   const AdminAnalyticsScreen({super.key});
@@ -12,6 +14,9 @@ class AdminAnalyticsScreen extends StatefulWidget {
 
 class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final AdminAnalyticsService _service = AdminAnalyticsService();
+  final ClientService _clientService = ClientService();
+
   String _timeFilter = 'This Month';
 
   @override
@@ -20,332 +25,204 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> with Single
     _tabController = TabController(length: 2, vsync: this);
   }
 
+  // --- ACTIONS ---
+  void _navigateToClient(String clientId) async {
+    final client = await _clientService.getClientById(clientId);
+    if (mounted) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => ClientDashboardScreen(client: client)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      appBar: AppBar(
-        title: const Text("Practice Analytics", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
-        actions: [
-          // Time Filter Dropdown
-          Container(
-            margin: const EdgeInsets.only(right: 16, top: 10, bottom: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _timeFilter,
-                icon: const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.indigo),
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo),
-                items: ['Last 7 Days', 'This Month', 'Last 3 Months', 'Year To Date']
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (v) => setState(() => _timeFilter = v!),
-              ),
-            ),
-          )
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.indigo,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: Colors.indigo,
-          indicatorWeight: 3,
-          tabs: const [
-            Tab(text: "BUSINESS & GROWTH"),
-            Tab(text: "QUALITY & HEALTH"),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Stack(
         children: [
-          _buildBusinessTab(),
-          _buildQualityTab(),
+          Positioned(top: -100, right: -80, child: Container(width: 400, height: 400, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.05), blurRadius: 100, spreadRadius: 40)]))),
+
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+
+                // Filter & Tabs
+                Container(
+                  height: 50,
+                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.6), borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.white)),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicator: BoxDecoration(color: Colors.indigo, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                    labelColor: Colors.white, unselectedLabelColor: Colors.grey.shade600,
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    tabs: const [Tab(text: "CLINICAL & RISK"), Tab(text: "BUSINESS GROWTH")],
+                  ),
+                ),
+
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildClinicalTab(), // 🎯 NEW TAB
+                      _buildBusinessTab(), // (Placeholder for previous business logic)
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
   // =================================================================
-  // 📊 TAB 1: BUSINESS (Revenue, Leads, Churn)
+  // 🏥 TAB 1: CLINICAL INSIGHTS
   // =================================================================
-  // ... inside _AdminAnalyticsScreenState
-
-  final AdminAnalyticsService _service = AdminAnalyticsService();
-
-  Widget _buildBusinessTab() {
+  Widget _buildClinicalTab() {
     return FutureBuilder(
         future: Future.wait([
-          _service.fetchBusinessSnapshot(),
-          _service.fetchRevenueTrend(),
-          _service.fetchPlanDistribution(),
+          _service.fetchAverageWeightVelocity(),
+          _service.fetchAtRiskClients(),
+          _service.fetchWellnessStats(),
         ]),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
 
           final data = snapshot.data as List;
-          final kpi = data[0] as Map<String, dynamic>;
-          final revenueSpots = data[1] as List<FlSpot>;
-          final pieSections = data[2] as List<PieChartSectionData>;
+          final double avgVelocity = data[0] as double;
+          final List<Map<String, dynamic>> atRiskList = data[1] as List<Map<String, dynamic>>;
+          final Map<String, dynamic> wellnessStats = data[2] as Map<String, dynamic>;
 
           return ListView(
             padding: const EdgeInsets.all(20),
+            physics: const BouncingScrollPhysics(),
             children: [
-              Row(
-                  children: [
-                    Expanded(child: _buildKPICard("Total Revenue", "₹${(kpi['revenue']/1000).toStringAsFixed(1)}k", "MoM", Icons.currency_rupee, Colors.green)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildKPICard("Active Clients", "${kpi['activeClients']}", "+${kpi['leads']} new", Icons.people, Colors.blue)),
-                  ]
-              ),
-              const SizedBox(width: 20),
-              // Legend
+              // 1. Outcome Metrics
+              Row(children: [
+                Expanded(child: _buildKPICard("Weight Velocity", "${avgVelocity.toStringAsFixed(2)} kg/wk", avgVelocity < 0 ? "On Track" : "Slowing", Icons.show_chart, avgVelocity < 0 ? Colors.green : Colors.orange)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildKPICard("Clients at Risk", "${atRiskList.length}", "Needs Action", Icons.warning_amber, Colors.red)),
+              ]),
               const SizedBox(height: 24),
 
-              // 2. Revenue Trend Chart
-              _buildChartContainer(
-                title: "Revenue Trajectory",
-                action: "View Ledger",
-                child: AspectRatio(
-                  aspectRatio: 1.7,
-                  child: LineChart(_mockRevenueData(revenueSpots)),
-                ),
-              ),
-              const SizedBox(height: 20),
+              // 2. "At Risk" Watchlist
+              if (atRiskList.isNotEmpty) ...[
+                const Text("⚠️ Priority Attention Needed", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                const SizedBox(height: 12),
+                ...atRiskList.map((c) => _buildRiskTile(c)).toList(),
+                const SizedBox(height: 24),
+              ],
 
-              // 3. Plan Popularity (Pie)
+              // 3. Wellness Usage (Engagement)
               _buildChartContainer(
-                title: "Plan Distribution",
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: PieChart(_mockPlanData(pieSections)),
+                title: "Wellness Tool Usage",
+                subtitle: "Most popular features this week",
+                child: SizedBox(
+                  height: 200,
+                  child: BarChart(
+                    BarChartData(
+                      barGroups: wellnessStats.entries.toList().asMap().entries.map((e) {
+                        return BarChartGroupData(x: e.key, barRods: [BarChartRodData(toY: (e.value.value as int).toDouble(), color: Colors.teal, width: 16, borderRadius: BorderRadius.circular(4))]);
+                      }).toList(),
+                      titlesData: FlTitlesData(
+                        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (val, meta) {
+                          final keys = wellnessStats.keys.toList();
+                          if (val.toInt() >= keys.length) return const SizedBox();
+                          return Padding(padding: const EdgeInsets.only(top: 8), child: Text(keys[val.toInt()].substring(0,3), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)));
+                        })),
                       ),
+                      borderData: FlBorderData(show: false),
+                      gridData: const FlGridData(show: false),
                     ),
-                    const SizedBox(width: 20),
-                    // Legend
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildLegendItem(Colors.blue, "Weight Loss (45%)"),
-                          _buildLegendItem(Colors.purple, "Diabetes Rev. (30%)"),
-                          _buildLegendItem(Colors.orange, "PCOS (15%)"),
-                          _buildLegendItem(Colors.teal, "General (10%)"),
-                        ],
-                      ),
-                    )
-                  ],
+                  ),
                 ),
               ),
             ],
-
           );
         }
     );
   }
 
-  // =================================================================
-  // ❤️ TAB 2: QUALITY (Adherence, Mood, Outcomes)
-  // =================================================================
-  Widget _buildQualityTab() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        // 1. KPI Row
-        Row(
-          children: [
-            Expanded(child: _buildKPICard("Avg Adherence", "84%", "High", Icons.check_circle_outline, Colors.teal)),
-            const SizedBox(width: 12),
-            Expanded(child: _buildKPICard("Client Happiness", "4.8/5", "Stable", Icons.sentiment_very_satisfied, Colors.orange)),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // 2. Adherence Trend
-        _buildChartContainer(
-          title: "Daily Log Compliance",
-          subtitle: "How many clients are logging meals vs goals?",
-          child: AspectRatio(
-            aspectRatio: 1.7,
-            child: BarChart(_mockAdherenceData()),
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        // 3. At-Risk Clients List
-        const Text("⚠ At-Risk Clients (Low Activity)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 10),
-        _buildRiskClientTile("Sarah Mike", "No logs for 3 days", 0.2),
-        _buildRiskClientTile("John Doe", "Missed 2 check-ins", 0.4),
-        _buildRiskClientTile("Priya K.", "Dropped Weight Goal", 0.3),
-      ],
-    );
+  Widget _buildBusinessTab() {
+    return const Center(child: Text("Business Metrics (Coming Soon)"));
   }
 
   // --- WIDGET HELPERS ---
 
-  Widget _buildKPICard(String label, String value, String trend, IconData icon, Color color) {
+  Widget _buildKPICard(String label, String value, String sub, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: color.withOpacity(0.1)),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))], border: Border.all(color: color.withOpacity(0.1))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-                  child: Icon(icon, color: color, size: 18)
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                child: Text(trend, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
-              )
-            ],
-          ),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Icon(icon, color: color, size: 20),
+            Text(sub, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color))
+          ]),
           const SizedBox(height: 12),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.black87)),
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.black87)),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
         ],
       ),
     );
   }
 
-  Widget _buildChartContainer({required String title, String? subtitle, String? action, required Widget child}) {
+  Widget _buildRiskTile(Map<String, dynamic> client) {
+    return GestureDetector(
+      onTap: () => _navigateToClient(client['id']),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.red.withOpacity(0.1)), boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.05), blurRadius: 10)]),
+        child: Row(
+          children: [
+            CircleAvatar(backgroundColor: Colors.red.shade50, backgroundImage: client['photoUrl'] != null ? NetworkImage(client['photoUrl']) : null, child: client['photoUrl'] == null ? Text(client['name'][0], style: TextStyle(color: Colors.red.shade800, fontWeight: FontWeight.bold)) : null),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(client['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(client['reason'], style: const TextStyle(fontSize: 12, color: Colors.red)),
+              ]),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChartContainer({required String title, required String subtitle, required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  if (subtitle != null) Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                ],
-              ),
-              if (action != null)
-                Text(action, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          child,
-        ],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 24),
+        child
+      ]),
     );
   }
 
-  Widget _buildRiskClientTile(String name, String reason, double activityLevel) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.red.shade100)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.red.shade50,
-          child: Text(name[0], style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade900)),
-        ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        subtitle: Text(reason, style: const TextStyle(fontSize: 12, color: Colors.red)),
-        trailing: SizedBox(
-          width: 80,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text("Activity", style: TextStyle(fontSize: 10, color: Colors.grey)),
-              const SizedBox(height: 4),
-              LinearProgressIndicator(value: activityLevel, color: Colors.red, backgroundColor: Colors.red.shade50, minHeight: 4),
-            ],
-          ),
+  Widget _buildHeader() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))),
+          child: Row(children: [
+            GestureDetector(onTap: () => Navigator.pop(context), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: const Icon(Icons.arrow_back, size: 20))),
+            const SizedBox(width: 16),
+            const Text("Analytics Center", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1A1A1A))),
+          ]),
         ),
       ),
-    );
-  }
-
-  Widget _buildLegendItem(Color color, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 8),
-          Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-        ],
-      ),
-    );
-  }
-
-  // --- MOCK DATA GENERATORS (Replace with Real Service Later) ---
-
-  LineChartData _mockRevenueData(List<FlSpot> revenueSpots) {
-    return LineChartData(
-      gridData: const FlGridData(show: false),
-      titlesData: const FlTitlesData(show: false),
-      borderData: FlBorderData(show: false),
-      lineBarsData: [
-        LineChartBarData(
-          spots: revenueSpots,
-          isCurved: true,
-          color: Colors.indigo,
-          barWidth: 3,
-          dotData: const FlDotData(show: false),
-          belowBarData: BarAreaData(show: true, color: Colors.indigo.withOpacity(0.1)),
-        )
-      ],
-    );
-  }
-
-  PieChartData _mockPlanData(List<PieChartSectionData> pieSections) {
-    return PieChartData(
-      sectionsSpace: 2,
-      centerSpaceRadius: 30,
-      sections: pieSections
-    );
-  }
-
-  BarChartData _mockAdherenceData() {
-    return BarChartData(
-      gridData: const FlGridData(show: false),
-      borderData: FlBorderData(show: false),
-      titlesData: const FlTitlesData(show: false),
-      barGroups: List.generate(7, (i) => BarChartGroupData(
-        x: i,
-        barRods: [
-          BarChartRodData(toY: (i % 2 == 0 ? 8 : 6).toDouble(), color: i == 6 ? Colors.teal : Colors.teal.shade200, width: 16, borderRadius: BorderRadius.circular(4)),
-        ],
-      )),
     );
   }
 }

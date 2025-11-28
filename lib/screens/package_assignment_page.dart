@@ -1,18 +1,14 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:nutricare_client_management/models/assigned_package_data.dart';
-import 'package:nutricare_client_management/modules/package/service/package_Service.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 
-import '../modules/package/model/package_model.dart';
-import '../modules/package/model/package_assignment_model.dart';
-import '../modules/package/service/package_payment_service.dart';
-import '../modules/client/services/client_service.dart';
-import 'payment_ledger_screen.dart'; // Import the Ledger Screen
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
-
+// 🎯 Project Imports
+import 'package:nutricare_client_management/modules/package/service/package_Service.dart';
+import 'package:nutricare_client_management/modules/package/model/package_model.dart';
+import 'package:nutricare_client_management/modules/package/model/package_assignment_model.dart';
+import 'package:nutricare_client_management/modules/client/services/client_service.dart';
 
 class PackageAssignmentPage extends StatefulWidget {
   final String clientId;
@@ -34,7 +30,6 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
   final _formKey = GlobalKey<FormState>();
 
   PackageModel? _selectedPackage;
-
   DateTime _startDate = DateTime.now();
   DateTime _expiryDate = DateTime.now().add(const Duration(days: 30));
 
@@ -43,14 +38,12 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
 
   double _bookedAmount = 0.0;
   bool _isLoading = false;
-
   Future<List<PackageModel>>? _packagesFuture;
 
   @override
   void initState() {
     super.initState();
     _calculateBookedAmount();
-    // No need to initialize _packagesFuture here, using didChangeDependencies
   }
 
   @override
@@ -69,25 +62,19 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
     super.dispose();
   }
 
-  // --- Helper methods (_calculateBookedAmount, _updateExpiryDate, _selectDate are unchanged) ---
+  // --- Logic ---
+
   void _calculateBookedAmount() {
-    // ... (Existing logic for calculation)
     if (_selectedPackage == null) {
-      setState(() {
-        _bookedAmount = 0.0;
-      });
+      setState(() => _bookedAmount = 0.0);
       return;
     }
     final double price = _selectedPackage!.price;
     final double discount = double.tryParse(_discountController.text) ?? 0.0;
-
-    setState(() {
-      _bookedAmount = price - discount;
-    });
+    setState(() => _bookedAmount = price - discount);
   }
 
   void _updateExpiryDate() {
-    // ... (Existing logic for updating expiry date)
     if (_selectedPackage != null) {
       setState(() {
         _expiryDate = _startDate.add(Duration(days: _selectedPackage!.durationDays));
@@ -96,7 +83,6 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
   }
 
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
-    // ... (Existing logic for selecting date)
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: isStartDate ? _startDate : _expiryDate,
@@ -115,338 +101,309 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
     }
   }
 
-  // --- Assignment Logic (unchanged for this task) ---
   Future<void> _assignPackage() async {
-    // ... (Existing assignment logic)
     if (!_formKey.currentState!.validate()) return;
     if (_selectedPackage == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a package.')));
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     final newAssignment = PackageAssignmentModel(
-      id: '', // Firestore will assign an ID
-      packageId: _selectedPackage!.id,
-      packageName: _selectedPackage!.name,
-      purchaseDate: _startDate,
-      expiryDate: _expiryDate,
-      discount: double.tryParse(_discountController.text) ?? 0.0,
-      bookedAmount: _bookedAmount,
-      diagnosis: _diagnosisController.text.trim(),
-      isActive: true,
-      category: _selectedPackage!.category.displayName,
-        clientId: widget.clientId, isLocked: false
-
+        id: '',
+        packageId: _selectedPackage!.id,
+        packageName: _selectedPackage!.name,
+        purchaseDate: _startDate,
+        expiryDate: _expiryDate,
+        discount: double.tryParse(_discountController.text) ?? 0.0,
+        bookedAmount: _bookedAmount,
+        diagnosis: _diagnosisController.text.trim(),
+        isActive: true,
+        category: _selectedPackage!.category.displayName,
+        clientId: widget.clientId,
+        isLocked: false
     );
 
     try {
       final clientService = Provider.of<ClientService>(context, listen: false);
-      await clientService.assignPackageToClient( widget.clientId, newAssignment);
+      await clientService.assignPackageToClient(widget.clientId, newAssignment);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Package ${_selectedPackage!.name} assigned successfully!')),
-        );
-        _formKey.currentState?.reset();
-        _discountController.text = '0.00';
-        _diagnosisController.text = '';
-        setState(() {
-          _selectedPackage = null;
-          _bookedAmount = 0.0;
-          _startDate = DateTime.now();
-          _expiryDate = DateTime.now().add(const Duration(days: 30));
-        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Package ${_selectedPackage!.name} assigned!')));
       }
-
       widget.onPackageAssignment();
       Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to assign package: $e')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  // --- UI Builders ---
 
-
-  // Helper to navigate to the Ledger screen
-  void _navigateToLedger(AssignedPackageData data) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PaymentLedgerScreen(
-          assignment: data.assignment,
-          clientName: widget.clientName,
-          initialCollectedAmount: data.collectedAmount,
-        ),
-      ),
-    );
-  }
-
-  // --- NEW: UI for List Item with payment details ---
-  Widget _buildAssignmentCard(AssignedPackageData data) {
-    final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final isFullyPaid = data.status == 'fullyPaid';
-
-    Color getStatusColor(dynamic status) {
-      if (status == 'fullyPaid') return Colors.green.shade700;
-      if (status == 'partiallyPaid') return Colors.orange.shade700;
-      return Colors.red.shade700;
-    }
-
-    String getStatusText(dynamic status) {
-      if (status == 'fullyPaid') return 'Fully Paid';
-      if (status == 'partiallyPaid') return 'Partially Paid';
-      return 'Not Paid';
-    }
-
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.only(bottom: 12.0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: getStatusColor(data.status), width: 1.5), // Status color border
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16.0),
-        leading: Icon(
-          Icons.work_history,
-          color: getStatusColor(data.status),
-          size: 30,
-        ),
-        title: Text(
-          data.assignment.packageName ,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              'Assigned: ${DateFormat.yMMMd().format(data.assignment.purchaseDate)}',
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            Text(
-              'Expires: ${DateFormat.yMMMd().format(data.assignment.expiryDate)}',
-              style: TextStyle(
-                color: data.assignment.expiryDate.isBefore(DateTime.now()) ? Colors.red : Colors.grey.shade700,
-                fontWeight: data.assignment.expiryDate.isBefore(DateTime.now()) ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-            const Divider(height: 12),
-            // PAYMENT DETAILS
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Status: ${getStatusText(data.status)}',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: getStatusColor(data.status)),
-                    ),
-                    if (data.discountAmount > 0)
-                      Text(
-                        'Discount: ${currencyFormatter.format(data.discountAmount)}',
-                        style: TextStyle(color: Colors.purple.shade700, fontSize: 13),
-                      ),
-                  ],
-                ),
-                if (!isFullyPaid)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Unpaid:',
-                        style: TextStyle(color: Colors.red.shade700, fontSize: 13),
-                      ),
-                      Text(
-                        currencyFormatter.format(data.pendingAmount),
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade700, fontSize: 16),
-                      ),
-                    ],
-                  ),
-                if (isFullyPaid)
-                  Text(
-                    'Paid: ${currencyFormatter.format(data.collectedAmount)}',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700, fontSize: 16),
-                  ),
-              ],
-            ),
-          ],
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios),
-        onTap: () => _navigateToLedger(data),
-      ),
-    );
-  }
-
-  // --- BUILD METHOD ---
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: CustomGradientAppBar(
-          title: Text('Packages for ${widget.clientName}'),
-        ),
-        body: SafeArea(child: _buildAssignmentForm())
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Stack(
+        children: [
+          // 1. Background Glow
+          Positioned(
+            top: -100,
+            right: -80,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.deepPurple.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)],
+              ),
+            ),
+          ),
+
+          SafeArea(
+            child: Column(
+              children: [
+                // 2. Custom Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+                          child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Text("Assign Package", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                    ],
+                  ),
+                ),
+
+                // 3. Main Form
+                Expanded(
+                  child: _buildAssignmentForm(),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+
   Widget _buildAssignmentForm() {
     final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
     return FutureBuilder<List<PackageModel>>(
       future: _packagesFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
 
         final packages = snapshot.data ?? [];
-        if (packages.isEmpty) {
-          return const Center(child: Text('No active packages found.'));
-        }
+        if (packages.isEmpty) return const Center(child: Text('No active packages found.'));
 
-        // --- Form Layout ---
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20.0),
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Package Selection Dropdown
-                DropdownButtonFormField<PackageModel>(
-                  decoration: InputDecoration(
-                    labelText: 'Select Package *',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                // --- CARD 1: PACKAGE DETAILS ---
+                _buildPremiumCard(
+                  title: "Package Details",
+                  icon: Icons.inventory_2_outlined,
+                  color: Colors.deepPurple,
+                  child: Column(
+                    children: [
+                      DropdownButtonFormField<PackageModel>(
+                        decoration: _inputDecoration("Select Package"),
+                        value: _selectedPackage,
+                        hint: const Text('Choose a service package'),
+                        isExpanded: true,
+                        items: packages.map((package) {
+                          return DropdownMenuItem(
+                            value: package,
+                            child: Text('${package.name} (${package.category.displayName})', overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
+                        onChanged: (PackageModel? newValue) {
+                          setState(() {
+                            _selectedPackage = newValue;
+                            _updateExpiryDate();
+                            _calculateBookedAmount();
+                          });
+                        },
+                        validator: (value) => value == null ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _diagnosisController,
+                        decoration: _inputDecoration("Diagnosis / Reason (Optional)"),
+                        maxLines: 2,
+                      ),
+                    ],
                   ),
-                  value: _selectedPackage,
-                  hint: const Text('Choose a service package'),
-                  isExpanded: true,
-                  items: packages.map((package) {
-                    return DropdownMenuItem(
-                      value: package,
-                      child: Text('${package.name} (${currencyFormatter.format(package.price)}) - ${package.category.displayName}'),
-                    );
-                  }).toList(),
-                  onChanged: (PackageModel? newValue) {
-                    setState(() {
-                      _selectedPackage = newValue;
-                      _updateExpiryDate();
-                      _calculateBookedAmount();
-                    });
-                  },
-                  validator: (value) => value == null ? 'Package selection is required' : null,
                 ),
-                const SizedBox(height: 20),
 
-                // Diagnosis Input
-                TextFormField(
-                  controller: _diagnosisController,
-                  decoration: InputDecoration(
-                    labelText: 'Client Diagnosis / Condition (Optional)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                // --- CARD 2: FINANCIALS ---
+                _buildPremiumCard(
+                  title: "Pricing & Discount",
+                  icon: Icons.currency_rupee,
+                  color: Colors.green,
+                  child: Column(
+                    children: [
+                      if (_selectedPackage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("Base Price", style: TextStyle(fontSize: 14, color: Colors.grey)),
+                              Text(currencyFormatter.format(_selectedPackage!.price), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      TextFormField(
+                        controller: _discountController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: _inputDecoration("Discount Amount"),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                        onChanged: (val) => _calculateBookedAmount(),
+                        validator: (value) {
+                          final amount = double.tryParse(value ?? '0.00') ?? 0.0;
+                          if (amount < 0) return 'Invalid';
+                          if (_selectedPackage != null && amount > _selectedPackage!.price) return 'Exceeds Price';
+                          return null;
+                        },
+                      ),
+                      const Divider(height: 30),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Final Amount", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+                          Text(
+                            currencyFormatter.format(_bookedAmount),
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary),
+                          ),
+                        ],
+                      )
+                    ],
                   ),
-                  maxLines: 2,
                 ),
-                const SizedBox(height: 20),
 
-                // Discount Input
-                TextFormField(
-                  controller: _discountController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: 'Discount Amount (₹)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    prefixIcon: const Icon(Icons.money_off),
+                // --- CARD 3: DURATION ---
+                _buildPremiumCard(
+                  title: "Duration",
+                  icon: Icons.calendar_month,
+                  color: Colors.orange,
+                  child: Column(
+                    children: [
+                      _buildDateTile("Start Date", _startDate, () => _selectDate(context, true)),
+                      const SizedBox(height: 12),
+                      _buildDateTile("Expiry Date", _expiryDate, () => _selectDate(context, false), isAlert: _expiryDate.isBefore(DateTime.now())),
+                    ],
                   ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                  ],
-                  onChanged: (value) {
-                    _calculateBookedAmount();
-                  },
-                  validator: (value) {
-                    final amount = double.tryParse(value ?? '0.00') ?? 0.0;
-                    if (amount < 0) return 'Discount cannot be negative';
-                    if (_selectedPackage != null && amount > _selectedPackage!.price) {
-                      return 'Discount cannot exceed package price';
-                    }
-                    return null;
-                  },
                 ),
+
                 const SizedBox(height: 30),
 
-                // --- Summary Card --
-
-
-                // --- Dates Section ---
-                Text(
-                  'Assignment Duration',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey.shade700),
-                ),
-                const SizedBox(height: 10),
-
-                // Start Date Picker
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Start Date: ${DateFormat.yMMMd().format(_startDate)}',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () => _selectDate(context, true),
-                ),
-
-                // Expiry Date Picker
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Expiry Date: ${DateFormat.yMMMd().format(_expiryDate)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: _expiryDate.isBefore(DateTime.now()) ? Colors.red : Colors.black,
+                // Action Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _assignPackage,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 4,
+                      shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.4),
                     ),
-                  ),
-                  trailing: const Icon(Icons.edit_calendar),
-                  onTap: () => _selectDate(context, false),
-                ),
-
-                const SizedBox(height: 40),
-
-                // Save button
-                ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _assignPackage,
-                  icon: const Icon(Icons.link),
-                  label: const Text('Assign Package'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    backgroundColor: Colors.green.shade600,
-                    foregroundColor: Colors.white,
+                    child: _isLoading
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text("CONFIRM ASSIGNMENT", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                   ),
                 ),
+                const SizedBox(height: 30),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  // --- Widget Helpers ---
+
+  Widget _buildPremiumCard({required String title, required IconData icon, required Color color, required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
+        border: Border.all(color: color.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)),
+            const SizedBox(width: 12),
+            Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          ]),
+          const SizedBox(height: 20),
+          child,
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
+
+  Widget _buildDateTile(String label, DateTime date, VoidCallback onTap, {bool isAlert = false}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isAlert ? Colors.red.shade200 : Colors.grey.shade200),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
+            Row(
+              children: [
+                Text(DateFormat.yMMMd().format(date), style: TextStyle(fontWeight: FontWeight.bold, color: isAlert ? Colors.red : Colors.black87)),
+                const SizedBox(width: 8),
+                Icon(Icons.calendar_today, size: 16, color: isAlert ? Colors.red : Theme.of(context).colorScheme.primary),
+              ],
+            )
+          ],
+        ),
+      ),
     );
   }
 }

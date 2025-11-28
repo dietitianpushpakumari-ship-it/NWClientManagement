@@ -1,134 +1,241 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:nutricare_client_management/admin/admin_account_page.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
-
+import 'package:nutricare_client_management/admin/app_appearance_manager.dart';
+import 'package:nutricare_client_management/admin/feed_management_screen.dart';
+import 'package:nutricare_client_management/scheduler/content_library_screen.dart';
 
 class AdminMoreScreen extends StatelessWidget {
   const AdminMoreScreen({super.key});
 
-  // Helper function to build the ListTiles
-  Widget _buildOptionTile({
-    required BuildContext context,
-    required String title,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return Column(
-      children: [
-        ListTile(
-          leading: Icon(icon, color: Colors.indigo.shade600),
-          title: Text(title, style: const TextStyle(fontSize: 16)),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-          onTap: onTap,
-        ),
-        const Divider(height: 1),
-      ],
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE), // Premium Background
+      body: Stack(
+        children: [
+          // 1. Ambient Glow
+          Positioned(
+            top: -100,
+            right: -100,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.indigo.withOpacity(0.1),
+                    blurRadius: 80,
+                    spreadRadius: 30,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          SafeArea(
+            child: Column(
+              children: [
+                // 2. Custom Glass Header
+                _buildHeader(),
+
+                // 3. Options List
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        // Account Section
+                        _buildSectionLabel("Account"),
+                        _buildSectionContainer(
+                          children: [
+                            _buildOptionTile(
+                              context,
+                              "My Profile",
+                              "Manage personal details",
+                              Icons.person_outline,
+                              Colors.blue,
+                                  () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const AdminAccountPage()),
+                              ),
+                            ),
+                            _buildDivider(),
+                            _buildOptionTile(
+                              context,
+                              "Billing & Plan",
+                              "Manage subscription",
+                              Icons.credit_card,
+                              Colors.purple,
+                                  () {}, // Add navigation
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
+                        _buildSectionLabel("Content & Marketing"),
+                        _buildSectionContainer(
+                          children: [
+                            _buildOptionTile(
+                              context,
+                              "Client Feed Manager",
+                              "Manage posts, recipes & videos",
+                              Icons.rss_feed,
+                              Colors.deepOrange,
+                                  () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const FeedManagementScreen()),
+                              ),
+                            ),
+                            _buildDivider(),
+                            _buildOptionTile(
+                              context,
+                              "Knowledge Library",
+                              "Health tips database",
+                              Icons.library_books,
+                              Colors.teal,
+                                  () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ContentLibraryScreen()),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        // App Settings Section
+                        _buildSectionLabel("Application"),
+                        _buildSectionContainer(
+                          children: [
+                            _buildOptionTile(
+                              context,
+                              "Notifications",
+                              "Customize alerts",
+                              Icons.notifications_outlined,
+                              Colors.orange,
+                                  () {},
+                            ),
+                            _buildDivider(),
+                            _buildOptionTile(
+                              context,
+                              "Privacy & Security",
+                              "Lock app & data",
+                              Icons.security,
+                              Colors.green,
+                                  () {},
+                            ),
+                            _buildDivider(),
+                            _buildOptionTile(
+                              context,
+                              "App Appearance",
+                              "Theme & Layout",
+                              Icons.palette_outlined,
+                              Colors.teal,
+                                  () {
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const AppAppearanceScreen()) // 🎯 Navigate here
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Support Section
+                        _buildSectionLabel("Support"),
+                        _buildSectionContainer(
+                          children: [
+                            _buildOptionTile(
+                              context,
+                              "Help Center",
+                              "FAQ & Guides",
+                              Icons.help_outline,
+                              Colors.indigo,
+                                  () {},
+                            ),
+                            _buildDivider(),
+                            _buildOptionTile(
+                              context,
+                              "Contact Us",
+                              "Get support",
+                              Icons.mail_outline,
+                              Colors.redAccent,
+                                  () {},
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 40),
+
+                        // Logout Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              // Implement Logout Logic
+                            },
+                            icon: const Icon(Icons.logout, color: Colors.white),
+                            label: const Text(
+                              "LOG OUT",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade400,
+                              elevation: 5,
+                              shadowColor: Colors.red.withOpacity(0.4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+                        Text(
+                          "Version 1.0.0",
+                          style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // ⚠️ Placeholder: You need to fetch the current AdminProfileModel (e.g., from a Provider or FutureBuilder)
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: const Text('More Options'),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: <Widget>[
-              // --- Profile Header ---
+  // --- WIDGET HELPERS ---
 
-              const Divider(thickness: 1, indent: 16, endIndent: 16),
-
-
-              // --- Core Account Options ---
-              _buildOptionTile(
-                context: context,
-                title: 'My Profile',
-                icon: Icons.account_circle,
-                onTap: () {
-                  // 🎯 Navigate to Admin Profile Edit Screen
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => AdminAccountPage()));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navigate to Admin Profile Edit')));
-                },
-              ),
-
-              _buildOptionTile(
-                context: context,
-                title: 'Membership & Billing',
-                icon: Icons.payments,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navigate to Billing Details')));
-                },
-              ),
-
-              _buildOptionTile(
-                context: context,
-                title: 'User Management',
-                icon: Icons.group,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navigate to User Management Screen')));
-                },
-              ),
-
-
-              // --- System & Legal Options ---
-              Padding(
-                padding: const EdgeInsets.only(top: 20.0, left: 16.0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('App & Security', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              _buildOptionTile(
-                context: context,
-                title: 'Settings',
-                icon: Icons.settings,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navigate to App Settings')));
-                },
-              ),
-
-              _buildOptionTile(
-                context: context,
-                title: 'Security',
-                icon: Icons.security,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Navigate to Security Settings')));
-                },
-              ),
-
-              _buildOptionTile(
-                context: context,
-                title: 'Privacy Policy',
-                icon: Icons.privacy_tip,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Open Privacy Policy link')));
-                },
-              ),
-
-              // --- Logout ---
-              const SizedBox(height: 30),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // 🎯 Implement Firebase Logout here
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('User Logged Out!')));
-                  },
-                  icon: const Icon(Icons.logout, color: Colors.white),
-                  label: const Text('Log Out', style: TextStyle(color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade600,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
+  Widget _buildHeader() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.8),
+            border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1))),
+          ),
+          child: const Row(
+            children: [
+              SizedBox(width: 8),
+              Text(
+                "More Options",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1A1A1A),
                 ),
               ),
             ],
@@ -136,5 +243,76 @@ class AdminMoreScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildSectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade500,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionContainer({required List<Widget> children}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(children: children),
+    );
+  }
+
+
+  Widget _buildOptionTile(
+      BuildContext context,
+      String title,
+      String subtitle,
+      IconData icon,
+      Color color,
+      VoidCallback onTap,
+      ) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      onTap: onTap,
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color, size: 22),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+      ),
+      trailing: Icon(Icons.chevron_right, size: 20, color: Colors.grey.shade300),
+    );
+  }
+
+  Widget _buildDivider() {
+    return const Divider(height: 1, thickness: 0.5, indent: 70, endIndent: 20);
   }
 }

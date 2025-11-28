@@ -1,21 +1,13 @@
-// lib/screens/serving_unit_entry_page.dart
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/helper/language_config.dart';
+import 'package:nutricare_client_management/modules/master/model/diagonosis_master.dart';
 import 'package:nutricare_client_management/modules/master/service/diagonosis_master_service.dart';
 import 'package:provider/provider.dart';
 
-import '../model/diagonosis_master.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
-
-
-
-
 class DiagnosisEntryPage extends StatefulWidget {
-  final DiagnosisMasterModel? diagnosisToEdit; // Null for Add, Not Null for Edit
-
+  final DiagnosisMasterModel? diagnosisToEdit;
   const DiagnosisEntryPage({super.key, this.diagnosisToEdit});
-
   @override
   State<DiagnosisEntryPage> createState() => _DiagnosisEntryPageState();
 }
@@ -23,175 +15,85 @@ class DiagnosisEntryPage extends StatefulWidget {
 class _DiagnosisEntryPageState extends State<DiagnosisEntryPage> {
   final _formKey = GlobalKey<FormState>();
   final _enNameController = TextEditingController();
-
-  // Controllers for all non-English supported languages
   final Map<String, TextEditingController> _localizedControllers = {};
-
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeLocalizedControllers();
+    for (var code in supportedLanguageCodes) { if (code != 'en') _localizedControllers[code] = TextEditingController(); }
     if (widget.diagnosisToEdit != null) {
-      _initializeForEdit(widget.diagnosisToEdit!);
+      _enNameController.text = widget.diagnosisToEdit!.enName;
+      widget.diagnosisToEdit!.nameLocalized.forEach((k, v) { if (_localizedControllers.containsKey(k)) _localizedControllers[k]!.text = v; });
     }
   }
 
-  void _initializeLocalizedControllers() {
-    for (var code in supportedLanguageCodes) {
-      if (code != 'en') {
-        _localizedControllers[code] = TextEditingController();
-      }
-    }
-  }
-
-  void _initializeForEdit(DiagnosisMasterModel diagnosis) {
-    _enNameController.text = diagnosis.enName;
-    // Load existing translations
-    diagnosis.nameLocalized.forEach((code, name) {
-      if (_localizedControllers.containsKey(code)) {
-        _localizedControllers[code]!.text = name;
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _enNameController.dispose();
-    _localizedControllers.values.forEach((c) => c.dispose());
-    super.dispose();
-  }
-
-  // --- SAVE LOGIC ---
-  Future<void> _saveDiagnoses() async {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
-    final diagnosisService = Provider.of<DiagnosisMasterService>(context, listen: false);
+    final service = Provider.of<DiagnosisMasterService>(context, listen: false);
+    final Map<String, String> loc = {};
+    _localizedControllers.forEach((k, v) { if (v.text.isNotEmpty) loc[k] = v.text; });
 
-    // 1. Collect Localized Strings
-    final Map<String, String> localizedNames = {};
-    _localizedControllers.forEach((code, controller) {
-      final text = controller.text.trim();
-      if (text.isNotEmpty) {
-        localizedNames[code] = text;
-      }
-    });
-
-    // 2. Create the new/updated object
-    final unitToSave = DiagnosisMasterModel(
+    await service.addOrUpdateDiagnosis(DiagnosisMasterModel(
       id: widget.diagnosisToEdit?.id ?? '',
       enName: _enNameController.text.trim(),
-
-      nameLocalized: localizedNames,
-      isDeleted: widget.diagnosisToEdit?.isDeleted ?? false,
-    );
-
-    try {
-      await diagnosisService.addOrUpdateDiagnosis(unitToSave);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${unitToSave.enName} saved successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.of(context).pop();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving unit: ${e.toString()}')),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+      nameLocalized: loc,
+    ));
+    if (mounted) Navigator.pop(context);
   }
 
-  // --- UI BUILDING ---
   @override
   Widget build(BuildContext context) {
-    final bool isEdit = widget.diagnosisToEdit != null;
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: Text(isEdit ? 'Edit Diagnoses' : 'Add New Diagnoses'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: SafeArea(child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Stack(
+        children: [
+          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
+          Column(
             children: [
-              // --- Core Fields ---
-              TextFormField(
-                controller: _enNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name (English) *',
-                  border: OutlineInputBorder(),
-                  hintText: 'e.g., Diabetes',
-                ),
-                validator: (value) => value!.isEmpty ? 'English Name is required' : null,
-              ),
-              const SizedBox(height: 15),
-
-
-              // --- Localization Section Header ---
-              Text(
-                'Translations',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.teal.shade700,
-                ),
-              ),
-              const Divider(),
-
-              // --- Localization Fields ---
-              // Loop through all supported languages to generate fields
-              ...supportedLanguageCodes.map((code) {
-                // Skip English since it's the core field
-                if (code == 'en') return const SizedBox.shrink();
-
-                final languageName = supportedLanguages[code]!;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 15.0),
-                  child: TextFormField(
-                    controller: _localizedControllers[code],
-                    decoration: InputDecoration(
-                      labelText: 'Name ($languageName)',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.translate),
-                      hintText: 'Enter the translation in $languageName',
+              _buildHeader(widget.diagnosisToEdit == null ? "New Diagnosis" : "Edit Diagnosis", onSave: _save, isLoading: _isLoading),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        _buildCard("Condition Details", Icons.local_hospital, Colors.red, _buildField(_enNameController, "Diagnosis Name", Icons.edit_note)),
+                        _buildCard("Translations", Icons.translate, Colors.blue, Column(children: supportedLanguageCodes.where((c)=>c!='en').map((code) => Padding(padding: const EdgeInsets.only(bottom: 12), child: _buildField(_localizedControllers[code]!, "Name in ${supportedLanguages[code]}", Icons.language))).toList()))
+                      ],
                     ),
                   ),
-                );
-              }).toList(),
-
-              const SizedBox(height: 40),
-
-              // --- Save Button ---
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _saveDiagnoses,
-                icon: _isLoading
-                    ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                )
-                    : const Icon(Icons.save),
-                label: Text(isEdit ? 'Update Diagnosis' : 'Save Diagnosis'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: Colors.white,
                 ),
-              ),
+              )
             ],
-          ),
-        ),)
+          )
+        ],
       ),
     );
   }
+
+  // --- HELPERS (Reuse) ---
+  Widget _buildHeader(String title, {required VoidCallback onSave, required bool isLoading}) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 10, 20, 16),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))),
+          child: Row(children: [
+            GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.arrow_back)),
+            const SizedBox(width: 16),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+            IconButton(onPressed: isLoading ? null : onSave, icon: isLoading ? const CircularProgressIndicator() : const Icon(Icons.check_circle, color: Colors.red, size: 28))
+          ]),
+        ),
+      ),
+    );
+  }
+  Widget _buildCard(String title, IconData icon, Color color, Widget child) {
+    return Container(margin: const EdgeInsets.only(bottom: 20), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.1))), child: Column(children: [Row(children: [Icon(icon, color: color), const SizedBox(width: 10), Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color))]), const SizedBox(height: 16), child]));
+  }
+  Widget _buildField(TextEditingController c, String l, IconData i) => TextFormField(controller: c, decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true, fillColor: Colors.grey.shade50), validator: (v) => v!.isEmpty ? "Required" : null);
 }

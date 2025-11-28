@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/admin/admin_analytics_screen.dart';
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
 import 'package:nutricare_client_management/admin/admin_profile_service.dart';
+import 'package:nutricare_client_management/admin/feed_management_screen.dart';
 import 'package:nutricare_client_management/admin/pending_client_list_screen.dart';
 import 'package:nutricare_client_management/pages/admin/client_ledger_overview_screen.dart';
 import 'package:nutricare_client_management/scheduler/content_library_screen.dart';
@@ -28,7 +29,7 @@ class AdminDashboardHomeScreen extends StatelessWidget {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.indigo.withOpacity(0.1),
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                     blurRadius: 80,
                     spreadRadius: 30,
                   ),
@@ -87,19 +88,19 @@ class AdminDashboardHomeScreen extends StatelessWidget {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                    color: Colors.indigo.withOpacity(0.2),
+                                    color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
                                     width: 2),
                               ),
                               child: CircleAvatar(
                                 radius: 24,
-                                backgroundColor: Colors.indigo.shade50,
+                                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.1),
                                 backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
                                     ? NetworkImage(photoUrl)
                                     : null,
                                 child: (photoUrl == null || photoUrl.isEmpty)
                                     ? Text(name[0],
                                     style: TextStyle(
-                                        color: Colors.indigo.shade800,
+                                        color: Theme.of(context).colorScheme.primary,
                                         fontWeight: FontWeight.bold))
                                     : null,
                               ),
@@ -155,8 +156,8 @@ class AdminDashboardHomeScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Row(
                       children: [
-                        const Icon(Icons.grid_view_rounded,
-                            size: 20, color: Colors.indigo),
+                         Icon(Icons.grid_view_rounded,
+                            size: 20, color: Theme.of(context).colorScheme.primary),
                         const SizedBox(width: 8),
                         const Text(
                           "Management Console",
@@ -238,15 +239,18 @@ class AdminDashboardHomeScreen extends StatelessWidget {
     );
   }
 
-  // --- 🎯 RESTORED METHOD: Returns a SliverGrid ---
+ // 🎯 Import this
+
+// ... inside AdminDashboardHomeScreen class ...
+
   Widget _buildCoreActionsGrid(BuildContext context) {
     return SliverPadding(
       padding: const EdgeInsets.all(24),
       sliver: SliverGrid.count(
-        crossAxisCount: 2, // 2 Column Grid
+        crossAxisCount: 2,
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
-        childAspectRatio: 1.3, // Rectangular Cards
+        childAspectRatio: 1.3,
         children: [
           _buildBentoAction(
             context,
@@ -254,52 +258,53 @@ class AdminDashboardHomeScreen extends StatelessWidget {
             "Register New",
             Icons.person_add_rounded,
             Colors.indigo,
-                () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const PendingClientListScreen())),
+                () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PendingClientListScreen())),
           ),
+
+          // 🎯 NEW: Client Feed Integration
+          _buildBentoAction(
+            context,
+            "Client Feed",
+            "Posts, Videos & Ads",
+            Icons.dynamic_feed_rounded,
+            Colors.deepOrange, // Distinct color
+                () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FeedManagementScreen())),
+          ),
+
           _buildBentoAction(
             context,
             "Content Library",
-            "Manage Resources",
+            "Diet Tips & Myths",
             Icons.local_library_rounded,
             Colors.teal,
-                () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const ContentLibraryScreen())),
+                () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ContentLibraryScreen())),
           ),
+
           _buildBentoAction(
             context,
             "Ledger",
             "Finances & Bills",
             Icons.account_balance_wallet_rounded,
             Colors.blueGrey,
-                () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const ClientLedgerOverviewScreen())),
+                () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ClientLedgerOverviewScreen())),
           ),
+
           _buildBentoAction(
             context,
             "Master Setup",
             "Config & Tools",
             Icons.tune_rounded,
             Colors.deepPurple,
-                () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const MasterSetupPage())),
+                () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MasterSetupPage())),
           ),
+
           _buildBentoAction(
             context,
             "Analytics",
             "Growth & Stats",
             Icons.bar_chart_rounded,
             Colors.pink,
-              //  () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analytics coming soon!"))),
-             () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminAnalyticsScreen())),
-          ),
-          _buildBentoAction(
-            context,
-            "Reports",
-            "Data Export",
-            Icons.pie_chart_rounded,
-            Colors.orange,
-                () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Reports coming soon!"))),
+                () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminAnalyticsScreen())),
           ),
         ],
       ),

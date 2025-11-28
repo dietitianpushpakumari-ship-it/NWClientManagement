@@ -154,7 +154,7 @@ class _ClientPersonalInformationFormState extends State<ClientPersonalInformatio
                             child: ElevatedButton(
                               onPressed: _isSaving ? null : _saveClient,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.indigo,
+                                backgroundColor: Theme.of(context).colorScheme.primary,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                 elevation: 4,
@@ -184,7 +184,7 @@ class _ClientPersonalInformationFormState extends State<ClientPersonalInformatio
         maxLines: maxLines,
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(icon, color: Colors.indigo.shade300),
+          prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary.withOpacity(.4)),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),

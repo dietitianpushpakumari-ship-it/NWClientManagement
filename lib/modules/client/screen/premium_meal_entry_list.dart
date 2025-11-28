@@ -389,7 +389,7 @@ class _QuickFoodSearchSheetState extends State<_QuickFoodSearchSheet> {
                 return ListTile(
                   title: Text(food.enName, style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text("${food.caloriesPerStandardServing.toInt()} cal / ${food.standardServingSizeG}g", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  trailing: const Icon(Icons.add_circle_outline, color: Colors.indigo),
+                  trailing: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
                   onTap: () => widget.onSelect(food),
                 );
               },

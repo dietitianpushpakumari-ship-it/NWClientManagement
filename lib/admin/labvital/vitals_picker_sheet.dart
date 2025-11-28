@@ -126,7 +126,7 @@ class _VitalsPickerSheetState extends State<VitalsPickerSheet> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          border: isSelected ? Border.all(color: Colors.indigo, width: 2) : Border.all(color: Colors.transparent),
+                          border: isSelected ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2) : Border.all(color: Colors.transparent),
                           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
                         ),
                         child: Column(
@@ -147,7 +147,7 @@ class _VitalsPickerSheetState extends State<VitalsPickerSheet> {
                                   ],
                                 ),
                                 if (isSelected)
-                                  const Icon(Icons.check_circle, color: Colors.indigo, size: 20)
+                                   Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary, size: 20)
                                 else
                                   const Icon(Icons.circle_outlined, color: Colors.grey, size: 20),
                               ],

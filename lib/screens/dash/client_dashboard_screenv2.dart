@@ -1,139 +1,22 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/admin/client_meeting_schedule_tab.dart';
-import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_list.dart';
-import 'package:nutricare_client_management/modules/client/screen/master_plan_assignment_page.dart'
-    hide ClientModel;
-import 'package:nutricare_client_management/scheduler/client_content_scheduler_tab.dart';
-import 'package:nutricare_client_management/screens/package_assignment_page.dart';
-import 'package:nutricare_client_management/screens/package_status_card.dart';
-import 'package:nutricare_client_management/screens/payment_ledger_screen.dart';
-import 'package:nutricare_client_management/screens/vitals_history_page.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../modules/client/model/client_model.dart';
-import '../../modules/package/model/package_assignment_model.dart';
-import '../client_form_screen.dart' hide ClientModel, ClientService;
-import '../../modules/client/services/client_service.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
+import 'package:nutricare_client_management/admin/labvital/client_profile_edit_screen.dart';
+import 'package:nutricare_client_management/screens/dash/client-personal_info_sheet.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+// 🎯 Project Imports
+import 'package:nutricare_client_management/modules/client/model/client_model.dart';
+import 'package:nutricare_client_management/modules/client/services/client_service.dart';
+import 'package:nutricare_client_management/admin/client_meeting_schedule_tab.dart';
+import 'package:nutricare_client_management/scheduler/client_content_scheduler_tab.dart';
+import 'package:nutricare_client_management/screens/vitals_history_page.dart';
+import 'package:nutricare_client_management/admin/client_package_list_screen.dart';
+import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_list.dart';
+import 'package:nutricare_client_management/modules/client/screen/master_plan_assignment_page.dart';
+import 'package:nutricare_client_management/screens/package_assignment_page.dart';
 
-// 🎯 WIDGET: SlideToAct for secure deletion
-class SlideToAct extends StatefulWidget {
-  final String label;
-  final Widget icon;
-  final Color backgroundColor;
-  final VoidCallback onSlide;
-  final bool isDisabled;
-
-  const SlideToAct({
-    super.key,
-    required this.label,
-    required this.icon,
-    this.backgroundColor = Colors.red,
-    required this.onSlide,
-    this.isDisabled = false,
-  });
-
-  @override
-  State<SlideToAct> createState() => _SlideToActState();
-}
-
-class _SlideToActState extends State<SlideToAct> {
-  double _dragValue = 0.0;
-  final double _maxDrag = 1.0;
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.isDisabled) {
-      return Container(
-        height: 60,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade400,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          widget.label,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onHorizontalDragUpdate: (details) {
-        setState(() {
-          _dragValue += details.primaryDelta! / (context.size?.width ?? 300);
-          _dragValue = _dragValue.clamp(0.0, _maxDrag);
-        });
-      },
-      onHorizontalDragEnd: (details) {
-        if (_dragValue >= 0.95) {
-          widget.onSlide();
-        }
-        setState(() {
-          _dragValue = 0.0;
-        });
-      },
-      child: Container(
-        height: 60,
-        decoration: BoxDecoration(
-          color: widget.backgroundColor.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            Center(
-              child: Text(
-                widget.label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            // Sliding Button
-            FractionallySizedBox(
-              widthFactor: 0.2 + 0.8 * _dragValue,
-              heightFactor: 1.0,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: widget.backgroundColor,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Transform.translate(
-                      offset: Offset((1 - _dragValue) * -30, 0),
-                      child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: widget.icon,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// --- MAIN DASHBOARD SCREEN ---
 
 class ClientDashboardScreen extends StatefulWidget {
   final ClientModel client;
@@ -144,11 +27,46 @@ class ClientDashboardScreen extends StatefulWidget {
   State<ClientDashboardScreen> createState() => _ClientDashboardScreenState();
 }
 
-class _ClientDashboardScreenState extends State<ClientDashboardScreen>
-    with SingleTickerProviderStateMixin {
+class _ClientDashboardScreenState extends State<ClientDashboardScreen> with SingleTickerProviderStateMixin {
   late ClientModel _currentClient;
   final ClientService _clientService = ClientService();
   late TabController _tabController;
+  bool _isLoading = false;
+
+
+  void _openPersonalInfoSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => ClientPersonalInfoSheet(
+        client: _currentClient,
+        onSave: (updated) => setState(() => _currentClient = updated),
+      ),
+    );
+  }
+
+  void _openClientTypeSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => ClientTypeSheet(
+        client: _currentClient,
+        onSave: (updated) => setState(() => _currentClient = updated),
+      ),
+    );
+  }
+
+  void _openSecuritySheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => ClientSecuritySheet(
+        client: _currentClient,
+        onSave: (updated) => setState(() => _currentClient = updated),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -164,668 +82,414 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen>
   }
 
   Future<void> _refreshClientData() async {
+    setState(() => _isLoading = true);
     try {
-      final updatedClient = await _clientService.getClientById(
-        _currentClient.id,
-      );
-      if (mounted) {
-        setState(() {
-          _currentClient = updatedClient;
-        });
-      }
+      final updatedClient = await _clientService.getClientById(_currentClient.id);
+      if (mounted) setState(() => _currentClient = updatedClient);
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to reload client data: $e')),
-        );
+      // Handle error silently or toast
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _handleDeleteRequest() async {
-    final hasActivePackage = _currentClient.packageAssignments.values.any(
-      (p) => p.isActive,
-    );
+  // --- ACTIONS ---
 
-    if (mounted) {
-      final confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('CONFIRM PROFILE DELETION'),
-                content: Text(
-                  'Are you absolutely sure you want to permanently delete ${_currentClient.name}? This is irreversible.',
-                ),
-                actions: <Widget>[
-                  TextButton(
-                    child: const Text('Cancel'),
-                    onPressed: () => Navigator.of(context).pop(false),
-                  ),
-                  TextButton(
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    child: const Text('DELETE NOW'),
-                    onPressed: () => Navigator.of(context).pop(true),
-                  ),
-                ],
-              );
-            },
-          ) ??
-          false;
-
-      if (confirmed) {
-        await _attemptClientSoftDelete(context);
-      }
-    }
-  }
-
-  Widget _buildProfileRow(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String value, {
-    Widget? actionWidget,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: Theme.of(context).primaryColor),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-          ),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
-          if (actionWidget != null) actionWidget,
-        ],
+  void _navigateToEdit() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ClientProfileEditScreen(client: _currentClient),
       ),
     );
+    _refreshClientData();
   }
 
-  Widget _buildSectionCard(
-    BuildContext context, {
-    required String title,
-    required VoidCallback editAction,
-    required List<Widget> children,
-  }) {
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.only(bottom: 16.0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(title, style: Theme.of(context).textTheme.titleLarge),
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: editAction,
-                ),
-              ],
-            ),
-            const Divider(),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
+  Future<void> _handleSoftDelete() async {
+    final check = await _clientService.softDeleteClient(clientId: _currentClient.id, isCheckOnly: true);
 
-  Future<void> _attemptClientSoftDelete(BuildContext context) async {
-    final ClientService clientService =
-        ClientService(); // Use your existing instance
-
-    // 1. Check if deletion is allowed
-    final checkResult = await clientService.softDeleteClient(
-      clientId: widget.client.id,
-      isCheckOnly: true,
-    );
-
-    if (!checkResult['canDelete']) {
-      // If check fails (e.g., active packages exist), show the warning dialog
-      await showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text(
-            'Deletion Blocked',
-            style: TextStyle(color: Colors.red),
-          ),
-          content: Text(checkResult['message']),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
+    if (!check['canDelete']) {
+      _showDialog("Cannot Delete", check['message'], isError: true);
       return;
     }
 
-    // 2. Deletion is allowed (Check passed), show confirmation dialog
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Soft Delete'),
-        content: Text(
-          'Are you sure you want to soft delete ${widget.client.name}? The client will be marked Inactive.',
-        ),
+        title: const Text("Confirm Deletion"),
+        content: const Text("Soft delete this client? They will be moved to the archive."),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
           ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Soft Delete'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("Delete")
           ),
         ],
       ),
     );
 
     if (confirm == true) {
-      // 3. Perform the actual soft delete (isCheckOnly: false)
-      final deleteResult = await clientService.softDeleteClient(
-        clientId: widget.client.id,
-        isCheckOnly: false, // Perform the action
-      );
-
-      // Show success/failure snackbar and navigate back
-      if (deleteResult['canDelete']) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(deleteResult['message'])));
-        // Navigate away, as the client is now inactive
-        Navigator.of(context).pop();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(deleteResult['message']),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      await _clientService.softDeleteClient(clientId: _currentClient.id, isCheckOnly: false);
+      if (mounted) Navigator.pop(context); // Exit dashboard
     }
   }
 
-  void _showChangeTypeDialog() {
+  void _showDialog(String title, String msg, {bool isError = false}) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Change Client Type"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildTypeOption(ctx, "New / Pending", "new", Colors.grey),
-            _buildTypeOption(ctx, "One-Time Consultation", "one_time", Colors.orange),
-            _buildTypeOption(ctx, "Active Member", "active", Colors.green),
-            _buildTypeOption(ctx, "Expired / Past", "expired", Colors.red),
-          ],
-        ),
+        title: Text(title, style: TextStyle(color: isError ? Colors.red : Colors.black)),
+        content: Text(msg),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))],
       ),
     );
   }
 
-  Widget _buildTypeOption(BuildContext ctx, String label, String value, Color color) {
-    final isSelected = _currentClient.clientType == value;
-    return ListTile(
-      leading: Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: color),
-      title: Text(label, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: color)),
-      onTap: () async {
-        Navigator.pop(ctx);
-        if (!isSelected) {
-          await _clientService.updateClientType(_currentClient.id, value);
-          _refreshClientData(); // Reload UI
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Client marked as $label")));
-        }
-      },
-    );
-  }
+  // --- UI BUILDERS ---
 
-  Widget _buildProfileTab(ClientModel client) {
-    // Function to navigate and refresh, accepting a section to focus on
-    void navigateToEdit({
-      ClientFormSection focusSection = ClientFormSection.personal,
-    }) async {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => ClientFormScreen(
-            clientToEdit: client,
-            // 🎯 PASSING A NON-NULLABLE VALUE TO A NULLABLE PARAMETER IS VALID
-            initialFocusSection: focusSection,
-          ),
-        ),
-      );
-      _refreshClientData();
-    }
-
-    final hasActivePackage = client.packageAssignments.values.any(
-          (p) => p.isActive,
-    );
-
-    // 🎯 HELPER: Get Display Name & Color for Type
-    String typeLabel = "New Lead";
-    Color typeColor = Colors.grey;
-    IconData typeIcon = Icons.person_outline;
-
-    switch (client.clientType) {
-      case 'active': typeLabel = "Active Member"; typeColor = Colors.green; typeIcon = Icons.verified; break;
-      case 'one_time': typeLabel = "One-Time Consult"; typeColor = Colors.orange; typeIcon = Icons.timelapse; break;
-      case 'expired': typeLabel = "Expired / Past"; typeColor = Colors.red; typeIcon = Icons.history; break;
-      default: typeLabel = "New / Pending"; typeColor = Colors.blueGrey; typeIcon = Icons.person_add;
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE), // Premium Light Background
+      body: Stack(
         children: [
-          // 🎯 1. NEW: CLIENT STATUS CARD
-          Card(
-            elevation: 4,
-            color: typeColor.withOpacity(0.1),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: typeColor.withOpacity(0.3))),
-            margin: const EdgeInsets.only(bottom: 20),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              leading: CircleAvatar(backgroundColor: typeColor, child: Icon(typeIcon, color: Colors.white)),
-              title: Text("Current Status", style: TextStyle(color: typeColor, fontSize: 12, fontWeight: FontWeight.bold)),
-              subtitle: Text(typeLabel, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-              trailing: ElevatedButton(
-                onPressed: _showChangeTypeDialog,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: typeColor, elevation: 0, side: BorderSide(color: typeColor)),
-                child: const Text("Change"),
+          // 1. Ambient Glow
+          Positioned(
+            top: -100, right: -100,
+            child: Container(
+              width: 400, height: 400,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.08), blurRadius: 100, spreadRadius: 40)],
               ),
             ),
           ),
-          // 1. Personal & Contact Information
-          _buildSectionCard(
-            context,
-            title: 'Personal & Contact',
-            editAction: () =>
-                navigateToEdit(focusSection: ClientFormSection.personal),
-            children: [
-              _buildProfileRow(context, Icons.person, 'Name', client.name),
-              _buildProfileRow(
-                context,
-                Icons.phone,
-                'Mobile (P)',
-                client.mobile,
-              ),
-              if (client.altMobile != null && client.altMobile!.isNotEmpty)
-                _buildProfileRow(
-                  context,
-                  Icons.phone_android,
-                  'Mobile (A)',
-                  client.altMobile!,
-                ),
-              _buildProfileRow(context, Icons.email, 'Email', client.email),
-              // _buildProfileRow(context, Icons.calendar_today, 'DOB', DateFormat('yyyy-MM-dd').format(client.dob!)),
-              _buildProfileRow(context, Icons.person, 'Gender', client.gender),
-              if (client.address != null && client.address!.isNotEmpty)
-                _buildProfileRow(
-                  context,
-                  Icons.home,
-                  'Address',
-                  client.address!,
-                ),
-            ],
-          ),
 
-          // 2. Security & Login
-          _buildSectionCard(
-            context,
-            title: 'Security & Login',
-            editAction: () =>
-                navigateToEdit(focusSection: ClientFormSection.password),
+          Column(
             children: [
-              _buildProfileRow(
-                context,
-                Icons.vpn_key,
-                'Login ID',
-                client.loginId,
-              ),
-              _buildProfileRow(
-                context,
-                client.hasPasswordSet ? Icons.lock_open : Icons.lock,
-                'Password',
-                client.hasPasswordSet ? 'Set' : 'Not Set',
-                actionWidget: IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () =>
-                      navigateToEdit(focusSection: ClientFormSection.password),
+              // 2. Custom Glass Header
+              _buildCustomHeader(),
+
+              // 3. Floating Tab Bar
+              _buildPremiumTabBar(),
+
+              // 4. Tab Views
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : TabBarView(
+                  controller: _tabController,
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    _buildProfileTab(),
+                    ClientMeetingScheduleTab(client: _currentClient),
+                    ClientContentSchedulerTab(client: _currentClient),
+                    _buildActionsGrid(),
+                    VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name),
+                    ClientPackageListScreen(client: _currentClient),
+                  ],
                 ),
               ),
             ],
           ),
-
-          // 3. Agreement Status
-          _buildSectionCard(
-            context,
-            title: 'Client Agreement',
-            editAction: () =>
-                navigateToEdit(focusSection: ClientFormSection.agreement),
-            children: [
-              _buildProfileRow(
-                context,
-                Icons.description,
-                'Status',
-                client.agreementUrl != null ? 'Uploaded' : 'Missing',
-                actionWidget: client.agreementUrl != null
-                    ? Row(
-                        children: [
-                          // Download/View Button
-                          IconButton(
-                            icon: const Icon(
-                              Icons.download,
-                              color: Colors.green,
-                            ),
-                            onPressed: () async {
-                              if (await canLaunchUrl(
-                                Uri.parse(client.agreementUrl!),
-                              )) {
-                                launchUrl(Uri.parse(client.agreementUrl!));
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Could not open agreement URL.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                            tooltip: 'Download/View Agreement',
-                          ),
-                          // Edit Button
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
-                            onPressed: () => navigateToEdit(
-                              focusSection: ClientFormSection.agreement,
-                            ),
-                            tooltip: 'Upload New Agreement',
-                          ),
-                        ],
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.upload, color: Colors.blue),
-                        onPressed: () => navigateToEdit(
-                          focusSection: ClientFormSection.agreement,
-                        ),
-                        tooltip: 'Upload Agreement',
-                      ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 30),
-
-          // DANGER ZONE: Slide-to-Delete Section
-          Card(
-            color: Colors.red.shade50,
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '🛑 DANGER ZONE: Profile Deletion',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                  ),
-                  const Divider(color: Colors.red),
-
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 15.0),
-                    child: Text(
-                      'Deletion is irreversible. Client profiles cannot be deleted if they have a booked package.',
-                      style: TextStyle(color: Colors.black54),
-                    ),
-                  ),
-
-                  // Slide-to-Act Widget
-                  SlideToAct(
-                    label: hasActivePackage
-                        ? 'Cannot Delete (Active Packages)'
-                        : 'SLIDE TO DELETE',
-                    icon: const Icon(Icons.delete_forever, color: Colors.red),
-                    backgroundColor: Colors.red.shade600,
-                    isDisabled: hasActivePackage,
-                    onSlide: _handleDeleteRequest,
-                  ),
-
-                  if (hasActivePackage)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10.0),
-                      child: Text(
-                        'Deletion is blocked because the client has ${client.packageAssignments.length} active package${client.packageAssignments.length > 1 ? 's' : ''}.',
-                        style: TextStyle(
-                          color: Colors.red.shade700,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  // --- Main Build Method ---
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: Text('${_currentClient.name} profile'),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          labelStyle: const TextStyle(
-            fontSize: 18.0,
-            fontWeight: FontWeight.bold,
-            color: Colors.white, // Overridden by labelColor below
+  Widget _buildCustomHeader() {
+    // Status Logic
+    Color statusColor = Colors.grey;
+    String statusText = "Pending";
+    IconData statusIcon = Icons.timelapse;
+
+    switch (_currentClient.clientType) {
+      case 'active': statusColor = Colors.green; statusText = "Active Member"; statusIcon = Icons.verified; break;
+      case 'one_time': statusColor = Colors.orange; statusText = "One-Time"; statusIcon = Icons.flash_on; break;
+      case 'expired': statusColor = Colors.red; statusText = "Expired"; statusIcon = Icons.history; break;
+    }
+
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10, bottom: 16, left: 20, right: 20),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.8),
+            border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1))),
           ),
-          unselectedLabelStyle: const TextStyle(
-            fontSize: 16.0,
-            fontWeight: FontWeight.normal,
-            color: Colors.white70, // Overridden by unselectedLabelColor below
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+                      child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      // Status Chip
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                        child: Row(
+                          children: [
+                            Icon(statusIcon, size: 12, color: statusColor),
+                            const SizedBox(width: 6),
+                            Text(statusText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Edit Button
+                      InkWell(
+                        onTap: () => _navigateToEdit(),
+                        child: CircleAvatar(backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.1), radius: 18, child: Icon(Icons.edit, size: 16, color: Theme.of(context).colorScheme.primary)),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  // Header Avatar (Small - shows initial if no photo)
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    backgroundImage: _currentClient.photoUrl != null ? NetworkImage(_currentClient.photoUrl!) : null,
+                    child: _currentClient.photoUrl == null
+                        ? Text(_currentClient.name[0].toUpperCase(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white))
+                        : null,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_currentClient.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1A1A1A))),
+                        const SizedBox(height: 4),
+                        Text("ID: ${_currentClient.patientId}", style: TextStyle(fontSize: 13, color: Colors.grey.shade600, letterSpacing: 0.5)),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            ],
           ),
-          tabs: const [
-            Tab(text: 'Profile', ),
-            Tab(text: 'Schedule'),
-            Tab(text: 'Content Schedule'),
-            Tab(text: 'Actions'),
-            Tab(text: 'Vitals'),
-            Tab(text: 'Package/Payment'),
-          ],
         ),
       ),
-      body: SafeArea(
-        child: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildProfileTab(_currentClient),
-            ClientMeetingScheduleTab(
-              client: _currentClient,
+    );
+  }
 
-            ),
-           Center(child:  ClientContentSchedulerTab(client: _currentClient)),
-            _buildActionsTab(),
-            Center(child: VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)),
-            Center(child: _buildPackageStatusSection(_currentClient.id)),
-
-
-          ],
+  Widget _buildPremiumTabBar() {
+    return Container(
+      height: 60,
+      width: double.infinity,
+      color: Colors.white.withOpacity(0.5),
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        indicator: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))],
         ),
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.grey.shade600,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        tabs: const [
+          Tab(text: "Profile"),
+          Tab(text: "Schedule"),
+          Tab(text: "Content"),
+          Tab(text: "Actions"),
+          Tab(text: "Vitals"),
+          Tab(text: "Billing"),
+        ],
       ),
     );
   }
 
-  Widget _buildPackageStatusSection(String clientId) {
-    return StreamBuilder<List<PackageAssignmentModel>>(
-      stream: _clientService.streamClientAssignments(clientId),
+  // --- TAB 1: PROFILE (Revamped) ---
+  Widget _buildProfileTab() {
+    final ageStr = _currentClient.age != null && _currentClient.age! > 0 ? "${_currentClient.age} Yrs" : "Age N/A";
+    final dobStr = _currentClient.dob != null ? DateFormat('dd MMM yyyy').format(_currentClient.dob) : "Not Set";
 
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: Padding(
-            padding: EdgeInsets.all(32.0),
-            child: CircularProgressIndicator(),
-          ));
-        }
-        if (snapshot.hasError) {
-          return Text('Error loading packages: ${snapshot.error}');
-        }
-
-        final assignments = snapshot.data ?? [];
-
-        return PackageStatusCard(
-          assignments: assignments,
-          onAssignTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => PackageAssignmentPage(
-                  clientId: clientId,
-                  clientName: _currentClient.name, onPackageAssignment: () {  },
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          // 1. Identity Card
+          Stack(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 8))]),
+                child: Column(
+                  children: [
+                    CircleAvatar(radius: 50, backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.1), backgroundImage: _currentClient.photoUrl != null ? NetworkImage(_currentClient.photoUrl!) : null, child: _currentClient.photoUrl == null ? Text(_currentClient.name[0], style: const TextStyle(fontSize: 40)) : null),
+                    const SizedBox(height: 16),
+                    Text(_currentClient.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    Text("PID: ${_currentClient.patientId ?? 'N/A'}", style: TextStyle(color: Colors.grey.shade600)),
+                  ],
                 ),
               ),
-            ).then((_) => setState(() {}));
-          },
+              Positioned(top: 10, right: 10, child: IconButton(icon:  Icon(Icons.edit, color: Theme.of(context).colorScheme.primary), onPressed: _openPersonalInfoSheet)),
+            ],
+          ),
+          const SizedBox(height: 20),
 
-          onEditTap: (assignment) {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => PaymentLedgerScreen(
-                  assignment: assignment,
-                  clientName: _currentClient.name,
-                  initialCollectedAmount: 0.0, // Placeholder - needs actual service call
-                ),
-              ),
-            );
-          },
+          // 2. Personal & Contact (Merged for simplicity in edit, split in view if desired)
+          _buildInfoCard(
+            title: "Personal & Contact",
+            icon: Icons.person,
+            color: Colors.purple,
+            children: [
+              _buildInfoRow(Icons.male, "Gender", _currentClient.gender),
+              _buildInfoRow(Icons.cake, "DOB", _currentClient.dob != null ? DateFormat('dd MMM yyyy').format(_currentClient.dob) : "N/A"),
+              _buildInfoRow(Icons.phone, "Mobile", _currentClient.mobile),
+              _buildInfoRow(FontAwesomeIcons.whatsapp, "WhatsApp", _currentClient.whatsappNumber ?? "N/A"),
+              _buildInfoRow(Icons.email, "Email", _currentClient.email),
+              _buildInfoRow(Icons.location_on, "Address", _currentClient.address ?? "N/A", maxLines: 2),
+            ],
+            action: IconButton(icon: const Icon(Icons.edit, color: Colors.purple), onPressed: _openPersonalInfoSheet),
+          ),
+          const SizedBox(height: 20),
 
-          onDeleteTap: (assignment) {
-            // TODO: Implement delete confirmation and call service method
-          },
-        );
-      },
+          // 3. Client Status
+          _buildInfoCard(
+            title: "Account Status",
+            icon: Icons.verified_user,
+            color: Colors.blue,
+            children: [
+              _buildInfoRow(Icons.category, "Client Type", _currentClient.clientType.toUpperCase()),
+            ],
+            action: TextButton(onPressed: _openClientTypeSheet, child: const Text("Change")),
+          ),
+          const SizedBox(height: 20),
+
+          // 4. Security
+          _buildInfoCard(
+            title: "Security",
+            icon: Icons.lock,
+            color: Colors.orange,
+            children: [
+              _buildInfoRow(Icons.vpn_key, "Login ID", _currentClient.loginId),
+              _buildInfoRow(Icons.shield, "Access", _currentClient.status == 'Active' ? "Granted" : "Blocked", isSecure: false),
+            ],
+            action: IconButton(icon: const Icon(Icons.settings, color: Colors.orange), onPressed: _openSecuritySheet),
+          ),
+
+          const SizedBox(height: 40),
+        ],
+      ),
     );
+
   }
 
-
-  Widget _buildDietPlanSection(ClientModel client) {
-
-    return  MasterPlanSelectionPage(
-      client: client, onMasterPlanAssigned: () {  },
-    );
-
-
-
-  }
-
-
-  Widget _buildActionsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
+  // --- TAB 4: ACTIONS (Grid Layout) ---
+  Widget _buildActionsGrid() {
+    return GridView.count(
+      crossAxisCount: 2,
+      padding: const EdgeInsets.all(20),
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: 1.1, // Square-ish cards
       children: [
-        Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 16.0),
-          child: ListTile(
-              leading: const Icon(Icons.monitor_heart, color: Colors.red),
-              title: const Text('Capture/View Vitals'),
-              subtitle: const Text('Record body measurements, blood pressure, etc.'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _navigateToVitalsHistory
-          ),
+        _buildActionCard(
+          "Vitals", "Log Measurements", Icons.monitor_heart, Colors.red,
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name))),
         ),
-        Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 16.0),
-          child: ListTile(
-            leading: const Icon(Icons.card_membership, color: Colors.purple),
-            title: const Text('Assign/Book Package'),
-            subtitle: const Text('Assign a new subscription or service package.'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _navigateToAssignPackage,
-          ),
+        _buildActionCard(
+          "New Package", "Assign Service", Icons.card_giftcard, Colors.deepPurple,
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => PackageAssignmentPage(clientId: _currentClient.id, clientName: _currentClient.name, onPackageAssignment: _refreshClientData))).then((_) => _refreshClientData()),
         ),
-        const Divider(),
-        Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 16.0),
-          child: ListTile(
-            leading: const Icon(Icons.restaurant_menu, color: Colors.indigo),
-            title: const Text('Assign Master Diet Plan'),
-            subtitle: const Text('Select a template to assign to the client.'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _navigateToAssignDietPlan,
-          ),
+        _buildActionCard(
+          "Diet Template", "Assign Master", Icons.restaurant_menu, Theme.of(context).colorScheme.primary,
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => MasterPlanSelectionPage(client: _currentClient, onMasterPlanAssigned: _refreshClientData))),
         ),
-        Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 16.0),
-          child: ListTile(
-            leading: const Icon(Icons.edit_note, color: Colors.orange),
-            title: const Text('Create/Edit Final Diet Plan'),
-            subtitle: const Text('Customize the currently assigned plan (The Final Plan).'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _navigateToFinalPlanCreation,
-          ),
+        _buildActionCard(
+          "Custom Plan", "Edit Details", Icons.edit_note, Colors.orange,
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssignedDietPlanListScreen(client: _currentClient, onMealPlanSaved: _refreshClientData))),
         ),
-        const Divider(),
-
       ],
     );
   }
-  void _navigateToAssignDietPlan() {
-    if (_currentClient == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => MasterPlanSelectionPage(client: _currentClient, onMasterPlanAssigned: () {  },),
-      ),
-    ).then((_) => setState(() {}));
-  }
 
-  void _navigateToFinalPlanCreation() {
-    if (_currentClient == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AssignedDietPlanListScreen(client: _currentClient, onMealPlanSaved: () {  },),
-      ),
-    ).then((_) => setState(() {}));
-  }
-  void _navigateToVitalsHistory() {
-    if (_currentClient == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-          builder: (context) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name)
+  // --- WIDGET HELPERS ---
+
+  Widget _buildActionCard(String title, String subtitle, IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(height: 12),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text(subtitle, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+          ],
+        ),
       ),
     );
   }
-  void _navigateToAssignPackage() {
-    if (_currentClient == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PackageAssignmentPage(clientId: _currentClient.id, clientName: _currentClient.name, onPackageAssignment: () {  },),
+
+  Widget _buildInfoCard({required String title, required IconData icon, required Color color, required List<Widget> children, Widget? action}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
       ),
-    ).then((_) => setState(() {}));
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(children: [Icon(icon, color: color, size: 20), const SizedBox(width: 10), Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87))]),
+              if (action != null) action,
+            ],
+          ),
+          const Divider(height: 24),
+          ...children,
+        ],
+      ),
+    );
   }
 
+  Widget _buildInfoRow(IconData icon, String label, String value, {bool isSecure = false, int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 24, child: Icon(icon, size: 16, color: Colors.grey.shade400)),
+          const SizedBox(width: 12),
+          Text("$label: ", style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87), maxLines: maxLines, overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+  }
 }

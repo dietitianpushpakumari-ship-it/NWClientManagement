@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_entry_screen.dart';
@@ -216,7 +215,7 @@ class _AssignedDietPlanListScreenState extends State<AssignedDietPlanListScreen>
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _createNewPlan,
-        backgroundColor: Colors.indigo,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text("New Plan", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),

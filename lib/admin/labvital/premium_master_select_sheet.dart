@@ -154,7 +154,7 @@ class _PremiumMasterSelectSheetState<T> extends State<PremiumMasterSelectSheet<T
                 const SizedBox(width: 10),
                 FloatingActionButton.small(
                   onPressed: () => _showAddEditDialog(),
-                  backgroundColor: Colors.indigo,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   child: const Icon(Icons.add, color: Colors.white),
                 ),
               ],
@@ -202,11 +202,11 @@ class _PremiumMasterSelectSheetState<T> extends State<PremiumMasterSelectSheet<T
 
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                      title: Text(name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? Colors.indigo : Colors.black87)),
+                      title: Text(name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? Theme.of(context).colorScheme.primary : Colors.black87)),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (isSelected) const Icon(Icons.check_circle, color: Colors.indigo),
+                          if (isSelected)  Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
                           PopupMenuButton<String>(
                             icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
                             onSelected: (v) => v == 'edit' ? _showAddEditDialog(item: item) : _confirmDelete(item),
@@ -243,7 +243,7 @@ class _PremiumMasterSelectSheetState<T> extends State<PremiumMasterSelectSheet<T
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context, _selectedIds.toList()),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),

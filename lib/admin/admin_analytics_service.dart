@@ -256,4 +256,58 @@ class AdminAnalyticsService {
       return [];
     }
   }
+  Future<Map<String, dynamic>> fetchWellnessStats() async {
+    // Mock data for Wellness Heatmap
+    return {
+      'Breathing': 120,
+      'Sleep': 85,
+      'Hydration': 200,
+      'Yoga': 45,
+    };
+  }
+  Future<double> fetchAverageWeightVelocity() async {
+    try {
+      // Get all active clients
+      final clientsSnap = await _db.collection('clients')
+          .where('status', isEqualTo: 'Active')
+          .get();
+
+      double totalVelocity = 0;
+      int validClients = 0;
+
+      for (var doc in clientsSnap.docs) {
+        final clientId = doc.id;
+
+        // Get first and last weight record
+        final vitalsSnap = await _db.collection('vitals')
+            .where('clientId', isEqualTo: clientId)
+            .orderBy('date', descending: false) // Oldest first
+            .get();
+
+        if (vitalsSnap.docs.length >= 2) {
+          final first = vitalsSnap.docs.first.data();
+          final last = vitalsSnap.docs.last.data();
+
+          final double startWeight = (first['weightKg'] as num).toDouble();
+          final double currentWeight = (last['weightKg'] as num).toDouble();
+
+          final DateTime startDate = (first['date'] as Timestamp).toDate();
+          final DateTime endDate = (last['date'] as Timestamp).toDate();
+
+          final int weeks = endDate.difference(startDate).inDays ~/ 7;
+
+          if (weeks > 0) {
+            // Negative velocity = Weight Loss
+            double velocity = (currentWeight - startWeight) / weeks;
+            totalVelocity += velocity;
+            validClients++;
+          }
+        }
+      }
+
+      return validClients == 0 ? 0.0 : (totalVelocity / validClients);
+    } catch (e) {
+      return 0.0;
+    }
+  }
 }

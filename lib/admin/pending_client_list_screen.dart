@@ -53,7 +53,7 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
             MaterialPageRoute(builder: (_) => const ClientConsultationChecklistScreen(initialProfile: null)),
           );
         },
-        backgroundColor: Colors.indigo,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text("Add Client", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         elevation: 4,
@@ -68,7 +68,7 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
               width: 300, height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.1), blurRadius: 80, spreadRadius: 20)],
+                boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.1), blurRadius: 80, spreadRadius: 20)],
               ),
             ),
           ),
@@ -157,8 +157,8 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
           // Filter Icon (Visual only for now)
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.indigo.shade50, shape: BoxShape.circle),
-            child: const Icon(Icons.filter_list, color: Colors.indigo),
+            decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.1), shape: BoxShape.circle),
+            child: Icon(Icons.filter_list, color: Theme.of(context).colorScheme.primary),
           ),
         ],
       ),
@@ -199,9 +199,9 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
       child: TabBar(
         controller: _tabController,
         indicator: BoxDecoration(
-          color: Colors.indigo,
+          color: Theme.of(context).colorScheme.primary,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))],
         ),
         labelColor: Colors.white,
         unselectedLabelColor: Colors.grey.shade600,
@@ -322,7 +322,7 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
                 Row(
                   children: [
                     if (isNew)
-                      _buildActionBtn("Onboard", Icons.arrow_forward, Colors.indigo, () {
+                      _buildActionBtn("Onboard", Icons.arrow_forward, Theme.of(context).colorScheme.primary, () {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(initialProfile: client)));
                       }),
                     if (!isNew)

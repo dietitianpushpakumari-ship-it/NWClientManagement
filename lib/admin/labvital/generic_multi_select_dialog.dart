@@ -122,7 +122,7 @@ class _GenericClinicalMultiSelectDialogState extends State<GenericClinicalMultiS
                   // Quick Add Button
                   IconButton(
                     onPressed: _addNewItem,
-                    icon: const Icon(Icons.add_circle, color: Colors.indigo, size: 32),
+                    icon:  Icon(Icons.add_circle, color: Theme.of(context).colorScheme.primary, size: 32),
                     tooltip: "Add to Master",
                   ),
                 ],

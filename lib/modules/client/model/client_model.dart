@@ -28,7 +28,7 @@ class ClientModel {
   final bool isArchived;
   final String? whatsappNumber;
 
-  // 🎯 NEW FIELD: Client Type Classification
+  // New Field: Client Type Classification
   // Values: 'new', 'one_time', 'active', 'expired'
   final String clientType;
 
@@ -42,7 +42,7 @@ class ClientModel {
     this.age,
     this.photoUrl,
     required this.loginId,
-    this.status = 'Inactive',
+    this.status = 'Inactive', // Default status
     this.isSoftDeleted = false,
     this.hasPasswordSet = false,
     this.packageAssignments = const {},
@@ -57,7 +57,7 @@ class ClientModel {
     this.lastModifiedBy,
     this.isArchived = false,
     this.whatsappNumber,
-    this.clientType = 'new', // 🎯 Default
+    this.clientType = 'new', // Default type
   });
 
   factory ClientModel.fromFirestore(DocumentSnapshot doc) {
@@ -81,7 +81,7 @@ class ClientModel {
       photoUrl: data['photoUrl'],
       tag: data['tag'] as String?,
       loginId: data['loginId'] ?? data['mobile'] ?? '',
-      status: data['status'] ?? 'Inactive',
+      status: data['status'] ?? 'Inactive', // Load Status
       isSoftDeleted: data['isSoftDeleted'] ?? false,
       hasPasswordSet: data['hasPasswordSet'] ?? false,
       packageAssignments: packages,
@@ -95,8 +95,6 @@ class ClientModel {
       lastModifiedBy: data['lastModifiedBy'] ?? 'unknown',
       isArchived: data['isArchived'] ?? false,
       whatsappNumber: data['whatsappNumber'] ?? '',
-
-      // 🎯 Map New Field
       clientType: data['clientType'] ?? 'new',
     );
   }
@@ -112,7 +110,7 @@ class ClientModel {
       'photoUrl': photoUrl,
       'tag': tag,
       'loginId': loginId,
-      'status': status,
+      'status': status, // Save Status
       'isSoftDeleted': isSoftDeleted,
       'hasPasswordSet': hasPasswordSet,
       'activePackages': packageAssignments.map((key, value) => MapEntry(key, value.toMap())),
@@ -126,8 +124,6 @@ class ClientModel {
       'patientId': patientId,
       'isArchived': isArchived,
       'whatsappNumber': whatsappNumber,
-
-      // 🎯 Save New Field
       'clientType': clientType,
     };
   }
@@ -139,6 +135,7 @@ class ClientModel {
     String? email,
     String? gender,
     String? loginId,
+    String? status, // 🎯 Added Status here
     DateTime? dob,
     int? age,
     String? address,
@@ -149,7 +146,7 @@ class ClientModel {
     String? patientId,
     bool? isArchived,
     String? whatsappNumber,
-    String? clientType, // 🎯 New Param
+    String? clientType,
   }) {
     return ClientModel(
       id: id ?? this.id,
@@ -158,6 +155,7 @@ class ClientModel {
       email: email ?? this.email,
       gender: gender ?? this.gender,
       loginId: loginId ?? this.loginId,
+      status: status ?? this.status, // 🎯 Copy Status
       dob: dob ?? this.dob,
       age: age ?? this.age,
       address: address ?? this.address,
@@ -165,10 +163,10 @@ class ClientModel {
       hasPasswordSet: hasPasswordSet ?? this.hasPasswordSet,
       agreementUrl: agreementUrl ?? this.agreementUrl,
       photoUrl: photoUrl ?? this.photoUrl,
-      patientId: this.patientId,
-      isArchived: this.isArchived,
-      whatsappNumber: this.whatsappNumber,
-      clientType: clientType ?? this.clientType, // 🎯 Copy
+      patientId: patientId ?? this.patientId,
+      isArchived: isArchived ?? this.isArchived,
+      whatsappNumber: whatsappNumber ?? this.whatsappNumber,
+      clientType: clientType ?? this.clientType,
     );
   }
 }

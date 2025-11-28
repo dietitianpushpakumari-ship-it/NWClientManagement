@@ -65,18 +65,18 @@ class BodyVitalsSection extends StatelessWidget {
             child: Column(
               children: [
                 Row(children: [
-                  Expanded(child: _buildTextField("Weight (kg)", weightController)),
+                  Expanded(child: _buildTextField(context,"Weight (kg)", weightController)),
                   const SizedBox(width: 16),
-                  Expanded(child: _buildTextField("Height (cm)", heightController)),
+                  Expanded(child: _buildTextField(context,"Height (cm)", heightController)),
                 ]),
                 const SizedBox(height: 16),
                 Row(children: [
-                  Expanded(child: _buildTextField("Waist (cm)", waistController)),
+                  Expanded(child: _buildTextField(context,"Waist (cm)", waistController)),
                   const SizedBox(width: 16),
-                  Expanded(child: _buildTextField("Hip (cm)", hipController)),
+                  Expanded(child: _buildTextField(context,"Hip (cm)", hipController)),
                 ]),
                 const SizedBox(height: 16),
-                _buildTextField("Body Fat %", fatController),
+                _buildTextField(context,"Body Fat %", fatController),
               ],
             ),
           ),
@@ -88,15 +88,15 @@ class BodyVitalsSection extends StatelessWidget {
             child: Column(
               children: [
                 Row(children: [
-                  Expanded(child: _buildTextField("BP Sys (mmHg)", bpSysController)),
+                  Expanded(child: _buildTextField(context,"BP Sys (mmHg)", bpSysController)),
                   const SizedBox(width: 16),
-                  Expanded(child: _buildTextField("BP Dia (mmHg)", bpDiaController)),
+                  Expanded(child: _buildTextField(context,"BP Dia (mmHg)", bpDiaController)),
                 ]),
                 const SizedBox(height: 16),
                 Row(children: [
-                  Expanded(child: _buildTextField("Heart Rate (bpm)", hrController)),
+                  Expanded(child: _buildTextField(context,"Heart Rate (bpm)", hrController)),
                   const SizedBox(width: 16),
-                  Expanded(child: _buildTextField("SpO2 (%)", spo2Controller)),
+                  Expanded(child: _buildTextField(context,"SpO2 (%)", spo2Controller)),
                 ]),
               ],
             ),
@@ -132,7 +132,7 @@ class BodyVitalsSection extends StatelessWidget {
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12.0),
-                        child: _buildTextField(
+                        child: _buildTextField(context,
                           "${config.displayName} (${config.unit})",
                           labControllers[testId]!,
                         ),
@@ -153,21 +153,21 @@ class BodyVitalsSection extends StatelessWidget {
               children: [
                 DropdownButtonFormField<String>(
                   value: foodHabit,
-                  decoration: _inputDecoration("Food Preference"),
+                  decoration: _inputDecoration(context,"Food Preference"),
                   items: ["Veg", "Non-Veg", "Eggetarian", "Vegan"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                   onChanged: onFoodHabitChanged,
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   value: activityLevel,
-                  decoration: _inputDecoration("Activity Level"),
+                  decoration: _inputDecoration(context,"Activity Level"),
                   items: ["Sedentary", "Light", "Moderate", "Heavy", "Athlete"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                   onChanged: onActivityLevelChanged,
                 ),
                 const SizedBox(height: 16),
-                _buildHabitSwitch("Smoking", smoking, onSmokingChanged, smokingFreqController),
+                _buildHabitSwitch(context,"Smoking", smoking, onSmokingChanged, smokingFreqController),
                 const Divider(),
-                _buildHabitSwitch("Alcohol", alcohol, onAlcoholChanged, alcoholFreqController),
+                _buildHabitSwitch(context,"Alcohol", alcohol, onAlcoholChanged, alcoholFreqController),
               ],
             ),
           ),
@@ -189,27 +189,27 @@ class BodyVitalsSection extends StatelessWidget {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController ctrl) {
+  Widget _buildTextField(BuildContext context,String label, TextEditingController ctrl) {
     return TextFormField(
       controller: ctrl,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: _inputDecoration(label),
+      decoration: _inputDecoration(context,label),
     );
   }
 
-  InputDecoration _inputDecoration(String label) {
+  InputDecoration _inputDecoration(BuildContext context,String label) {
     return InputDecoration(
       labelText: label,
       filled: true,
       fillColor: Colors.grey.shade50,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.indigo, width: 1.5)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 
-  Widget _buildHabitSwitch(String label, bool val, Function(bool) onChanged, TextEditingController freqCtrl) {
+  Widget _buildHabitSwitch(BuildContext context,String label, bool val, Function(bool) onChanged, TextEditingController freqCtrl) {
     return Column(
       children: [
         SwitchListTile(
@@ -222,7 +222,7 @@ class BodyVitalsSection extends StatelessWidget {
         if (val)
           TextFormField(
             controller: freqCtrl,
-            decoration: _inputDecoration("Frequency (e.g., Socially / 5 per day)"),
+            decoration: _inputDecoration(context,"Frequency (e.g., Socially / 5 per day)"),
           )
       ],
     );

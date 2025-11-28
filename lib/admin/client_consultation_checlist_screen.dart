@@ -1,10 +1,10 @@
-import 'dart:ui'; // For ImageFilter
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/admin/admin_dashboard_Screen.dart';
 import 'package:nutricare_client_management/admin/client_package_list_screen.dart';
 import 'package:nutricare_client_management/admin/client_personal_info_form.dart';
 import 'package:nutricare_client_management/admin/consultation_data_service.dart';
-import 'package:nutricare_client_management/admin/goal_setting_screen.dart';
+// AdminGoalSettingScreen import removed
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
@@ -21,7 +21,7 @@ enum ConsultationStep {
   vitals,
   masterPlanAssign,
   mealPlan,
-  habitAssignment,
+  // habitAssignment removed
   Booking,
   Profile,
 }
@@ -36,12 +36,8 @@ class ClientConsultationChecklistScreen extends StatefulWidget {
       _ClientConsultationChecklistScreenState();
 }
 
-class _ClientConsultationChecklistScreenState
-    extends State<ClientConsultationChecklistScreen> {
+class _ClientConsultationChecklistScreenState extends State<ClientConsultationChecklistScreen> {
   ClientModel? _clientProfile;
-  List<VitalsModel>? _vitalsModels;
-  List<ClientDietPlanModel>? _clientAssignedPlan;
-
   bool _isLoading = true;
 
   Map<ConsultationStep, bool> _completionStatus = {
@@ -49,7 +45,6 @@ class _ClientConsultationChecklistScreenState
     ConsultationStep.vitals: false,
     ConsultationStep.masterPlanAssign: false,
     ConsultationStep.mealPlan: false,
-    ConsultationStep.habitAssignment: false,
     ConsultationStep.Booking: false,
     ConsultationStep.Profile: false,
   };
@@ -67,35 +62,20 @@ class _ClientConsultationChecklistScreenState
 
   Future<void> _loadExistingConsultationData() async {
     if (_clientProfile == null) return;
-
     setState(() => _isLoading = true);
 
     try {
       final dataService = ConsultationDataService();
-
-      // 1. Fetch Data
-      _vitalsModels = await VitalsService().getClientVitals(_clientProfile!.id);
-      final vitalsCompleted = _vitalsModels?.isNotEmpty ?? false;
-
-      final mealAssignmentCompleted = await dataService
-          .checkMealAssignmentCompletion(_clientProfile!.id);
-
-      _clientAssignedPlan = await ClientDietPlanService().fetchAllActivePlans(
-        _clientProfile!.id,
-      );
-
+      final vitals = await VitalsService().getClientVitals(_clientProfile!.id);
+      final mealAssignmentCompleted = await dataService.checkMealAssignmentCompletion(_clientProfile!.id);
       final packageAssigned = await ClientService().checkAssignmentCompleted(_clientProfile!.id);
 
-      final bool habitsSet = _clientAssignedPlan != null && _clientAssignedPlan!.isNotEmpty;
-
-      // 2. Update State
       if (mounted) {
         setState(() {
           _completionStatus[ConsultationStep.personalInfo] = true;
-          _completionStatus[ConsultationStep.vitals] = vitalsCompleted;
+          _completionStatus[ConsultationStep.vitals] = vitals.isNotEmpty;
           _completionStatus[ConsultationStep.masterPlanAssign] = mealAssignmentCompleted;
           _completionStatus[ConsultationStep.mealPlan] = mealAssignmentCompleted;
-          _completionStatus[ConsultationStep.habitAssignment] = habitsSet;
           _completionStatus[ConsultationStep.Booking] = packageAssigned;
           _completionStatus[ConsultationStep.Profile] = packageAssigned;
           _isLoading = false;
@@ -103,72 +83,35 @@ class _ClientConsultationChecklistScreenState
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
-      debugPrint("Error loading consultation data: $e");
     }
   }
 
-  // --- Navigation & Action Methods ---
-
   void _navigateToForm(ConsultationStep step) async {
     if (_clientProfile == null && step != ConsultationStep.personalInfo) {
-      _showSnackbar('Please complete Step 1 first.', isError: true);
+      _showSnackbar('Complete Step 1 first.', isError: true);
       return;
     }
 
     Widget? formWidget;
-
     switch (step) {
       case ConsultationStep.personalInfo:
         formWidget = ClientPersonalInformationForm(
           initialProfile: _clientProfile,
           onProfileSaved: (profile) {
             setState(() => _clientProfile = profile);
-            _loadExistingConsultationData(); // Refresh status
+            _loadExistingConsultationData();
           },
         );
         break;
       case ConsultationStep.vitals:
-        formWidget = VitalsHistoryPage(
-          clientId: _clientProfile!.id,
-          clientName: _clientProfile!.name,
-        );
+        formWidget = VitalsHistoryPage(clientId: _clientProfile!.id, clientName: _clientProfile!.name);
         break;
       case ConsultationStep.masterPlanAssign:
-        formWidget = MasterPlanSelectionPage(
-          client: _clientProfile!,
-          onMasterPlanAssigned: () => _loadExistingConsultationData(),
-        );
+        formWidget = MasterPlanSelectionPage(client: _clientProfile!, onMasterPlanAssigned: () => _loadExistingConsultationData());
         break;
       case ConsultationStep.mealPlan:
-        formWidget = AssignedDietPlanListScreen(
-          client: _clientProfile!,
-          onMealPlanSaved: () => _loadExistingConsultationData(),
-        );
+        formWidget = AssignedDietPlanListScreen(client: _clientProfile!, onMealPlanSaved: () => _loadExistingConsultationData());
         break;
-
-    // Goal Setting
-      case ConsultationStep.habitAssignment:
-        if (_clientAssignedPlan == null || _clientAssignedPlan!.isEmpty) {
-          // Refresh plans just in case
-          _clientAssignedPlan = await ClientDietPlanService().fetchAllActivePlans(_clientProfile!.id);
-        }
-
-        if (_clientAssignedPlan != null && _clientAssignedPlan!.isNotEmpty) {
-          final result = await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => AdminGoalSettingScreen(
-              clientId: _clientProfile!.id,
-              clientName: _clientProfile!.name,
-              planId: _clientAssignedPlan!.first.id,
-            )),
-          );
-          // 🎯 BUG FIX: Refresh status after return
-          if (result == true) _loadExistingConsultationData();
-          return;
-        } else {
-          _showSnackbar("Assign a Master Plan first.", isError: true);
-          return;
-        }
-
       case ConsultationStep.Booking:
         formWidget = ClientPackageListScreen(client: _clientProfile!);
         break;
@@ -178,30 +121,21 @@ class _ClientConsultationChecklistScreenState
     }
 
     if (formWidget != null) {
-      // 🎯 FIX: Added '!' to force non-nullable Widget
       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => formWidget!));
-      // Refresh Status on Return
       _loadExistingConsultationData();
     }
   }
 
   void _showSnackbar(String message, {bool isError = true}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: isError ? Colors.red : Colors.green,
+      behavior: SnackBarBehavior.floating,
+    ));
   }
-
-  // =================================================================
-  // 🎨 PREMIUM UI
-  // =================================================================
 
   @override
   Widget build(BuildContext context) {
-    // Calculate Progress
     int completedSteps = _completionStatus.values.where((v) => v).length;
     double progress = _completionStatus.isEmpty ? 0 : completedSteps / _completionStatus.length;
 
@@ -209,76 +143,55 @@ class _ClientConsultationChecklistScreenState
       backgroundColor: const Color(0xFFF8F9FE),
       body: Stack(
         children: [
-          // 1. Background Glow
-          Positioned(
-            top: -100, right: -80,
-            child: Container(
-              width: 300, height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)],
-              ),
-            ),
-          ),
+          Positioned(top: -100, right: -80, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
 
           SafeArea(
             child: Column(
               children: [
-                // 2. Custom Header
-                _buildHeader(context),
-
-                // 3. Progress Bar
+                // Header
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                  child: Column(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+                  child: Row(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("Consultation Progress", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontSize: 12)),
-                          Text("${(progress * 100).toInt()}%", style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold, fontSize: 12)),
-                        ],
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const AdminDashboardScreen())),
+                        child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87)),
                       ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 6,
-                          backgroundColor: Colors.grey.shade200,
-                          color: Colors.indigo,
-                        ),
-                      ),
+                      const SizedBox(width: 16),
+                      const Text("Consultation", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                // Progress
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                  child: Column(
+                    children: [
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text("Consultation Progress", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text("${(progress * 100).toInt()}%", style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ]),
+                      const SizedBox(height: 8),
+                      ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: progress, minHeight: 6, backgroundColor: Colors.grey.shade200, color: Theme.of(context).colorScheme.primary)),
+                    ],
+                  ),
+                ),
 
-                // 4. The Checklist
+                // Steps
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : ListView(
+                  child: _isLoading ? const Center(child: CircularProgressIndicator()) : ListView(
                     padding: const EdgeInsets.all(20),
                     children: [
                       if (_clientProfile != null)
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            margin: const EdgeInsets.only(bottom: 20),
-                            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.orange.shade100)),
-                            child: Text('Patient ID: ${_clientProfile!.patientId ?? "Pending"}', style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold, fontSize: 12)),
-                          ),
-                        ),
+                        Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.orange.shade100)), child: Text('Patient ID: ${_clientProfile!.patientId ?? "Pending"}', style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold, fontSize: 12)))),
 
                       _buildStepTile(ConsultationStep.personalInfo, "1", "Personal Data", "Name, Age, Mobile"),
                       _buildStepTile(ConsultationStep.vitals, "2", "Vitals & Labs", "Weight, BP, Reports"),
                       _buildStepTile(ConsultationStep.masterPlanAssign, "3", "Assign Plan", "Select Template"),
-                      _buildStepTile(ConsultationStep.mealPlan, "4", "Customize Diet", "Edit Meals & Portions"),
-                      _buildStepTile(ConsultationStep.habitAssignment, "5", "Wellness Goals", "Water, Sleep, Habits"),
-                      _buildStepTile(ConsultationStep.Booking, "6", "Booking", "Packages & Payments"),
-                      _buildStepTile(ConsultationStep.Profile, "7", "Dashboard", "Client View Preview", isLast: true),
+                      _buildStepTile(ConsultationStep.mealPlan, "4", "Customize & Goals", "Diet, Habits, Water"),
+                      _buildStepTile(ConsultationStep.Booking, "5", "Booking", "Packages & Payments"),
+                      _buildStepTile(ConsultationStep.Profile, "6", "Dashboard", "Client View Preview", isLast: true),
 
                       const SizedBox(height: 50),
                     ],
@@ -292,32 +205,10 @@ class _ClientConsultationChecklistScreenState
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const AdminDashboardScreen())),
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
-              child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Text("Consultation", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
-        ],
-      ),
-    );
-  }
-
   Widget _buildStepTile(ConsultationStep step, String number, String title, String subtitle, {bool isLast = false}) {
     final bool isCompleted = _completionStatus[step] ?? false;
-    // Logic: Previous step must be done to unlock (except step 1)
     bool isLocked = false;
     if (step != ConsultationStep.personalInfo) {
-      // Find index
       final index = ConsultationStep.values.indexOf(step);
       final prevStep = ConsultationStep.values[index - 1];
       if (!(_completionStatus[prevStep] ?? false)) isLocked = true;
@@ -328,41 +219,12 @@ class _ClientConsultationChecklistScreenState
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
-          border: Border.all(color: isCompleted ? Colors.green.withOpacity(0.3) : Colors.transparent),
-        ),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))], border: Border.all(color: isCompleted ? Colors.green.withOpacity(0.3) : Colors.transparent)),
         child: Row(
           children: [
-            // Number Circle
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: isCompleted ? Colors.green : (isLocked ? Colors.grey.shade200 : Colors.indigo),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: isCompleted
-                    ? const Icon(Icons.check, color: Colors.white, size: 20)
-                    : Text(number, style: TextStyle(color: isLocked ? Colors.grey : Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-            ),
+            Container(width: 40, height: 40, decoration: BoxDecoration(color: isCompleted ? Colors.green : (isLocked ? Colors.grey.shade200 : Theme.of(context).colorScheme.primary), shape: BoxShape.circle), child: Center(child: isCompleted ? const Icon(Icons.check, color: Colors.white, size: 20) : Text(number, style: TextStyle(color: isLocked ? Colors.grey : Colors.white, fontWeight: FontWeight.bold, fontSize: 16)))),
             const SizedBox(width: 16),
-
-            // Text
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isLocked ? Colors.grey : Colors.black87)),
-                  Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-            ),
-
-            // Icon
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isLocked ? Colors.grey : Colors.black87)), Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey))])),
             Icon(isLocked ? Icons.lock : Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
           ],
         ),

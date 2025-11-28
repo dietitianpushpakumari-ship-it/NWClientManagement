@@ -1,152 +1,72 @@
-// lib/screens/serving_unit_list_page.dart
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/modules/master/model/diagonosis_master.dart';
 import 'package:nutricare_client_management/modules/master/screen/DiagonosisEntryPage.dart';
 import 'package:nutricare_client_management/modules/master/service/diagonosis_master_service.dart';
-import 'package:provider/provider.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
-
-
-
-class DiagnosisListPage extends StatelessWidget {
+class DiagnosisListPage extends StatefulWidget {
   const DiagnosisListPage({super.key});
 
-  // --- NAVIGATION ---
-  void _navigateToEntry(BuildContext context, DiagnosisMasterModel? diagonosis) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DiagnosisEntryPage(diagnosisToEdit: diagonosis),
-      ),
-    );
-  }
+  @override
+  State<DiagnosisListPage> createState() => _DiagnosisListPageState();
+}
 
-  // --- DELETE/DEACTIVATE ACTION (WITH CONFIRMATION) ---
-  Future<void> _softDeletediagonosis(BuildContext context, DiagnosisMasterModel diagonosis) async {
-    final diagonosisService = Provider.of<DiagnosisMasterService>(context, listen: false);
-
-    try {
-      // 🎯 Soft-delete the diagonosis
-      await diagonosisService.softDeleteDiagnosis(diagonosis.id);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${diagonosis.enName} marked as deleted.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete diagnosis: ${e.toString()}')),
-      );
-    }
-  }
-
-  // --- UI Builder for Each List Item with SWIPE-TO-DELETE ---
-  Widget _builddiagonosisCard(BuildContext context, DiagnosisMasterModel diagonosis) {
-    // 🎯 Use Dismissible for Swipe-to-Delete
-    return Dismissible(
-      key: Key(diagonosis.id), // Unique key is required for Dismissible
-      direction: DismissDirection.endToStart,
-      background: Container(
-        color: Colors.red.shade700,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-        child: const Icon(Icons.delete_forever, color: Colors.white, size: 30),
-      ),
-      // 🎯 CONFIRMATION DIALOG
-      confirmDismiss: (direction) async {
-        return await showDialog<bool>(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text("Confirm Deletion"),
-              content: Text("Are you sure you want to mark '${diagonosis.enName}' as deleted? You can reactivate it later."),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text("CANCEL"),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  child: const Text("DELETE", style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-      onDismissed: (direction) {
-        if (direction == DismissDirection.endToStart) {
-          _softDeletediagonosis(context, diagonosis);
-        }
-      },
-      child: Card(
-        elevation: 2,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: ListTile(
-          onTap: () => _navigateToEntry(context, diagonosis), // Tap to Edit
-          leading: Icon(Icons.scale, color: Colors.blueGrey.shade700),
-          title: Text(
-            '${diagonosis.enName}',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          subtitle: Text(
-            ' Translations: ${diagonosis.nameLocalized.length} languages',
-          ),
-          trailing: const Icon(Icons.edit, color: Colors.blue),
-        ),
-      ),
-    );
-  }
+class _DiagnosisListPageState extends State<DiagnosisListPage> {
+  final DiagnosisMasterService _service = DiagnosisMasterService();
 
   @override
   Widget build(BuildContext context) {
-    final diagonosisService = Provider.of<DiagnosisMasterService>(context);
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: const Text('Diagnosis Master'),
+      backgroundColor: const Color(0xFFF8F9FE),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DiagnosisEntryPage())),
+        backgroundColor: Colors.redAccent,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
-
-      // Use a StreamBuilder for real-time list updates
       body: SafeArea(
-        child: StreamBuilder<List<DiagnosisMasterModel>>(
-          stream: diagonosisService.getDiagnoses(), // Fetch active diagonosiss
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('Error loading diagnosis: ${snapshot.error}'));
-            }
-            final diagonosiss = snapshot.data ?? [];
-            if (diagonosiss.isEmpty) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: Text('No active serving diagnosis found. Tap + to add the first one.'),
-                ),
-              );
-            }
-        
-            return ListView.builder(
-              itemCount: diagonosiss.length,
-              itemBuilder: (context, index) {
-                final diagonosis = diagonosiss[index];
-                return _builddiagonosisCard(context, diagonosis);
-              },
-            );
-          },
+        child: Column(
+          children: [
+            _buildHeader(context, "Diagnosis Master"),
+            Expanded(
+              child: StreamBuilder<List<DiagnosisMasterModel>>(
+                stream: _service.getDiagnoses(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  final list = snapshot.data!;
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final item = list[index];
+                      return Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListTile(
+                          leading: const Icon(Icons.local_hospital, color: Colors.red),
+                          title: Text(item.enName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          trailing: IconButton(icon: const Icon(Icons.edit, color: Colors.grey), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DiagnosisEntryPage(diagnosisToEdit: item)))),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToEntry(context, null),
-        child: const Icon(Icons.add),
-        backgroundColor: colorScheme.secondary,
-        tooltip: 'Add New Serving diagnosis',
-      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(children: [
+        GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.arrow_back, size: 24)),
+        const SizedBox(width: 16),
+        Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+      ]),
     );
   }
 }

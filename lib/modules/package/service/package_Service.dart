@@ -48,6 +48,16 @@ class PackageService {
 
 // --- PACKAGE CRUD: UPDATE ---
 
+  // 🎯 NEW: PACKAGE CRUD: READ (Stream) - This was missing!
+  Stream<List<PackageModel>> streamPackages() {
+    return _packageCollection
+        .where('isActive', isEqualTo: true)
+        .orderBy('name') // Optional: Sort by name
+        .snapshots()
+        .map((snapshot) =>
+        snapshot.docs.map((doc) => PackageModel.fromFirestore(doc)).toList());
+  }
+
   Future<void> updatePackage(PackageModel package) async {
     if (package.id.isEmpty) {
       throw Exception('Package ID is required for update.');

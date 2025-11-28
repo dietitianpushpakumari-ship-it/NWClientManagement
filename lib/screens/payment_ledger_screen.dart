@@ -1,13 +1,12 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:provider/provider.dart';
 
 import '../modules/package/model/package_assignment_model.dart';
 import '../modules/package/model/payment_model.dart';
 import '../modules/package/service/package_payment_service.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class PaymentLedgerScreen extends StatefulWidget {
   final PackageAssignmentModel assignment;
@@ -26,7 +25,6 @@ class PaymentLedgerScreen extends StatefulWidget {
 }
 
 class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
-  // 🎯 NOTE: Ensure PackagePaymentService has a deletePayment method for this to work.
   final PackagePaymentService paymentService = PackagePaymentService();
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
@@ -57,13 +55,13 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
     super.dispose();
   }
 
-  // --- Date Picker ---
+  // --- Logic Helpers ---
+
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
       firstDate: widget.assignment.purchaseDate,
-      // Restrict future dates by setting the lastDate to TODAY.
       lastDate: DateTime.now(),
     );
     if (picked != null && picked != _selectedDate) {
@@ -73,7 +71,6 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
     }
   }
 
-  // --- NEW: Deletion Confirmation and Logic ---
   Future<bool> _confirmAndDeletePayment(PaymentModel payment) async {
     final reasonController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -89,160 +86,171 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Are you sure you want to delete this payment of ${currencyFormatter.format(payment.amount)}?'),
+                Text('Delete payment of ${currencyFormatter.format(payment.amount)}?'),
                 const SizedBox(height: 15),
                 TextFormField(
                   controller: reasonController,
-                  decoration: const InputDecoration(
-                    labelText: 'Reason for Deletion *',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Reason is required to delete the payment.';
-                    }
-                    return null;
-                  },
-                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Reason *', border: OutlineInputBorder()),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Reason required' : null,
                 ),
               ],
             ),
           ),
           actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-            ),
+            TextButton(child: const Text('Cancel'), onPressed: () => Navigator.of(context).pop(false)),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
               onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  Navigator.of(context).pop(true);
-                }
+                if (formKey.currentState!.validate()) Navigator.of(context).pop(true);
               },
-              child: const Text('Delete', style: TextStyle(color: Colors.white)),
+              child: const Text('Delete'),
             ),
           ],
         );
       },
     );
 
-    // If user confirmed AND provided a reason
     if (shouldDelete == true) {
       try {
-        // 🎯 NOTE: Assumes paymentService.deletePayment exists and handles backend deletion.
-        await paymentService.deletePayment(
-          payment.id,
-          deletionReason: reasonController.text.trim(),
-        );
-
-        // Optimistically update the collected amount and text field locally.
+        await paymentService.deletePayment(payment.id, deletionReason: reasonController.text.trim());
         setState(() {
           _currentTotalCollected -= payment.amount;
           _amountController.text = _pendingBalance > 0 ? _pendingBalance.toStringAsFixed(2) : '0.00';
         });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Payment of ${currencyFormatter.format(payment.amount)} deleted successfully!')),
-          );
-        }
-        return true; // Dismiss the item
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment deleted.')));
+        return true;
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete payment: $e')),
-          );
-        }
-        return false; // Do not dismiss the item on failure
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        return false;
       }
     }
-    return false; // Do not dismiss if cancelled
+    return false;
   }
 
-  // --- Core Payment Recording Logic (unchanged) ---
   Future<void> _recordPayment() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a payment date.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a payment date.')));
       return;
     }
 
-    final amountText = _amountController.text;
-    final amount = double.tryParse(amountText) ?? 0.0;
-
+    final amount = double.tryParse(_amountController.text) ?? 0.0;
     if (amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Amount must be greater than zero.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Amount must be > 0')));
       return;
     }
-
-    // Check if the amount exceeds the pending balance
-    if (amount > _pendingBalance + 0.01) { // Add a small tolerance for double precision
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Payment amount exceeds the pending balance of ${currencyFormatter.format(_pendingBalance)}.')),
-      );
+    if (amount > _pendingBalance + 0.01) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exceeds pending balance.')));
       return;
     }
-
 
     final newPayment = PaymentModel(
       id: '',
       packageAssignmentId: widget.assignment.id,
-    // Assuming assignment models has clientId
       amount: amount,
       paymentMethod: _selectedMethod,
       paymentDate: _selectedDate!,
       narration: _narrationController.text.trim(),
-      receivedBy: FirebaseAuth.instance.currentUser?.email ?? 'Unknown User',
+      receivedBy: FirebaseAuth.instance.currentUser?.email ?? 'Unknown',
     );
 
     try {
       await paymentService.addPayment(newPayment);
-
       setState(() {
         _currentTotalCollected += amount;
         _amountController.text = _pendingBalance > 0 ? _pendingBalance.toStringAsFixed(2) : '0.00';
         _narrationController.clear();
         _selectedDate = null;
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment of ${currencyFormatter.format(amount)} recorded successfully!')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment recorded!')));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to record payment: $e')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
-  // Helper for Summary Row
-  Widget _buildSummaryRow(String label, double amount, Color color, {bool isBold = false, double size = 16}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // --- UI Builders ---
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Stack(
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: size,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: color,
+          // 1. Background Glow
+          Positioned(
+            top: -100, right: -80,
+            child: Container(
+              width: 300, height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)],
+              ),
             ),
           ),
-          Text(
-            currencyFormatter.format(amount),
-            style: TextStyle(
-              fontSize: size,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: color,
+
+          SafeArea(
+            child: Column(
+              children: [
+                // 2. Custom Header (Fixed Alignment)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+                          child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Text("Payment Ledger", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                    ],
+                  ),
+                ),
+
+                // 3. Main Content
+                Expanded(
+                  child: StreamBuilder<List<PaymentModel>>(
+                    stream: paymentService.streamPaymentsForAssignment(widget.assignment.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                      if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+
+                      final payments = snapshot.data ?? [];
+
+                      return ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                        children: [
+                          // Financial Summary
+                          _buildFinancialCard(),
+                          const SizedBox(height: 20),
+
+                          // Entry Form
+                          _buildPaymentForm(),
+                          const SizedBox(height: 24),
+
+                          // History Header
+                          Row(
+                            children: [
+                              Container(width: 4, height: 18, margin: const EdgeInsets.only(right: 8), decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(2))),
+                              Text("Transaction History (${payments.length})", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2D3142))),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          // History List
+                          if (payments.isEmpty)
+                            const Padding(padding: EdgeInsets.all(20), child: Center(child: Text("No payments yet", style: TextStyle(color: Colors.grey))))
+                          else
+                            ...payments.map((p) => _buildPaymentTile(p)),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -250,57 +258,171 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
     );
   }
 
-  // --- Financial Summary Card ---
-  Widget _buildFinancialSummary() {
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.only(bottom: 16.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+  Widget _buildFinancialCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
+        border: Border.all(color: Colors.blueGrey.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.assignment.packageName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2D3142))),
+                  const SizedBox(height: 4),
+                  Text(widget.clientName, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.orange.shade50, shape: BoxShape.circle),
+                child: Icon(Icons.account_balance_wallet, color: Colors.orange.shade700, size: 24),
+              ),
+            ],
+          ),
+          const Divider(height: 24),
+          _buildSummaryRow("Total Cost", widget.assignment.bookedAmount, Colors.black87),
+          const SizedBox(height: 8),
+          _buildSummaryRow("Paid", _currentTotalCollected, Colors.green.shade700),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _isFullyPaid ? Colors.green.shade50 : Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Pending Balance", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _isFullyPaid ? Colors.green.shade900 : Colors.red.shade900)),
+                Text(currencyFormatter.format(_pendingBalance > 0 ? _pendingBalance : 0), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _isFullyPaid ? Colors.green.shade900 : Colors.red.shade900)),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentForm() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Form(
+        key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '${widget.assignment.packageName} Ledger',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade700),
+            const Text("Record New Payment", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+
+            if (_isFullyPaid)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade200)),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green),
+                    SizedBox(width: 8),
+                    Text("Payment Complete", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                  ],
+                ),
+              )
+            else
+              Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: _buildDatePicker()),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildDropdown()),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTextField("Amount (₹)", _amountController, isNumber: true, validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Invalid' : null),
+                  const SizedBox(height: 16),
+                  _buildTextField("Narration / Notes", _narrationController),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: _recordPayment,
+                      icon: const Icon(Icons.add_card, size: 18),
+                      label: const Text("RECORD PAYMENT", style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 4,
+                        shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+                      ),
+                    ),
+                  )
+                ],
+              )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentTile(PaymentModel payment) {
+    return Dismissible(
+      key: Key(payment.id),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmAndDeletePayment(payment),
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(16)),
+        alignment: Alignment.centerRight,
+        child: Icon(Icons.delete_forever, color: Colors.red.shade700, size: 28),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade100),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10)),
+              child: Icon(Icons.receipt, color: Colors.teal.shade700, size: 20),
             ),
-            const Divider(),
-
-            // Original Price
-            _buildSummaryRow('Package Price:', widget.assignment.bookedAmount + widget.assignment.discount ?? 0, Colors.blueGrey),
-
-            // Discount
-            if (widget.assignment.discount > 0)
-              _buildSummaryRow(
-                'Discount Availled:',
-                widget.assignment.discount,
-                Colors.red.shade700,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(currencyFormatter.format(payment.amount), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  const SizedBox(height: 4),
+                  Text("${payment.paymentMethod} • ${DateFormat('dd MMM yyyy').format(payment.paymentDate)}", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  if ( payment.narration != null && payment.narration!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(payment.narration!, style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
+                    ),
+                ],
               ),
-
-            // Booked Amount
-            _buildSummaryRow(
-              'Net Booked Amount:',
-              widget.assignment.bookedAmount,
-              Colors.black87,
-              isBold: true,
-            ),
-            const Divider(height: 10),
-
-            // Collected Amount
-            _buildSummaryRow(
-              'Total Collected:',
-              _currentTotalCollected,
-              Colors.green.shade700,
-            ),
-
-            // Pending Balance (Highlighted)
-            _buildSummaryRow(
-              'Pending Balance:',
-              _pendingBalance > 0 ? _pendingBalance : 0.0,
-              _isFullyPaid ? Colors.green.shade700 : Colors.red.shade700,
-              isBold: true,
-              size: 18,
             ),
           ],
         ),
@@ -308,216 +430,67 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
     );
   }
 
-  // --- Payment Entry Form Card ---
-  Widget _buildPaymentEntryForm() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Record New Payment',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700),
-              ),
-              const Divider(),
+  // --- Helper Widgets ---
 
-              // Payment Date Picker
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  _selectedDate == null
-                      ? 'Select Payment Date *'
-                      : 'Date: ${DateFormat.yMMMd().format(_selectedDate!)}',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: _selectedDate == null ? Colors.red.shade700 : Colors.black87
-                  ),
-                ),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: _isFullyPaid ? null : () => _selectDate(context),
-              ),
+  Widget _buildSummaryRow(String label, double val, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w500)),
+        Text(currencyFormatter.format(val), style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16)),
+      ],
+    );
+  }
 
-              // Payment Method Dropdown
-              DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  labelText: 'Payment Method',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                ),
-                value: _selectedMethod,
-                items: _paymentMethods.map((String method) {
-                  return DropdownMenuItem<String>(
-                    value: method,
-                    child: Text(method),
-                  );
-                }).toList(),
-                onChanged: _isFullyPaid ? null : (String? newValue) {
-                  setState(() {
-                    _selectedMethod = newValue!;
-                  });
-                },
-              ),
-              const SizedBox(height: 15),
+  Widget _buildTextField(String label, TextEditingController ctrl, {bool isNumber = false, String? Function(String?)? validator}) {
+    return TextFormField(
+      controller: ctrl,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      validator: validator ?? (v) => (v == null || v.isEmpty) ? 'Required' : null,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
 
-              // Amount & Send Button
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _amountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      enabled: !_isFullyPaid,
-                      decoration: InputDecoration(
-                        labelText: 'Amount (₹) *',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                      ],
-                      validator: (val) {
-                        if (val == null || val.trim().isEmpty) return 'Amount is mandatory.';
-                        final amount = double.tryParse(val);
-                        if (amount == null || amount <= 0) return 'Enter a valid amount.';
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _isFullyPaid ? null : _recordPayment,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                      // Align with the input field height
-                      minimumSize: const Size(0, 56),
-                    ),
-                    child: const Icon(Icons.send),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-
-              // Narration/Notes Input - Mandatory
-              TextFormField(
-                controller: _narrationController,
-                enabled: !_isFullyPaid,
-                decoration: InputDecoration(
-                  labelText: 'Narration/Notes *',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                maxLines: 2,
-                validator: (val) => (val == null || val.trim().isEmpty) ? 'Narration is mandatory.' : null,
-              ),
-
-              if (_isFullyPaid)
-                const Padding(
-                  padding: EdgeInsets.only(top: 15.0),
-                  child: Text(
-                    'This package is fully paid. No more payments required.',
-                    style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-                  ),
-                ),
-            ],
-          ),
+  Widget _buildDatePicker() {
+    return InkWell(
+      onTap: _isFullyPaid ? null : () => _selectDate(context),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            Icon(Icons.calendar_today, size: 16, color: _selectedDate == null ? Colors.orange : Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(_selectedDate == null ? "Date" : DateFormat('dd/MM').format(_selectedDate!), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          ],
         ),
       ),
     );
   }
 
-  // --- BUILD METHOD ---
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: Text('${widget.clientName} - Ledger'),
+  Widget _buildDropdown() {
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedMethod,
+          icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+          isExpanded: true,
+          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 13),
+          items: _paymentMethods.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+          onChanged: _isFullyPaid ? null : (v) => setState(() => _selectedMethod = v!),
+        ),
       ),
-      body: SafeArea(child: StreamBuilder<List<PaymentModel>>(
-        stream: paymentService.streamPaymentsForAssignment(widget.assignment.id),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error loading payments: ${snapshot.error}'));
-          }
-
-          final payments = snapshot.data ?? [];
-
-          return ListView(
-            padding: const EdgeInsets.all(16.0),
-            children: <Widget>[
-              // 1. Financial Summary Card
-              _buildFinancialSummary(),
-
-              // 2. Payment Entry Form Card
-              _buildPaymentEntryForm(),
-              const SizedBox(height: 20),
-
-              // 3. Payment History List
-              Text(
-                'Payment History (${payments.length} Records)',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800),
-              ),
-              const Divider(),
-
-              if (payments.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text('No payments recorded yet.'),
-                  ),
-                )
-              else
-              // 🎯 REPLACED map/toList with a mapped iterable of Dismissible widgets
-                ...payments.map((payment) {
-                  return Dismissible(
-                    key: Key(payment.id), // MANDATORY: A unique key for Dismissible
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      color: Colors.red.shade700,
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: const Icon(Icons.delete_forever, color: Colors.white, size: 30),
-                    ),
-                    // IMPORTANT: This calls the dialog and deletion logic before dismissing
-                    confirmDismiss: (direction) => _confirmAndDeletePayment(payment),
-                    child: Card(
-                      elevation: 1,
-                      margin: const EdgeInsets.symmetric(vertical: 6.0),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.green.shade100,
-                          child: Icon(Icons.receipt_long, color: Colors.green.shade700),
-                        ),
-                        title: Text(
-                          currencyFormatter.format(payment.amount),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
-                        ),
-                        subtitle: Text(
-                          'Method: ${payment.paymentMethod} • Date: ${DateFormat.yMMMd().format(payment.paymentDate)}\nNarration: ${payment.narration}',
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                        ),
-                        isThreeLine: true,
-                        trailing: Text(
-                          payment.receivedBy.split('@').first,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-            ],
-          );
-        },
-      ),),
     );
   }
 }

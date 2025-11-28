@@ -101,7 +101,7 @@ class _MasterPlanSelectionPageState extends State<MasterPlanSelectionPage> {
               width: 300, height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.1), blurRadius: 80, spreadRadius: 20)],
+                boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.1), blurRadius: 80, spreadRadius: 20)],
               ),
             ),
           ),
@@ -224,7 +224,7 @@ class _MasterPlanSelectionPageState extends State<MasterPlanSelectionPage> {
                   child: DropdownButton<String>(
                     isExpanded: true,
                     value: _selectedCategoryId,
-                    icon: const Icon(Icons.filter_list_rounded, color: Colors.indigo),
+                    icon: Icon(Icons.filter_list_rounded, color: Theme.of(context).colorScheme.primary),
                     hint: const Text("Filter by Goal", style: TextStyle(color: Colors.black54, fontWeight: FontWeight.w600)),
                     items: [
                       const DropdownMenuItem<String>(value: null, child: Text('All Categories')),
@@ -286,12 +286,12 @@ class _MasterPlanSelectionPageState extends State<MasterPlanSelectionPage> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: isAssigned ? Colors.green.shade50 : Colors.indigo.shade50,
+                    color: isAssigned ? Colors.green.shade50 : Theme.of(context).colorScheme.primary.withOpacity(.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     isAssigned ? Icons.check_circle_rounded : Icons.article_rounded,
-                    color: isAssigned ? Colors.green.shade700 : Colors.indigo,
+                    color: isAssigned ? Colors.green.shade700 : Theme.of(context).colorScheme.primary,
                     size: 24,
                   ),
                 ),
@@ -347,8 +347,8 @@ class _MasterPlanSelectionPageState extends State<MasterPlanSelectionPage> {
                     icon: const Icon(Icons.visibility_outlined, size: 18),
                     label: const Text("Preview"),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.indigo,
-                      side: BorderSide(color: Colors.indigo.shade100),
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      side: BorderSide(color: Theme.of(context).colorScheme.primary.withOpacity(.15)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -363,7 +363,7 @@ class _MasterPlanSelectionPageState extends State<MasterPlanSelectionPage> {
                     icon: Icon(isAssigned ? Icons.remove_circle_outline : Icons.add_circle_outline, size: 18),
                     label: Text(isAssigned ? "Unassign" : "Assign"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isAssigned ? Colors.red.shade50 : Colors.indigo,
+                      backgroundColor: isAssigned ? Colors.red.shade50 : Theme.of(context).colorScheme.primary,
                       foregroundColor: isAssigned ? Colors.red : Colors.white,
                       elevation: isAssigned ? 0 : 2,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -442,7 +442,7 @@ class _PlanPreviewSheet extends StatelessWidget {
               separatorBuilder: (ctx, i) => const SizedBox(height: 20),
               itemBuilder: (context, index) {
                 final meal = dayPlan.meals[index];
-                return _buildMealPreviewCard(meal);
+                return _buildMealPreviewCard(meal,context);
               },
             ),
           ),
@@ -483,7 +483,7 @@ class _PlanPreviewSheet extends StatelessWidget {
                             : Icon(isAssigned ? Icons.remove_circle_outline : Icons.check_circle_outline),
                         label: Text(isAssigned ? "UNASSIGN" : "CONFIRM"),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isAssigned ? Colors.red.shade600 : Colors.indigo,
+                          backgroundColor: isAssigned ? Colors.red.shade600 : Theme.of(context).colorScheme.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
@@ -501,7 +501,7 @@ class _PlanPreviewSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildMealPreviewCard(DietPlanMealModel meal) {
+  Widget _buildMealPreviewCard(DietPlanMealModel meal, BuildContext context) {
     if (meal.items.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -529,7 +529,7 @@ class _PlanPreviewSheet extends StatelessWidget {
                 title: Text(item.foodItemName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                 trailing: Text(
                   "${item.quantity} ${item.unit}",
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
                 ),
                 subtitle: item.alternatives.isNotEmpty
                     ? Text("Or: ${item.alternatives.map((a) => a.foodItemName).join(', ')}", style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))

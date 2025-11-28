@@ -1,9 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:nutricare_client_management/modules/master/model/meal_master_name.dart';
 import 'package:nutricare_client_management/meal_planner/screen/master_meal_name_entry_page.dart';
 import 'package:nutricare_client_management/modules/master/service/master_meal_name_service.dart';
 import 'package:provider/provider.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
 class MasterMealNameListPage extends StatelessWidget {
   const MasterMealNameListPage({super.key});
@@ -11,197 +11,85 @@ class MasterMealNameListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = Provider.of<MasterMealNameService>(context);
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: const Text('Master Meal Names'),
-      ),
-      body: SafeArea(
-        child: StreamBuilder<List<MasterMealName>>(
-          stream: service.streamAllActive(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
-            final items = snapshot.data ?? [];
-
-            if (items.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.restaurant_menu, size: 64, color: Colors.grey.shade300),
-                    const SizedBox(height: 16),
-                    const Text('No meal names found.', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                    const SizedBox(height: 20),
-                    ElevatedButton.icon(
-                      onPressed: () => _navigateToEntry(context, null),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add First Meal'),
-                      style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary, foregroundColor: Colors.white),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return ReorderableListView.builder(
-              padding: const EdgeInsets.only(bottom: 80, top: 10),
-              itemCount: items.length,
-              onReorder: (int oldIndex, int newIndex) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Reordering requires Firestore batch update.')),
-                );
-              },
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return KeyedSubtree(
-                  key: ValueKey(item.id),
-                  child: _buildMealNameCard(context, item),
-                );
-              },
-            );
-          },
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _navigateToEntry(context, null),
-        backgroundColor: colorScheme.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("New Meal", style: TextStyle(color: Colors.white)),
-      ),
-    );
-  }
-
-  void _navigateToEntry(BuildContext context, MasterMealName? item) {
-    Navigator.of(context).push(
-        MaterialPageRoute(builder: (c) => MasterMealNameEntryPage(itemToEdit: item))
-    );
-  }
-
-  Future<bool> _showDeleteConfirmation(BuildContext context, String name) async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text("Confirm Delete"),
-        content: Text("Mark '$name' as deleted?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text("CANCEL")),
-          ElevatedButton(
-            onPressed: () => Navigator.of(c).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text("DELETE", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    ) ?? false;
-  }
-
-  void _softDelete(BuildContext context, MasterMealName item) async {
-    await Provider.of<MasterMealNameService>(context, listen: false).softDelete(item.id);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${item.enName} marked as deleted.')),
-      );
-    }
-  }
-
-  // 🎯 REVAMPED CARD BUILDER
-  Widget _buildMealNameCard(BuildContext context, MasterMealName item) {
-    // Helper to convert "HH:mm" 24h string to 12h format
-    String formatTime(String? time) {
-      if (time == null || time.isEmpty) return '';
-      try {
-        final parts = time.split(':');
-        final dt = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-        return dt.format(context);
-      } catch (_) {
-        return time;
-      }
-    }
-
-    String timeRange = '';
-    if (item.startTime != null && item.endTime != null) {
-      timeRange = '${formatTime(item.startTime)} - ${formatTime(item.endTime)}';
-    }
-
-    return Dismissible(
-      key: Key(item.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.red.shade100,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-        child: const Icon(Icons.delete_forever, color: Colors.red, size: 30),
-      ),
-      confirmDismiss: (_) => _showDeleteConfirmation(context, item.enName),
-      onDismissed: (_) => _softDelete(context, item),
-      child: Card(
-        elevation: 3,
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: InkWell(
-          onTap: () => _navigateToEntry(context, item),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Stack(
+        children: [
+          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
+          SafeArea(
+            child: Column(
               children: [
-                // Order Badge
-                Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.indigo.shade50,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.indigo.shade100),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${item.order}',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.indigo.shade700),
-                  ),
-                ),
-                const SizedBox(width: 16),
-
-                // Info
+                _buildHeader(context),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.enName,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
-                      ),
-                      if (timeRange.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4.0),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.access_time, size: 12, color: Colors.grey),
-                              const SizedBox(width: 4),
-                              Text(timeRange, style: const TextStyle(fontSize: 13, color: Colors.blueGrey, fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+                  child: StreamBuilder<List<MasterMealName>>(
+                    stream: service.streamAllActive(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                      final items = snapshot.data!;
+                      if (items.isEmpty) return const Center(child: Text("No meal names found."));
 
-                // Edit Icon
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, color: Colors.blueGrey),
-                  onPressed: () => _navigateToEntry(context, item),
+                      return ReorderableListView.builder(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+                        itemCount: items.length,
+                        onReorder: (oldIndex, newIndex) {},
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          return Container(
+                            key: ValueKey(item.id),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3))],
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                              leading: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
+                                child: Text("${item.order}", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                              ),
+                              title: Text(item.enName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text(item.startTime != null ? "${item.startTime} - ${item.endTime}" : "No time set"),
+                              trailing: IconButton(
+                                icon: Icon(Icons.edit_outlined, color: Theme.of(context).colorScheme.primary),
+                                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MasterMealNameEntryPage(itemToEdit: item))),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MasterMealNameEntryPage())),
+        backgroundColor: Colors.blue,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text("New Meal Name", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))),
+          child: Row(
+            children: [
+              GestureDetector(onTap: () => Navigator.pop(context), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: const Icon(Icons.arrow_back, size: 20))),
+              const SizedBox(width: 16),
+              const Text("Meal Names", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+            ],
           ),
         ),
       ),

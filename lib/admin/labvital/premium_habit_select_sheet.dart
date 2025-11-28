@@ -64,7 +64,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
                       onTap: () => setState(() => selectedIcon = key),
                       child: Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: isSel ? Colors.indigo : Colors.grey.shade100, shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: isSel ? Theme.of(context).colorScheme.primary : Colors.grey.shade100, shape: BoxShape.circle),
                         child: Icon(iconOptions[key], color: isSel ? Colors.white : Colors.grey, size: 20),
                       ),
                     );
@@ -76,7 +76,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
               onPressed: () {
                 if (titleCtrl.text.isNotEmpty) {
                   _service.saveHabit(HabitMasterModel(
@@ -129,7 +129,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
                 const Text("Select Daily Habits", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 FloatingActionButton.small(
                   onPressed: () => _showAddEditDialog(),
-                  backgroundColor: Colors.indigo,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   child: const Icon(Icons.add, color: Colors.white),
                 ),
               ],
@@ -158,7 +158,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
                         child: Icon(habit.iconData, color: isSelected ? Colors.green : Colors.grey),
                       ),
                       title: Text(habit.title, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.black : Colors.grey.shade700)),
-                      subtitle: Text(habit.category.name.toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.indigo)),
+                      subtitle: Text(habit.category.name.toUpperCase(), style:  TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary)),
                       trailing: PopupMenuButton(
                         icon: const Icon(Icons.more_vert, size: 18),
                         onSelected: (v) => v == 'edit' ? _showAddEditDialog(habit: habit) : _confirmDelete(habit),
@@ -176,7 +176,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
             decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, -5))]),
             child: SizedBox(width: double.infinity, child: ElevatedButton(
               onPressed: () => Navigator.pop(context, _selectedIds.toList()),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               child: const Text("CONFIRM SELECTION", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )),
           )

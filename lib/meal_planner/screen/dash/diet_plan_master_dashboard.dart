@@ -1,176 +1,73 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/meal_planner/screen/InvestigationMasterScreen.dart';
-import 'package:nutricare_client_management/meal_planner/screen/disease_master_list_screen.dart';
-import 'package:nutricare_client_management/modules/client/screen/supplementation_master_screen.dart';
-import 'package:nutricare_client_management/modules/master/screen/diagonosis_master_screen.dart';
-import 'package:nutricare_client_management/modules/master/screen/master_diet_plan_list_screen.dart';
-import 'package:nutricare_client_management/meal_planner/screen/diet_plan_category_list.dart';
-import 'package:nutricare_client_management/meal_planner/screen/diet_plan_history_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/food_category_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/food_item_list_page.dart';
-import 'package:nutricare_client_management/meal_planner/screen/guideline_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/master_meal_name_list_page.dart';
 import 'package:nutricare_client_management/meal_planner/screen/serving_unit_list_page.dart';
-import 'package:nutricare_client_management/modules/master/service/food_item_service.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 
-// 🎯 Placeholder Screens - You will replace these with your actual form pages
-class PlaceholderFormPage extends StatelessWidget {
-  final String title;
-  const PlaceholderFormPage({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: CustomGradientAppBar(title: Text(title)),
-      body: Center(
-        child: Text(
-          'This is the entry form for: $title',
-          style: const TextStyle(fontSize: 18, color: Colors.blueGrey),
-        ),
-      ),
-    );
-  }
-}
-
-// --- The Master Dashboard Page ---
 class DietPlanMasterPage extends StatelessWidget {
   const DietPlanMasterPage({super.key});
 
-  // Helper method to navigate
-  void _navigateToModule(BuildContext context, Widget page) {
-    Navigator.of(context).push(MaterialPageRoute(builder: (c) => page));
-  }
-
-  // Helper method to build a beautiful list item
-  Widget _buildMasterCard({
-    required BuildContext context,
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color iconColor,
-    required Widget targetPage,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Card(
-        // Beautiful UI: Raised card with soft rounded corners
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: InkWell( // Provides the beautiful ripple effect on tap
-          borderRadius: BorderRadius.circular(10),
-          onTap: () => _navigateToModule(context, targetPage),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            // Prominent, colored icon area
-            leading: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: 28,
-              ),
-            ),
-            title: Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 4.0),
-              child: Text(
-                subtitle,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-              ),
-            ),
-            trailing: const Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: Colors.grey,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Stack(
+        children: [
+          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.teal.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(context, "Diet Plan Builder"),
+                Expanded(
+                  child: GridView.count(
+                    crossAxisCount: 2,
+                    padding: const EdgeInsets.all(20),
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 1.1,
+                    children: [
+                      _buildCard(context, "Food Items", Icons.lunch_dining, Colors.orange, const FoodItemListPage()),
+                      _buildCard(context, "Food Categories", Icons.category, Colors.green, const FoodCategoryListPage()),
+                      _buildCard(context, "Meal Names", Icons.access_time, Colors.blue, const MasterMealNameListPage()),
+                      _buildCard(context, "Serving Units", Icons.scale, Colors.teal, const ServingUnitListPage()),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, String title, IconData icon, Color color, Widget page) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => page)),
+      child: Container(
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 28)),
+            const SizedBox(height: 16),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
         ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: const Text('Diet Plan Master Setup'),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: <Widget>[
-            const Padding(
-              padding: EdgeInsets.only(bottom: 20.0),
-              child: Text(
-                'Food Categories',
-                style: TextStyle(fontSize: 15, color: Colors.grey),
-              ),
-            ),
-        
-            // 1. Diet Templates Master
-            _buildMasterCard(
-              context: context,
-              title: 'Serving units',
-              subtitle: 'Create standard, reusable diet plans (e.g., Keto, Vegan, Maintenance).',
-              icon: Icons.restaurant_menu,
-              iconColor: Colors.green.shade600,
-              targetPage: const ServingUnitListPage(),
-            ),
-            _buildMasterCard(
-              context: context,
-              title: 'Master meal routine',
-              subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
-              icon: Icons.no_food,
-              iconColor: Colors.blueGrey.shade700,
-              targetPage: const MasterMealNameListPage(),
-            ),
-        
-            // 2. Meal Items Master
-            _buildMasterCard(
-              context: context,
-              title: 'Food Categories',
-              subtitle: 'Manage common ingredients and basic single-item meal entries.',
-              icon: Icons.dinner_dining,
-              iconColor: Colors.amber.shade700,
-              targetPage: const FoodCategoryListPage()),
-        
-            // 3. Recipe & Prep Master
-            _buildMasterCard(
-              context: context,
-              title: 'Diet Plan categories',
-              subtitle: 'Define detailed cooking recipes with steps and nutritional info.',
-              icon: Icons.book_online,
-              iconColor: Colors.red.shade400,
-              targetPage: const DietPlanCategoryListPage(),
-            ),
-        
-            // 4. Exclusion Master
-            _buildMasterCard(
-              context: context,
-              title: 'Master food items',
-              subtitle: 'Manage a global list of allergens, intolerances, and foods to avoid.',
-              icon: Icons.no_food,
-              iconColor: Colors.blueGrey.shade700,
-              targetPage: const FoodItemListPage(),
-            ),
-        
-        
-          ],
-        ),
+  Widget _buildHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      child: Row(
+        children: [
+          GestureDetector(onTap: () => Navigator.pop(context), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: const Icon(Icons.arrow_back, size: 20))),
+          const SizedBox(width: 16),
+          Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+        ],
       ),
     );
   }

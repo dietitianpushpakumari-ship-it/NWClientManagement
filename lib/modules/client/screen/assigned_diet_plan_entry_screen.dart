@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:intl/intl.dart';
 
-// 🎯 WIDGETS
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
 import 'package:nutricare_client_management/admin/labvital/clinical_master_service.dart';
 import 'package:nutricare_client_management/admin/labvital/clinical_model.dart';
 import 'package:nutricare_client_management/admin/labvital/premium_habit_select_sheet.dart';
@@ -200,7 +198,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
                     _buildPremiumCard(
                         title: "Identity",
                         icon: Icons.badge,
-                        color: Colors.indigo,
+                        color: Theme.of(context).colorScheme.primary,
                         child: Column(children: [_buildTextField("Plan Name", initialValue: _planName, onChanged: (v) => _planName = v), const SizedBox(height: 12), _buildTextField("Follow-up (Days)", initialValue: _followUpDays > 0 ? _followUpDays.toString() : "", isNumber: true, onChanged: (v) => _followUpDays = int.tryParse(v) ?? 0)])
                     ),
 
@@ -263,7 +261,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
                     const SizedBox(height: 40),
                     ElevatedButton(
                       onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                       child: const Text("DONE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(height: 40),
@@ -410,7 +408,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
                 );
                 if (result != null) onUpdate(result);
               },
-              child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(20)), child: const Text("Edit / Add", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo))),
+              child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.1), borderRadius: BorderRadius.circular(20)), child: Text("Edit / Add", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary))),
             ),
           ],
         ),
@@ -466,7 +464,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
                 );
                 if (result != null) onUpdate(result);
               },
-              child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(20)), child: const Text("Edit / Add", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo))),
+              child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.1), borderRadius: BorderRadius.circular(20)), child: Text("Edit / Add", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary))),
             ),
           ],
         ),
@@ -563,89 +561,76 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
     );
   }
   // ... Build Method (Same as previous, just ensuring it's clear this is the full file logic) ...
+// ... [Existing Imports] ...
+// Make sure to import: import 'dart:ui';
+
+// ... [State Class] ...
+  // Replace Scaffold contents with this structure:
   @override
   Widget build(BuildContext context) {
-    // ... (Standard Scaffold with Stack logic) ...
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
       body: Stack(
         children: [
-          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 80, spreadRadius: 20)]))),
+          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
           if (_isLoadingData) const Center(child: CircularProgressIndicator()) else SafeArea(
             child: Column(
               children: [
-                // ... Header ...
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      GestureDetector(onTap: () => Navigator.pop(context), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)]), child: const Icon(Icons.arrow_back, size: 20))),
-                      const Text("Diet Planner", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A))),
-                      Row(children: [
-                        Transform.scale(scale: 0.8, child: Switch(value: !_isProvisional, onChanged: (v) => setState(() => _isProvisional = !v), activeColor: Colors.green, inactiveThumbColor: Colors.amber)),
-                        Text(!_isProvisional ? "Final" : "Draft", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: !_isProvisional ? Colors.green : Colors.amber.shade800)),
-                        const SizedBox(width: 12),
-                        ElevatedButton(onPressed: _isSaving ? null : _savePlan, style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12)), child: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text("SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
-                      ])
-                    ],
-                  ),
-                ),
-                // Summary Card
-                GestureDetector(
-                  onTap: _openSettingsSheet,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)], border: Border.all(color: Colors.indigo.withOpacity(0.1))),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(_planName.isEmpty ? "Tap to Setup Plan" : _planName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 4),
-                            Row(children: [
-                              Icon(Icons.monitor_heart, size: 14, color: _linkedVitals != null ? Colors.green : Colors.orange),
-                              const SizedBox(width: 4),
-                              Text(_linkedVitals != null ? "Vitals Linked" : "Missing Vitals", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                            ]),
-                          ],
-                        ),
-                        const Icon(Icons.settings, color: Colors.indigo),
-                      ],
-                    ),
-                  ),
-                ),
+                // 1. HEADER
+                _buildHeader(context),
 
-                // Tabs
-                Container(
-                  height: 40,
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: Colors.grey.shade600,
-                    indicator: BoxDecoration(color: Colors.indigo, borderRadius: BorderRadius.circular(20)),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    tabs: _currentPlan.days.first.meals.map((m) => Tab(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Text(m.mealName)))).toList(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Content
+                // 2. CONTENT
                 Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: _currentPlan.days.first.meals.map((meal) {
-                      return PremiumMealEntryList(
-                        meal: meal,
-                        allFoodItems: _allFoodItems,
-                        onUpdate: (items) => _updateMealItems(meal.id, items),
-                      );
-                    }).toList(),
+                  child: Column(
+                    children: [
+                      // Summary Card
+                      GestureDetector(
+                        onTap: _openSettingsSheet,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_planName.isEmpty ? "Setup Plan" : _planName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                  Text(_linkedVitals != null ? "Vitals Linked" : "No Vitals", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                ],
+                              ),
+                              Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Tabs
+                      if (_tabController != null)
+                        Container(
+                          height: 40, margin: const EdgeInsets.symmetric(horizontal: 16),
+                          child: TabBar(
+                            controller: _tabController, isScrollable: true,
+                            indicator: BoxDecoration(color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(20)),
+                            labelColor: Colors.white, unselectedLabelColor: Colors.grey,
+                            tabs: _currentPlan.days.first.meals.map((m) => Tab(text: m.mealName)).toList(),
+                          ),
+                        ),
+
+                      const SizedBox(height: 10),
+
+                      // List
+                      if (_tabController != null)
+                        Expanded(
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: _currentPlan.days.first.meals.map((meal) => PremiumMealEntryList(
+                              meal: meal, allFoodItems: _allFoodItems, onUpdate: (items) => _updateMealItems(meal.id, items),
+                            )).toList(),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -655,4 +640,31 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
       ),
     );
   }
+
+  Widget _buildHeader(BuildContext context) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          color: Colors.white.withOpacity(0.8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.arrow_back)),
+              const Text("Diet Planner", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Text(_isProvisional ? "Draft" : "Final", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _isProvisional ? Colors.orange : Colors.green)),
+                  Switch(value: !_isProvisional, onChanged: (v) => setState(() => _isProvisional = !v), activeColor: Colors.green),
+                  IconButton(onPressed: _isSaving ? null : _savePlan, icon: _isSaving ? const CircularProgressIndicator() : Icon(Icons.save, color: Theme.of(context).colorScheme.primary))
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+// ...
 }

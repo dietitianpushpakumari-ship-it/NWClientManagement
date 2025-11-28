@@ -1,84 +1,64 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:pdf/pdf.dart';
-import 'package:printing/printing.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
 import 'package:nutricare_client_management/helper/diet_plan_pdf_generator.dart';
-import 'package:nutricare_client_management/admin/custom_gradient_app_bar.dart';
-
-
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
 
 class PlanReportViewScreen extends StatelessWidget {
   final ClientModel client;
   final ClientDietPlanModel plan;
 
-  const PlanReportViewScreen({
-    super.key,
-    required this.client,
-    required this.plan,
-  });
-
-  // 🎯 PDF SHARE/PRINT LOGIC (Moved from list screen)
-  Future<void> _exportPlanToPdf(BuildContext context) async {
-    final clientName = client.name;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Generating PDF...')),
-    );
-
-    try {
-      // 🎯 Key change: Using PdfPreview widget to display and handle print/share
-      await Printing.layoutPdf(
-        name: '${clientName.replaceAll(' ', '_')}_${plan.name.replaceAll(' ', '_')}_DietPlan.pdf',
-        onLayout: (PdfPageFormat format) async {
-          // This calls your generator logic to produce the PDF data
-          final pdfBytes = await DietPlanPdfGenerator.generatePlanPdf(clientPlan: plan, client: client);
-          return pdfBytes;
-        },
-      );
-
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Failed to generate/view PDF: $e'),
-            backgroundColor: Colors.red
-        ),
-      );
-    }
-  }
-
+  const PlanReportViewScreen({super.key, required this.client, required this.plan});
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: CustomGradientAppBar(
-        title: Text('${client.name}\'s ${plan.name} Report'),
-        actions: [
-          // 🎯 Printing/Sharing action button
-          IconButton(
-            icon: const Icon(Icons.print),
-            tooltip: 'Share/Print Report',
-            onPressed: () => _exportPlanToPdf(context),
-          ),
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Stack(
+        children: [
+          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(context),
+                Expanded(
+                  child: PdfPreview(
+                    allowSharing: true,
+                    allowPrinting: true,
+                    canChangePageFormat: false,
+                    canDebug: false,
+                    build: (format) => DietPlanPdfGenerator.generatePlanPdf(clientPlan: plan, client: client),
+                  ),
+                ),
+              ],
+            ),
+          )
         ],
       ),
+    );
+  }
 
-      // 🎯 Use PdfPreview widget for mobile report view and print options
-      body: SafeArea(
-        child: PdfPreview(
-          allowSharing: true,
-          allowPrinting: true,
-          canChangePageFormat: false, // Typically locked for a diet plan
-          canDebug: false,
-          //name: '${client.name.replaceAll(' ', '_')}_${plan.name.replaceAll(' ', '_')}_DietPlan.pdf',
-
-          // This function will be called whenever the PDF needs to be generated (e.g., for preview)
-          build: (PdfPageFormat format) => DietPlanPdfGenerator.generatePlanPdf(
-            clientPlan: plan,
-            client: client,
+  Widget _buildHeader(BuildContext context) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))),
+          child: Row(
+            children: [
+              GestureDetector(onTap: () => Navigator.pop(context), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: const Icon(Icons.arrow_back, size: 20))),
+              const SizedBox(width: 16),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(plan.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text("PDF Report Preview", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                ],
+              )),
+            ],
           ),
         ),
       ),
