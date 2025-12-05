@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
+import 'package:nutricare_client_management/admin/appointment_model.dart';
 import '../../../models/assigned_package_data.dart';
 import '../../client/model/client_model.dart';
 import '../model/package_assignment_model.dart';
@@ -290,6 +291,85 @@ class PackagePaymentService {
     return collectedAmount;
   }*/
 
+// Inside PackagePaymentService
 
+  // 1. Fetch Unsettled Appointments
+// 1. Stream Unsettled Appointments (With Client-Side Filtering)
+  Stream<List<AppointmentModel>> streamUnsettledAppointments() {
+    return _db.collection('appointments')
+        .where('status', whereIn: ['confirmed', 'completed']) // Only active bookings
+    // ⚠️ REMOVED: .where('isSettled', isEqualTo: false)
+    // Reason: Legacy docs don't have 'isSettled', so Firestore excludes them.
+        .orderBy('startTime', descending: true)
+        .snapshots()
+        .map((snap) {
+      return snap.docs
+          .map((d) => AppointmentModel.fromFirestore(d))
+      // 🎯 Client-Side Filter: Catch missing field (default false) OR explicit false
+          .where((appt) => !appt.isSettled && (appt.amountPaid ?? 0) > 0)
+          .toList();
+    });
+  }
+  // 2. The Manual Post Action
+  Future<void> postSettlement({
+    required AppointmentModel appointment,
+    required double finalAmount,
+    required String paymentMode,
+    required String paymentRef,
+    required String narration,
+  }) async {
+    if (appointment.clientId == null) {
+      throw Exception("Cannot settle guest bookings. Register client first.");
+    }
+
+    final batch = _db.batch();
+
+    // A. Create Virtual "Single Session" Assignment
+    final virtualAssignmentId = "appt_${appointment.id}"; // Unique ID based on Appt
+    final assignmentRef = _assignmentCollection(appointment.clientId!).doc(virtualAssignmentId);
+
+    final virtualAssignment = PackageAssignmentModel(
+      id: virtualAssignmentId,
+      packageId: 'single_session',
+      packageName: "Session: ${appointment.topic}",
+      purchaseDate: DateTime.now(), // Settlement Date
+      expiryDate: appointment.endTime,
+      isActive: false, // Consumed
+      isLocked: true,
+      clientId: appointment.clientId!,
+      diagnosis: 'One-off Consultation',
+      bookedAmount: finalAmount, // 🎯 Use the verified amount
+      category: 'Consultation',
+      discount: 0,
+    );
+
+    // B. Create Ledger Payment Record
+    final paymentDoc = _paymentCollectionv2.doc();
+    final payment = PaymentModel(
+      id: paymentDoc.id,
+      packageAssignmentId: virtualAssignmentId,
+      amount: finalAmount,
+      paymentDate: DateTime.now(),
+      receivedBy: FirebaseAuth.instance.currentUser?.email ?? 'Admin',
+      paymentMethod: paymentMode,
+      narration: "$narration (Appt Ref: ${appointment.id})",
+    );
+
+    // C. Update Appointment as Settled
+    final apptRef = _db.collection('appointments').doc(appointment.id);
+
+    // EXECUTE
+    batch.set(assignmentRef, virtualAssignment.toMap());
+    batch.set(paymentDoc, payment.toMap());
+    batch.update(apptRef, {
+      'isSettled': true,
+      'amount': finalAmount, // Update booking amount to match verified
+      'paymentRef': paymentRef,
+      'paymentMethod': paymentMode
+    });
+
+    await batch.commit();
+    _logger.i("Settlement posted for Appt ${appointment.id}");
+  }
 
 }

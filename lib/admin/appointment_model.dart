@@ -25,6 +25,7 @@ class AppointmentModel {
   // 📸 Media & Links
   final List<String> sessionPhotos; // 🎯 NEW
   final String? meetLink;
+  final bool isSettled; //
 
   AppointmentModel({
     required this.id,
@@ -44,6 +45,7 @@ class AppointmentModel {
     this.paymentDate,
     this.paymentMethod,
     this.sessionPhotos = const [],
+    this.isSettled = false,
   });
 
   factory AppointmentModel.fromFirestore(DocumentSnapshot doc) {
@@ -67,6 +69,7 @@ class AppointmentModel {
 
       sessionPhotos: List<String>.from(data['sessionPhotos'] ?? []),
       meetLink: data['meetLink'],
+      isSettled: data['isSettled'] ?? false,
     );
   }
 
@@ -90,6 +93,7 @@ class AppointmentModel {
 
       'sessionPhotos': sessionPhotos,
       'meetLink': meetLink,
+      'isSettled': isSettled,
     };
   }
 }

@@ -1,13 +1,20 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/admin/inclusion_master_model.dart';
-import 'package:nutricare_client_management/admin/inclusion_master_service.dart';
 import 'package:provider/provider.dart';
-import 'package:nutricare_client_management/models/programme_feature_model.dart';
-import '../modules/package/model/package_model.dart';
-import '../modules/package/service/program_feature_service.dart';
-import '../modules/package/service/package_Service.dart';
 
+// 🎯 MODELS
+import 'package:nutricare_client_management/models/programme_feature_model.dart';
+import 'package:nutricare_client_management/modules/package/model/package_model.dart';
+import 'package:nutricare_client_management/admin/inclusion_master_model.dart';
+import 'package:nutricare_client_management/meal_planner/screen/disease_master_model.dart'; // 🎯 NEW
+
+// 🎯 SERVICES
+import 'package:nutricare_client_management/modules/package/service/program_feature_service.dart';
+import 'package:nutricare_client_management/modules/package/service/package_Service.dart';
+import 'package:nutricare_client_management/admin/inclusion_master_service.dart';
+import 'package:nutricare_client_management/meal_planner/screen/disease_master_service.dart'; // 🎯 NEW
+
+// 🎯 WIDGETS
 import 'package:nutricare_client_management/admin/labvital/premium_master_select_sheet.dart';
 
 class PackageEntryPage extends StatefulWidget {
@@ -25,31 +32,34 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _priceController = TextEditingController();
-  final _originalPriceController = TextEditingController(); // 🎯 NEW: MRP
+  final _originalPriceController = TextEditingController();
   final _durationController = TextEditingController();
   final _sessionsController = TextEditingController(text: '0');
   final _consultationController = TextEditingController(text: '4');
-  final _conditionsController = TextEditingController(); // 🎯 NEW: Target Conditions (comma sep)
 
-  // Inclusions
+  // 🎯 Removed _conditionsController in favor of List state
+
+  // State Lists
   List<String> _selectedInclusionIds = [];
   List<String> _displayInclusionNames = [];
+  List<String> _selectedTargetConditions = []; // 🎯 Stores Disease Names
 
   // Config Flags
   bool _isActive = true;
-  bool _isTaxInclusive = true; // 🎯 NEW: Tax Flag
+  bool _isTaxInclusive = true;
 
   // Dropdowns & Selectors
   late PackageCategory _selectedCategory;
   late List<String> _selectedFeatureIds;
-  String? _selectedColorCode; // 🎯 NEW: Color Picker
+  String? _selectedColorCode;
 
-  // Services & State
+  // Services
   bool _isLoading = false;
   late Future<List<ProgramFeatureModel>> _programFeaturesFuture;
   final InclusionMasterService _inclusionService = InclusionMasterService();
+  final DiseaseMasterService _diseaseService = DiseaseMasterService(); // 🎯 NEW
 
-  // 🎯 Color Options for UI
+  // Color Options
   final Map<String, Color> _colorOptions = {
     'Teal': Colors.teal,
     'Blue': Colors.blue,
@@ -66,7 +76,7 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
     _programFeaturesFuture = ProgramFeatureService().streamAllFeatures().first;
     _selectedCategory = PackageCategory.basic;
     _selectedFeatureIds = [];
-    _selectedColorCode = '0xFF009688'; // Default Teal
+    _selectedColorCode = '0xFF009688';
 
     if (widget.packageToEdit != null) {
       _initializeForEdit(widget.packageToEdit!);
@@ -81,7 +91,9 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
     _durationController.text = package.durationDays.toString();
     _sessionsController.text = package.freeSessions.toString();
     _consultationController.text = package.consultationCount.toString();
-    _conditionsController.text = package.targetConditions.join(', ');
+
+    // 🎯 Load Conditions
+    _selectedTargetConditions = List.from(package.targetConditions);
 
     _isActive = package.isActive;
     _isTaxInclusive = package.isTaxInclusive;
@@ -93,12 +105,47 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
     _displayInclusionNames = List.from(package.inclusions);
   }
 
+  // 🎯 DISEASE SELECTOR (Search + Add)
+  void _openDiseaseSelector() async {
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => PremiumMasterSelectSheet<DiseaseMasterModel>(
+        title: "Target Conditions",
+        itemLabel: "Disease",
+        stream: _diseaseService.getActiveDiseases(), // Stream from your service
+
+        // 🎯 LOGIC: Use 'enName' as ID to store readable names in PackageModel
+        getName: (item) => item.enName,
+        getId: (item) => item.enName,
+
+        selectedIds: _selectedTargetConditions,
+
+        // Actions
+        onAdd: (name) async => await _diseaseService.addDisease(
+            DiseaseMasterModel(id: '', enName: name)
+        ),
+        onEdit: (item, name) async => await _diseaseService.updateDisease(
+            item.copyWith(enName: name)
+        ),
+        onDelete: (item) async => await _diseaseService.softDeleteDisease(item.id),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedTargetConditions = result;
+      });
+    }
+  }
+
   void _openInclusionSelector() async {
     final result = await showModalBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => PremiumMasterSelectSheet< InclusionMasterModel>(
+      builder: (ctx) => PremiumMasterSelectSheet<InclusionMasterModel>(
         title: "Manage Inclusions",
         itemLabel: "Inclusion",
         stream: _inclusionService.streamAllInclusions(),
@@ -129,7 +176,6 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
     _durationController.dispose();
     _sessionsController.dispose();
     _consultationController.dispose();
-    _conditionsController.dispose();
     super.dispose();
   }
 
@@ -144,28 +190,27 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
       _displayInclusionNames = await _inclusionService.resolveNames(_selectedInclusionIds);
     }
 
-    // Parse Comma Separated Conditions
-    final conditions = _conditionsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-
     final newPackage = PackageModel(
       id: widget.packageToEdit?.id ?? '',
       name: _nameController.text.trim(),
       description: _descController.text.trim(),
       price: double.parse(_priceController.text),
-      originalPrice: double.tryParse(_originalPriceController.text), // 🎯 Save MRP
-      isTaxInclusive: _isTaxInclusive, // 🎯 Save Tax
+      originalPrice: double.tryParse(_originalPriceController.text),
+      isTaxInclusive: _isTaxInclusive,
       durationDays: int.tryParse(_durationController.text) ?? 30,
       consultationCount: int.tryParse(_consultationController.text) ?? 4,
       freeSessions: int.tryParse(_sessionsController.text) ?? 0,
 
       inclusionIds: _selectedInclusionIds,
       inclusions: _displayInclusionNames,
-      targetConditions: conditions, // 🎯 Save Conditions
+
+      // 🎯 SAVE CONDITIONS FROM MASTER LIST
+      targetConditions: _selectedTargetConditions,
 
       isActive: _isActive,
       category: _selectedCategory,
       programFeatureIds: _selectedFeatureIds,
-      colorCode: _selectedColorCode, // 🎯 Save Color
+      colorCode: _selectedColorCode,
     );
 
     try {
@@ -227,7 +272,6 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
                                         ),
                                       ),
                                       const SizedBox(width: 12),
-                                      // 🎯 COLOR PICKER
                                       Expanded(
                                         child: DropdownButtonFormField<String>(
                                           value: _colorOptions.keys.firstWhere((k) => _colorOptions[k]!.value.toString() == _selectedColorCode, orElse: () => 'Teal'),
@@ -252,8 +296,9 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
                                   const SizedBox(height: 12),
                                   _buildTextField(_descController, "Description (Marketing)", Icons.description, maxLines: 3),
                                   const SizedBox(height: 12),
-                                  // 🎯 TARGET CONDITIONS
-                                  _buildTextField(_conditionsController, "Target Conditions (e.g. PCOS, Diabetes)", Icons.local_hospital, maxLines: 1),
+
+                                  // 🎯 TARGET CONDITIONS (Selector)
+                                  _buildTargetConditionsSection(),
                                 ],
                               )
                           ),
@@ -269,12 +314,10 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
                                     children: [
                                       Expanded(child: _buildTextField(_priceController, "Selling Price", Icons.currency_rupee, isNumber: true)),
                                       const SizedBox(width: 12),
-                                      // 🎯 MRP INPUT
                                       Expanded(child: _buildTextField(_originalPriceController, "MRP (Optional)", Icons.price_change, isNumber: true)),
                                     ],
                                   ),
                                   const SizedBox(height: 12),
-                                  // 🎯 TAX SWITCH
                                   SwitchListTile(
                                     title: const Text("Price includes Taxes (GST)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                                     value: _isTaxInclusive,
@@ -388,6 +431,44 @@ class _PackageEntryPageState extends State<PackageEntryPage> {
   }
 
   // --- HELPERS ---
+
+  Widget _buildTargetConditionsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Target Conditions", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+            TextButton(
+              onPressed: _openDiseaseSelector,
+              child: const Text("Select / Add"),
+            )
+          ],
+        ),
+        if (_selectedTargetConditions.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
+            child: const Text("No specific conditions targeted.", style: TextStyle(color: Colors.grey, fontSize: 13)),
+          )
+        else
+          Wrap(
+            spacing: 8, runSpacing: 8,
+            children: _selectedTargetConditions.map((condition) => Chip(
+              label: Text(condition),
+              backgroundColor: Colors.blue.shade50,
+              onDeleted: () {
+                setState(() {
+                  _selectedTargetConditions.remove(condition);
+                });
+              },
+            )).toList(),
+          ),
+      ],
+    );
+  }
 
   BoxDecoration _cardDeco() => BoxDecoration(
       color: Colors.white,
