@@ -4,6 +4,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide ChangeNotifierProvider, Provider, Consumer;
 import 'package:nutricare_client_management/admin/admin_dashboard_Screen.dart';
 import 'package:nutricare_client_management/admin/authwrapper.dart';
 import 'package:nutricare_client_management/admin/user_management_service.dart';
@@ -66,6 +67,8 @@ void main() async {
   await Future.delayed(const Duration(seconds: 1));
 
   runApp(
+      ProviderScope(
+        child:
     MultiProvider(
       providers: [
         // 🎯 2. ADD ThemeManager PROVIDER HERE
@@ -88,7 +91,7 @@ void main() async {
         Provider<DiagnosisMasterService>(create: (_) => DiagnosisMasterService()),
       ],
       child: MyApp(hasSeenOnboarding: hasSeenOnboarding),
-    ),
+    ),),
   );
   FlutterNativeSplash.remove();
 }

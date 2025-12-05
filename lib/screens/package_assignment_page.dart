@@ -1,409 +1,489 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-
-// 🎯 Project Imports
-import 'package:nutricare_client_management/modules/package/service/package_Service.dart';
+import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/package/model/package_model.dart';
-import 'package:nutricare_client_management/modules/package/model/package_assignment_model.dart';
-import 'package:nutricare_client_management/modules/client/services/client_service.dart';
+import 'package:nutricare_client_management/modules/package/service/package_Service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PackageAssignmentPage extends StatefulWidget {
-  final String clientId;
-  final String clientName;
-  final VoidCallback onPackageAssignment;
+  final ClientModel client;
 
-  const PackageAssignmentPage({
-    super.key,
-    required this.clientId,
-    required this.clientName,
-    required this.onPackageAssignment
-  });
+  const PackageAssignmentPage({super.key, required this.client});
 
   @override
   State<PackageAssignmentPage> createState() => _PackageAssignmentPageState();
 }
 
 class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
-  final _formKey = GlobalKey<FormState>();
-
   PackageModel? _selectedPackage;
   DateTime _startDate = DateTime.now();
-  DateTime _expiryDate = DateTime.now().add(const Duration(days: 30));
-
-  final _diagnosisController = TextEditingController();
-  final _discountController = TextEditingController(text: '0.00');
-
-  double _bookedAmount = 0.0;
   bool _isLoading = false;
-  Future<List<PackageModel>>? _packagesFuture;
+
+  // Filter State
+  String _selectedConditionFilter = 'All';
+
+  // 🎯 Offer State & Controllers
+  int _offerExtraDays = 0;
+  int _offerExtraSessions = 0;
+  late TextEditingController _extraDaysCtrl;
+  late TextEditingController _extraSessionsCtrl;
 
   @override
   void initState() {
     super.initState();
-    _calculateBookedAmount();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_packagesFuture == null) {
-      final packageService = Provider.of<PackageService>(context, listen: false);
-      _packagesFuture = packageService.getAllActivePackages();
-    }
+    _extraDaysCtrl = TextEditingController(text: '0');
+    _extraSessionsCtrl = TextEditingController(text: '0');
   }
 
   @override
   void dispose() {
-    _diagnosisController.dispose();
-    _discountController.dispose();
+    _extraDaysCtrl.dispose();
+    _extraSessionsCtrl.dispose();
     super.dispose();
   }
 
-  // --- Logic ---
+  // --- ACTIONS ---
 
-  void _calculateBookedAmount() {
-    if (_selectedPackage == null) {
-      setState(() => _bookedAmount = 0.0);
-      return;
-    }
-    final double price = _selectedPackage!.price;
-    final double discount = double.tryParse(_discountController.text) ?? 0.0;
-    setState(() => _bookedAmount = price - discount);
+  void _updateExtraDays(int newValue) {
+    if (newValue < 0) return;
+    setState(() {
+      _offerExtraDays = newValue;
+      _extraDaysCtrl.text = newValue.toString();
+      // Ensure cursor stays at end if typing (optional but nice)
+      _extraDaysCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _extraDaysCtrl.text.length));
+    });
   }
 
-  void _updateExpiryDate() {
-    if (_selectedPackage != null) {
-      setState(() {
-        _expiryDate = _startDate.add(Duration(days: _selectedPackage!.durationDays));
-      });
-    }
-  }
-
-  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: isStartDate ? _startDate : _expiryDate,
-      firstDate: isStartDate ? DateTime(2000) : _startDate,
-      lastDate: isStartDate ? _expiryDate.subtract(const Duration(days: 1)) : DateTime(2101),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isStartDate) {
-          _startDate = picked;
-          _updateExpiryDate();
-        } else {
-          _expiryDate = picked;
-        }
-      });
-    }
+  void _updateExtraSessions(int newValue) {
+    if (newValue < 0) return;
+    setState(() {
+      _offerExtraSessions = newValue;
+      _extraSessionsCtrl.text = newValue.toString();
+      _extraSessionsCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _extraSessionsCtrl.text.length));
+    });
   }
 
   Future<void> _assignPackage() async {
-    if (!_formKey.currentState!.validate()) return;
     if (_selectedPackage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a package.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a package")));
       return;
     }
 
     setState(() => _isLoading = true);
 
-    final newAssignment = PackageAssignmentModel(
-        id: '',
-        packageId: _selectedPackage!.id,
-        packageName: _selectedPackage!.name,
-        purchaseDate: _startDate,
-        expiryDate: _expiryDate,
-        discount: double.tryParse(_discountController.text) ?? 0.0,
-        bookedAmount: _bookedAmount,
-        diagnosis: _diagnosisController.text.trim(),
-        isActive: true,
-        category: _selectedPackage!.category.displayName,
-        clientId: widget.clientId,
-        isLocked: false
-    );
-
     try {
-      final clientService = Provider.of<ClientService>(context, listen: false);
-      await clientService.assignPackageToClient(widget.clientId, newAssignment);
+      final finalDuration = _selectedPackage!.durationDays + _offerExtraDays;
+      final finalFreeSessions = _selectedPackage!.freeSessions + _offerExtraSessions;
+
+      final endDate = _startDate.add(Duration(days: finalDuration));
+
+      final subscriptionData = {
+        'clientId': widget.client.id,
+        'clientName': widget.client.name,
+        'packageId': _selectedPackage!.id,
+        'packageName': _selectedPackage!.name,
+        'startDate': Timestamp.fromDate(_startDate),
+        'endDate': Timestamp.fromDate(endDate),
+        'price': _selectedPackage!.price,
+        'status': 'active',
+
+        'sessionsTotal': _selectedPackage!.consultationCount,
+        'sessionsRemaining': _selectedPackage!.consultationCount,
+
+        // 🎯 Save Offer Data
+        'offerExtraDays': _offerExtraDays,
+        'offerExtraSessions': _offerExtraSessions,
+
+        'freeSessionsTotal': finalFreeSessions,
+        'freeSessionsRemaining': finalFreeSessions,
+
+        'inclusions': _selectedPackage!.inclusions,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance.collection('subscriptions').add(subscriptionData);
+
+      await FirebaseFirestore.instance.collection('clients').doc(widget.client.id).update({
+        'currentPlan': _selectedPackage!.name,
+        'planExpiry': Timestamp.fromDate(endDate),
+        'clientType': 'active',
+        'freeSessionsRemaining': finalFreeSessions,
+      });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Package ${_selectedPackage!.name} assigned!')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Package Assigned Successfully!")));
+        Navigator.pop(context);
       }
-      widget.onPackageAssignment();
-      Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // --- UI Builders ---
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) setState(() => _startDate = picked);
+  }
+
+  // --- UI BUILDER ---
 
   @override
   Widget build(BuildContext context) {
+    final packageService = Provider.of<PackageService>(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      body: Stack(
-        children: [
-          // 1. Background Glow
-          Positioned(
-            top: -100,
-            right: -80,
-            child: Container(
-              width: 300, height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Colors.deepPurple.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)],
-              ),
-            ),
-          ),
+      appBar: AppBar(title: const Text("Assign Package"), backgroundColor: Colors.white, foregroundColor: Colors.black, elevation: 0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildClientSummary(),
+            const SizedBox(height: 20),
 
-          SafeArea(
-            child: Column(
-              children: [
-                // 2. Custom Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
-                          child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
+            const Text("Select Package", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 8),
+
+            StreamBuilder<List<PackageModel>>(
+              stream: packageService.streamPackages(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const LinearProgressIndicator();
+
+                final allPackages = snapshot.data!.where((p) => p.isActive).toList();
+
+                final Set<String> conditions = {'All'};
+                for (var p in allPackages) {
+                  conditions.addAll(p.targetConditions);
+                }
+
+                final filteredPackages = _selectedConditionFilter == 'All'
+                    ? allPackages
+                    : allPackages.where((p) => p.targetConditions.contains(_selectedConditionFilter)).toList();
+
+                if (_selectedPackage != null && !filteredPackages.any((p) => p.id == _selectedPackage!.id)) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) => setState(() {
+                    _selectedPackage = null;
+                    _updateExtraDays(0);
+                    _updateExtraSessions(0);
+                  }));
+                } else if (_selectedPackage != null) {
+                  try {
+                    _selectedPackage = filteredPackages.firstWhere((p) => p.id == _selectedPackage!.id);
+                  } catch (_) {}
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: conditions.map((cond) {
+                          final isSelected = _selectedConditionFilter == cond;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8.0, bottom: 8.0),
+                            child: ChoiceChip(
+                              label: Text(cond),
+                              selected: isSelected,
+                              selectedColor: Colors.indigo.shade100,
+                              labelStyle: TextStyle(
+                                  color: isSelected ? Colors.indigo : Colors.black87,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
+                              ),
+                              onSelected: (selected) {
+                                if (selected) setState(() => _selectedConditionFilter = cond);
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedPackage?.id,
+                          hint: Text("Select from ${filteredPackages.length} active plans..."),
+                          isExpanded: true,
+                          items: filteredPackages.map((pkg) => DropdownMenuItem(
+                            value: pkg.id,
+                            child: Row(
+                              children: [
+                                if(pkg.colorCode != null)
+                                  Container(width: 8, height: 8, margin: const EdgeInsets.only(right: 8), decoration: BoxDecoration(color: Color(int.parse(pkg.colorCode!)), shape: BoxShape.circle)),
+                                Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          )).toList(),
+                          onChanged: (val) {
+                            setState(() {
+                              _selectedPackage = filteredPackages.firstWhere((p) => p.id == val);
+                              _updateExtraDays(0);
+                              _updateExtraSessions(0);
+                            });
+                          },
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      const Text("Assign Package", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
-                    ],
-                  ),
-                ),
-
-                // 3. Main Form
-                Expanded(
-                  child: _buildAssignmentForm(),
-                ),
-              ],
+                    ),
+                  ],
+                );
+              },
             ),
+
+            if (_selectedPackage != null) ...[
+              _buildPackagePreview(_selectedPackage!),
+              const SizedBox(height: 20),
+              _buildOfferSection(_selectedPackage!),
+            ],
+
+            const SizedBox(height: 20),
+
+            const Text("Start Date", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: _pickDate,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: Colors.indigo, size: 20),
+                    const SizedBox(width: 12),
+                    Text(DateFormat('dd MMM yyyy').format(_startDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Spacer(),
+                    const Text("Change", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(20),
+        color: Colors.white,
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _assignPackage,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.indigo, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-        ],
+          child: _isLoading
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : const Text("CONFIRM ASSIGNMENT", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        ),
       ),
     );
   }
 
-  Widget _buildAssignmentForm() {
-    final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-
-    return FutureBuilder<List<PackageModel>>(
-      future: _packagesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-
-        final packages = snapshot.data ?? [];
-        if (packages.isEmpty) return const Center(child: Text('No active packages found.'));
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: <Widget>[
-                // --- CARD 1: PACKAGE DETAILS ---
-                _buildPremiumCard(
-                  title: "Package Details",
-                  icon: Icons.inventory_2_outlined,
-                  color: Colors.deepPurple,
-                  child: Column(
-                    children: [
-                      DropdownButtonFormField<PackageModel>(
-                        decoration: _inputDecoration("Select Package"),
-                        value: _selectedPackage,
-                        hint: const Text('Choose a service package'),
-                        isExpanded: true,
-                        items: packages.map((package) {
-                          return DropdownMenuItem(
-                            value: package,
-                            child: Text('${package.name} (${package.category.displayName})', overflow: TextOverflow.ellipsis),
-                          );
-                        }).toList(),
-                        onChanged: (PackageModel? newValue) {
-                          setState(() {
-                            _selectedPackage = newValue;
-                            _updateExpiryDate();
-                            _calculateBookedAmount();
-                          });
-                        },
-                        validator: (value) => value == null ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _diagnosisController,
-                        decoration: _inputDecoration("Diagnosis / Reason (Optional)"),
-                        maxLines: 2,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // --- CARD 2: FINANCIALS ---
-                _buildPremiumCard(
-                  title: "Pricing & Discount",
-                  icon: Icons.currency_rupee,
-                  color: Colors.green,
-                  child: Column(
-                    children: [
-                      if (_selectedPackage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text("Base Price", style: TextStyle(fontSize: 14, color: Colors.grey)),
-                              Text(currencyFormatter.format(_selectedPackage!.price), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                      TextFormField(
-                        controller: _discountController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: _inputDecoration("Discount Amount"),
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
-                        onChanged: (val) => _calculateBookedAmount(),
-                        validator: (value) {
-                          final amount = double.tryParse(value ?? '0.00') ?? 0.0;
-                          if (amount < 0) return 'Invalid';
-                          if (_selectedPackage != null && amount > _selectedPackage!.price) return 'Exceeds Price';
-                          return null;
-                        },
-                      ),
-                      const Divider(height: 30),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("Final Amount", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
-                          Text(
-                            currencyFormatter.format(_bookedAmount),
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary),
-                          ),
-                        ],
-                      )
-                    ],
-                  ),
-                ),
-
-                // --- CARD 3: DURATION ---
-                _buildPremiumCard(
-                  title: "Duration",
-                  icon: Icons.calendar_month,
-                  color: Colors.orange,
-                  child: Column(
-                    children: [
-                      _buildDateTile("Start Date", _startDate, () => _selectDate(context, true)),
-                      const SizedBox(height: 12),
-                      _buildDateTile("Expiry Date", _expiryDate, () => _selectDate(context, false), isAlert: _expiryDate.isBefore(DateTime.now())),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // Action Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _assignPackage,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 4,
-                      shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.4),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text("CONFIRM ASSIGNMENT", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
-                  ),
-                ),
-                const SizedBox(height: 30),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // --- Widget Helpers ---
-
-  Widget _buildPremiumCard({required String title, required IconData icon, required Color color, required Widget child}) {
+  // 🎯 UPDATED OFFER SECTION WITH TEXT BOXES
+  Widget _buildOfferSection(PackageModel pkg) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
-        border: Border.all(color: color.withOpacity(0.1)),
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.orange.withOpacity(0.3))
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)),
-            const SizedBox(width: 12),
-            Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-          ]),
-          const SizedBox(height: 20),
-          child,
+          Row(
+            children: [
+              const Icon(Icons.local_offer, color: Colors.orange, size: 20),
+              const SizedBox(width: 8),
+              const Text("Apply Custom Offers", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 1. Extra Days Row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Validity Extension", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text("+ $_offerExtraDays Days", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _offerExtraDays > 0 ? Colors.green : Colors.grey)),
+                  ],
+                ),
+              ),
+              // Counter with Text Field
+              _buildCounterBtn(Icons.remove, () => _updateExtraDays(_offerExtraDays - 1)),
+              const SizedBox(width: 8),
+              _buildNumberInput(_extraDaysCtrl, (v) => _updateExtraDays(v)),
+              const SizedBox(width: 8),
+              _buildCounterBtn(Icons.add, () => _updateExtraDays(_offerExtraDays + 1)),
+            ],
+          ),
+          const Divider(height: 24),
+
+          // 2. Extra Sessions Row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Bonus Sessions", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text("+ $_offerExtraSessions Sessions", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _offerExtraSessions > 0 ? Colors.green : Colors.grey)),
+                  ],
+                ),
+              ),
+              // Counter with Text Field
+              _buildCounterBtn(Icons.remove, () => _updateExtraSessions(_offerExtraSessions - 1)),
+              const SizedBox(width: 8),
+              _buildNumberInput(_extraSessionsCtrl, (v) => _updateExtraSessions(v)),
+              const SizedBox(width: 8),
+              _buildCounterBtn(Icons.add, () => _updateExtraSessions(_offerExtraSessions + 1)),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  InputDecoration _inputDecoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      filled: true,
-      fillColor: Colors.grey.shade50,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide:  BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+  // Helper for Text Box between buttons
+  Widget _buildNumberInput(TextEditingController ctrl, Function(int) onChanged) {
+    return Container(
+      width: 50,
+      height: 36,
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300)
+      ),
+      child: TextField(
+        controller: ctrl,
+        keyboardType: TextInputType.number,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.only(bottom: 12), // Center vertically
+        ),
+        onChanged: (val) {
+          final v = int.tryParse(val);
+          if (v != null) onChanged(v);
+        },
+      ),
     );
   }
 
-  Widget _buildDateTile(String label, DateTime date, VoidCallback onTap, {bool isAlert = false}) {
-    return InkWell(
+  Widget _buildCounterBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isAlert ? Colors.red.shade200 : Colors.grey.shade200),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
-            Row(
-              children: [
-                Text(DateFormat.yMMMd().format(date), style: TextStyle(fontWeight: FontWeight.bold, color: isAlert ? Colors.red : Colors.black87)),
-                const SizedBox(width: 8),
-                Icon(Icons.calendar_today, size: 16, color: isAlert ? Colors.red : Theme.of(context).colorScheme.primary),
-              ],
-            )
-          ],
-        ),
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+        child: Icon(icon, size: 16, color: Colors.black87),
       ),
     );
+  }
+
+  Widget _buildClientSummary() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.withOpacity(0.1))),
+      child: Row(
+        children: [
+          CircleAvatar(backgroundColor: Colors.indigo, child: Text(widget.client.name[0], style: const TextStyle(color: Colors.white))),
+          const SizedBox(width: 12),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.client.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text("Assigning New Plan", style: TextStyle(color: Colors.indigo.shade700, fontSize: 12)),
+          ])
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPackagePreview(PackageModel pkg) {
+    Color themeColor = Colors.indigo;
+    if (pkg.colorCode != null) themeColor = Color(int.parse(pkg.colorCode!));
+
+    final totalDays = pkg.durationDays + _offerExtraDays;
+    final totalFree = pkg.freeSessions + _offerExtraSessions;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border(left: BorderSide(color: themeColor, width: 4))
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Package Details", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontSize: 12)),
+                  if (pkg.targetConditions.isNotEmpty)
+                    Text(pkg.targetConditions.join(" • "), style: TextStyle(color: themeColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (pkg.originalPrice != null && pkg.originalPrice! > pkg.price)
+                    Text("₹${pkg.originalPrice!.toStringAsFixed(0)}", style: const TextStyle(decoration: TextDecoration.lineThrough, color: Colors.grey, fontSize: 12)),
+                  Text("₹${pkg.price.toStringAsFixed(0)}", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 18)),
+                  if (!pkg.isTaxInclusive)
+                    const Text("+ GST", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                ],
+              )
+            ],
+          ),
+          const Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildDetailItem(Icons.timer, "$totalDays Days", "Total Validity"),
+              _buildDetailItem(Icons.video_call, "${pkg.consultationCount} Calls", "Consultations"),
+              _buildDetailItem(Icons.card_giftcard, "$totalFree Free", "Total Bonus"),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text("Inclusions:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          const SizedBox(height: 8),
+          if (pkg.inclusions.isEmpty)
+            const Text("No specific inclusions listed.", style: TextStyle(color: Colors.grey, fontSize: 12))
+          else
+            Wrap(
+              spacing: 8, runSpacing: 8,
+              children: pkg.inclusions.map((inc) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
+                child: Text(inc, style: TextStyle(fontSize: 11, color: Colors.grey.shade800)),
+              )).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailItem(IconData icon, String val, String label) {
+    return Column(children: [Icon(icon, size: 20, color: Colors.indigo), const SizedBox(height: 4), Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)), Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey))]);
   }
 }

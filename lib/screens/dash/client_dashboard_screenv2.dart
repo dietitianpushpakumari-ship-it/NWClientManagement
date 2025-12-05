@@ -410,7 +410,7 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
         ),
         _buildActionCard(
           "New Package", "Assign Service", Icons.card_giftcard, Colors.deepPurple,
-              () => Navigator.push(context, MaterialPageRoute(builder: (_) => PackageAssignmentPage(clientId: _currentClient.id, clientName: _currentClient.name, onPackageAssignment: _refreshClientData))).then((_) => _refreshClientData()),
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => PackageAssignmentPage(client: _currentClient))).then((_) => _refreshClientData()),
         ),
         _buildActionCard(
           "Diet Template", "Assign Master", Icons.restaurant_menu, Theme.of(context).colorScheme.primary,

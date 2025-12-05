@@ -1,18 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-// 🎯 Project Imports
-import 'package:nutricare_client_management/modules/client/services/client_service.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
-import 'package:nutricare_client_management/modules/package/model/package_assignment_model.dart';
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
-import 'package:nutricare_client_management/screens/payment_ledger_screen.dart';
-
-enum PackageGroup { active, archived }
-
-PackageGroup getPackageGroup(PackageAssignmentModel assignment) {
-  return assignment.isActive ? PackageGroup.active : PackageGroup.archived;
-}
 
 class ClientPackageListScreen extends StatefulWidget {
   final ClientModel client;
@@ -24,304 +14,367 @@ class ClientPackageListScreen extends StatefulWidget {
 }
 
 class _ClientPackageListScreenState extends State<ClientPackageListScreen> {
-  final ClientService _clientService = ClientService();
-  bool _isArchiveExpanded = false;
-  late ClientModel _clientProfile;
 
-  @override
-  void initState() {
-    super.initState();
-    _clientProfile = widget.client;
-  }
+  // --- ACTIONS ---
 
-  // --- Actions ---
-
-  Future<void> _handleArchiveToggle(PackageAssignmentModel assignment) async {
-    final bool currentlyActive = assignment.isActive;
-    try {
-      final updatedAssignment = assignment.copyWith(
-        isActive: !currentlyActive,
-        isLocked: false,
-      );
-      await _clientService.updateAssignedPackage(
-          clientId: widget.client.id, updatedAssignment: updatedAssignment);
-
-      if (mounted) _showSnackbar('${assignment.packageName} ${currentlyActive ? 'archived' : 'activated'}.', currentlyActive ? Colors.orange : Colors.green);
-    } catch (e) {
-      if (mounted) _showSnackbar('Error: $e', Colors.red);
-    }
-  }
-
-  Future<void> _toggleLockStatus(PackageAssignmentModel assignment) async {
-    try {
-      final updatedAssignment = assignment.copyWith(isLocked: !assignment.isLocked);
-      await _clientService.updateAssignedPackage(
-          clientId: widget.client.id, updatedAssignment: updatedAssignment);
-      if (mounted) _showSnackbar('Package ${assignment.isLocked ? 'Unlocked' : 'Locked'}.', Colors.blue);
-    } catch (e) {
-      if (mounted) _showSnackbar('Error: $e', Colors.red);
-    }
-  }
-
-  Future<void> _handleDelete(PackageAssignmentModel assignment) async {
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: const Text('Permanently delete this package assignment?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+  Future<void> _deleteSubscription(String subId, String packageName, bool wasActive) async {
+    final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Delete Record?"),
+          content: Text("Are you sure you want to remove '$packageName'?\n\nThis action cannot be undone."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("Delete Forever"),
+            )
+          ],
+        )
     );
 
     if (confirm == true) {
-      try {
-        await _clientService.deleteAssignedPackage(clientId: widget.client.id, packageId: assignment.id);
-        if (mounted) _showSnackbar('Package deleted.', Colors.grey);
-      } catch (e) {
-        if (mounted) _showSnackbar('Error: $e', Colors.red);
+      await FirebaseFirestore.instance.collection('subscriptions').doc(subId).delete();
+
+      // If we deleted the active plan, clear the client profile
+      if (wasActive) {
+        await FirebaseFirestore.instance.collection('clients').doc(widget.client.id).update({
+          'currentPlan': FieldValue.delete(),
+          'planExpiry': FieldValue.delete(),
+          'clientType': 'lead', // Revert to lead
+          'freeSessionsRemaining': 0,
+        });
       }
+
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record deleted.")));
     }
   }
 
-  void _navigateToAssignPage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PackageAssignmentPage(
-          clientId: widget.client.id,
-          clientName: _clientProfile.name,
-          onPackageAssignment: () {},
-        ),
-      ),
-    ).then((_) => setState(() {}));
-  }
+  Future<void> _editSubscription(DocumentSnapshot doc) async {
+    final data = doc.data() as Map<String, dynamic>;
 
-  void _navigateToLedger(PackageAssignmentModel assignment) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PaymentLedgerScreen(
-          assignment: assignment,
-          clientName: _clientProfile.name,
-          initialCollectedAmount: 0.0, // Service will fetch actual amount
-        ),
+    // Controllers for correction
+    final sessionCtrl = TextEditingController(text: (data['sessionsRemaining'] ?? 0).toString());
+    final freeCtrl = TextEditingController(text: (data['freeSessionsRemaining'] ?? 0).toString());
+    DateTime expiryDate = (data['endDate'] as Timestamp).toDate();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Correct Record"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: sessionCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: "Sessions Remaining", border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: freeCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: "Free Sessions Remaining", border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    title: const Text("Expiry Date"),
+                    subtitle: Text(DateFormat('dd MMM yyyy').format(expiryDate)),
+                    trailing: const Icon(Icons.edit_calendar),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: expiryDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2030),
+                      );
+                      if (picked != null) setState(() => expiryDate = picked);
+                    },
+                    tileColor: Colors.grey.shade100,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  )
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+
+                    final int newSessions = int.tryParse(sessionCtrl.text) ?? 0;
+                    final int newFree = int.tryParse(freeCtrl.text) ?? 0;
+                    final bool isActive = data['status'] == 'active';
+
+                    // Update Subscription
+                    await FirebaseFirestore.instance.collection('subscriptions').doc(doc.id).update({
+                      'sessionsRemaining': newSessions,
+                      'freeSessionsRemaining': newFree,
+                      'endDate': Timestamp.fromDate(expiryDate),
+                    });
+
+                    // Sync Client Profile if active
+                    if (isActive) {
+                      await FirebaseFirestore.instance.collection('clients').doc(widget.client.id).update({
+                        'planExpiry': Timestamp.fromDate(expiryDate),
+                        'freeSessionsRemaining': newFree,
+                      });
+                    }
+
+                    if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record updated.")));
+                  },
+                  child: const Text("Save Corrections"),
+                )
+              ],
+            );
+          }
       ),
     );
   }
 
-  void _showSnackbar(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color, behavior: SnackBarBehavior.floating));
-  }
+  // --- UI BUILDER ---
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      body: Stack(
-        children: [
-          // Background Glow
-          Positioned(
-            top: -100, right: -80,
-            child: Container(
-              width: 300, height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Colors.deepPurple.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)],
-              ),
-            ),
-          ),
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Subscription History", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(widget.client.name, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle, color: Colors.indigo),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PackageAssignmentPage(client: widget.client))),
+          )
+        ],
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('subscriptions')
+            .where('clientId', isEqualTo: widget.client.id)
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
-          SafeArea(
-            child: Column(
+          final docs = snapshot.data!.docs;
+
+          if (docs.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  const Text("No packages assigned yet.", style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PackageAssignmentPage(client: widget.client))),
+                    child: const Text("Assign New Package"),
+                  )
+                ],
+              ),
+            );
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(20),
+            itemCount: docs.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (context, index) => _buildSubscriptionCard(docs[index]),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+
+    // Parse Basic Data
+    final String planName = data['packageName'] ?? 'Unknown Plan';
+    final double price = (data['price'] as num?)?.toDouble() ?? 0.0;
+    final String status = data['status'] ?? 'expired';
+    final DateTime startDate = (data['startDate'] as Timestamp).toDate();
+    final DateTime endDate = (data['endDate'] as Timestamp).toDate();
+
+    // Parse Offers
+    final int extraDays = data['offerExtraDays'] ?? 0;
+    final int extraSessions = data['offerExtraSessions'] ?? 0;
+
+    // Parse Usage
+    final int totalSessions = data['sessionsTotal'] ?? 0;
+    final int currentSessions = data['sessionsRemaining'] ?? 0;
+
+    final int totalFree = data['freeSessionsTotal'] ?? 0;
+    final int currentFree = data['freeSessionsRemaining'] ?? 0;
+
+    final List<String> inclusions = List<String>.from(data['inclusions'] ?? []);
+
+    // 🎯 SMART COLOR CODING
+    final bool isActuallyActive = status == 'active' && endDate.isAfter(DateTime.now());
+    Color statusColor;
+    String statusLabel;
+
+    if (isActuallyActive) {
+      statusColor = Colors.green;
+      statusLabel = "ACTIVE";
+    } else if (status == 'active' && endDate.isBefore(DateTime.now())) {
+      // Technically active in DB but dates passed
+      statusColor = Colors.red;
+      statusLabel = "EXPIRED";
+    } else {
+      statusColor = Colors.grey;
+      statusLabel = status.toUpperCase();
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border(left: BorderSide(color: statusColor, width: 4))
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. HEADER (Title + Actions)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Custom Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
-                          child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
-                        ),
+                      Text(planName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                            child: Text("● $statusLabel", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor)),
+                          ),
+                          const SizedBox(width: 8),
+                          Text("₹${price.toStringAsFixed(0)}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      const Text("Client Packages", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A))),
                     ],
                   ),
                 ),
+                // 🎯 ACTION MENU
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.grey),
+                  onSelected: (val) {
+                    if (val == 'edit') _editSubscription(doc);
+                    if (val == 'delete') _deleteSubscription(doc.id, planName, isActuallyActive);
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text("Correct Data")])),
+                    const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, size: 18, color: Colors.red), SizedBox(width: 8), Text("Delete Record", style: TextStyle(color: Colors.red))])),
+                  ],
+                )
+              ],
+            ),
+          ),
+          const Divider(height: 1),
 
-                // Package List
-                Expanded(
-                  child: StreamBuilder<List<PackageAssignmentModel>>(
-                    stream: _clientService.streamClientAssignments(widget.client.id),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                      final allAssignments = snapshot.data ?? [];
+          // 2. DATES & OFFERS
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildIconText(Icons.calendar_today, "${DateFormat('dd MMM').format(startDate)} - ${DateFormat('dd MMM yyyy').format(endDate)}"),
+                    if (extraDays > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.orange.shade100)),
+                        child: Text("+ $extraDays Days Added", style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontWeight: FontWeight.bold)),
+                      )
+                  ],
+                ),
+                const SizedBox(height: 12),
 
-                      final active = allAssignments.where((p) => p.isActive).toList();
-                      final archived = allAssignments.where((p) => !p.isActive).toList();
-
-                      if (allAssignments.isEmpty) return _buildEmptyState();
-
-                      return ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-                        children: [
-                          if (active.isNotEmpty) ...[
-                            _buildSectionTitle("Active Subscriptions", Colors.green),
-                            ...active.map((p) => _buildPremiumPackageCard(p)),
-                          ],
-
-                          if (archived.isNotEmpty) ...[
-                            _buildSectionTitle("Archived History", Colors.orange),
-                            if (!_isArchiveExpanded)
-                              OutlinedButton.icon(
-                                onPressed: () => setState(() => _isArchiveExpanded = true),
-                                icon: const Icon(Icons.history, size: 18),
-                                label: const Text("Show History"),
-                                style: OutlinedButton.styleFrom(foregroundColor: Colors.orange.shade700),
-                              ),
-                            if (_isArchiveExpanded)
-                              ...archived.map((p) => _buildPremiumPackageCard(p)),
-                          ],
-                        ],
-                      );
-                    },
+                // USAGE STATS
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStat("Consultations", "$currentSessions / $totalSessions", Colors.blue),
+                      Container(width: 1, height: 20, color: Colors.grey.shade300),
+                      _buildStat("Free Sessions", "$currentFree / $totalFree", Colors.green),
+                      if (extraSessions > 0) ...[
+                        Container(width: 1, height: 20, color: Colors.grey.shade300),
+                        _buildStat("Bonus Applied", "+$extraSessions", Colors.orange),
+                      ]
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _navigateToAssignPage,
-        backgroundColor: Colors.deepPurple,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("New Package", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
 
-  Widget _buildPremiumPackageCard(PackageAssignmentModel assignment) {
-    final currencyFormatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final bool isActive = assignment.isActive;
-    final bool isLocked = assignment.isLocked;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
-        border: isActive ? Border.all(color: Colors.green.withOpacity(0.3), width: 1.5) : null,
-      ),
-      child: InkWell(
-        onTap: () => _navigateToLedger(assignment),
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+          // 3. INCLUSIONS
+          if (inclusions.isNotEmpty) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: isActive ? Colors.green.shade50 : Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
-                    child: Icon(isActive ? Icons.card_membership : Icons.archive, color: isActive ? Colors.green.shade700 : Colors.orange.shade700),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(assignment.packageName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF2D3142))),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${DateFormat('MMM d, y').format(assignment.purchaseDate)} - ${DateFormat('MMM d, y').format(assignment.expiryDate)}",
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Action Menu
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Colors.grey),
-                    onSelected: (val) {
-                      if(val == 'ledger') _navigateToLedger(assignment);
-                      if(val == 'lock') _toggleLockStatus(assignment);
-                      if(val == 'archive') _handleArchiveToggle(assignment);
-                      if(val == 'delete') _handleDelete(assignment);
-                    },
-                    itemBuilder: (ctx) => [
-                      const PopupMenuItem(value: 'ledger', child: Row(children: [Icon(Icons.receipt_long, size: 18, color: Colors.blue), SizedBox(width: 10), Text("View Ledger")])),
-                      PopupMenuItem(value: 'lock', child: Row(children: [Icon(isLocked ? Icons.lock_open : Icons.lock, size: 18, color: Colors.orange), const SizedBox(width: 10), Text(isLocked ? "Unlock" : "Lock")])),
-                      PopupMenuItem(value: 'archive', child: Row(children: [Icon(isActive ? Icons.archive : Icons.unarchive, size: 18, color: Colors.grey), const SizedBox(width: 10), Text(isActive ? "Archive" : "Activate")])),
-                      const PopupMenuDivider(),
-                      const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, size: 18, color: Colors.red), SizedBox(width: 10), Text("Delete", style: TextStyle(color: Colors.red))])),
-                    ],
-                  ),
+                  const Text("Package Inclusions:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: inclusions.map((inc) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(20)),
+                      child: Text(inc, style: TextStyle(fontSize: 11, color: Colors.indigo.shade700, fontWeight: FontWeight.bold)),
+                    )).toList(),
+                  )
                 ],
               ),
-              const SizedBox(height: 12),
-              const Divider(height: 1, color: Color(0xFFF0F0F0)),
-              const SizedBox(height: 12),
-
-              // Footer Info
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildTag(assignment.category.toUpperCase(), Theme.of(context).colorScheme.primary.withOpacity(.8), Theme.of(context).colorScheme.primary.withOpacity(.1)),
-                  if(isLocked) _buildTag("LOCKED", Colors.red.shade700, Colors.red.shade50),
-                  Text(
-                    currencyFormatter.format(assignment.bookedAmount),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
-                  ),
-                ],
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTag(String label, Color text, Color bg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
-      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: text)),
-    );
-  }
-
-  Widget _buildSectionTitle(String title, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 8),
-      child: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.card_giftcard, size: 60, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text("No packages assigned.", style: TextStyle(color: Colors.grey.shade400, fontSize: 16)),
+            )
+          ]
         ],
       ),
+    );
+  }
+
+  Widget _buildIconText(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey),
+        const SizedBox(width: 8),
+        Text(text, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13)),
+      ],
+    );
+  }
+
+  Widget _buildStat(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+      ],
     );
   }
 }

@@ -1,43 +1,64 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // 🎯 Import Auth
 import 'package:nutricare_client_management/admin/admin_account_page.dart';
-import 'package:nutricare_client_management/admin/app_appearance_manager.dart';
-import 'package:nutricare_client_management/admin/feed_management_screen.dart';
+import 'package:nutricare_client_management/admin/staff_management_screen.dart';
+import 'package:nutricare_client_management/login_screen.dart'; // 🎯 Import Login Screen
+
+
 import 'package:nutricare_client_management/scheduler/content_library_screen.dart';
+
+import 'feed_management_screen.dart';
 
 class AdminMoreScreen extends StatelessWidget {
   const AdminMoreScreen({super.key});
 
+  // 🎯 LOGOUT FUNCTION
+  Future<void> _logout(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Log Out?"),
+        content: const Text("Are you sure you want to sign out?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Log Out"),
+          )
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await FirebaseAuth.instance.signOut();
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (Route<dynamic> route) => false
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE), // Premium Background
+      backgroundColor: const Color(0xFFF8F9FE),
       body: Stack(
         children: [
           // 1. Ambient Glow
           Positioned(
-            top: -100,
-            right: -100,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.indigo.withOpacity(0.1),
-                    blurRadius: 80,
-                    spreadRadius: 30,
-                  ),
-                ],
-              ),
-            ),
+            top: -100, right: -100,
+            child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)])),
           ),
 
           SafeArea(
             child: Column(
               children: [
-                // 2. Custom Glass Header
+                // 2. Header
                 _buildHeader(),
 
                 // 3. Options List
@@ -52,56 +73,21 @@ class AdminMoreScreen extends StatelessWidget {
                           children: [
                             _buildOptionTile(
                               context,
-                              "My Profile",
-                              "Manage personal details",
-                              Icons.person_outline,
-                              Colors.blue,
-                                  () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const AdminAccountPage()),
-                              ),
+                              "My Profile", "Manage personal details",
+                              Icons.person_outline, Colors.blue,
+                                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminAccountPage())),
                             ),
                             _buildDivider(),
+                            // 🎯 Staff Management Link
                             _buildOptionTile(
                               context,
-                              "Billing & Plan",
-                              "Manage subscription",
-                              Icons.credit_card,
-                              Colors.purple,
-                                  () {}, // Add navigation
+                              "Manage Team", "Staff & Roles",
+                              Icons.groups, Colors.cyan,
+                                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffManagementScreen())),
                             ),
                           ],
                         ),
 
-                        const SizedBox(height: 24),
-                        _buildSectionLabel("Content & Marketing"),
-                        _buildSectionContainer(
-                          children: [
-                            _buildOptionTile(
-                              context,
-                              "Client Feed Manager",
-                              "Manage posts, recipes & videos",
-                              Icons.rss_feed,
-                              Colors.deepOrange,
-                                  () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const FeedManagementScreen()),
-                              ),
-                            ),
-                            _buildDivider(),
-                            _buildOptionTile(
-                              context,
-                              "Knowledge Library",
-                              "Health tips database",
-                              Icons.library_books,
-                              Colors.teal,
-                                  () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const ContentLibraryScreen()),
-                              ),
-                            ),
-                          ],
-                        ),
                         const SizedBox(height: 24),
 
                         // App Settings Section
@@ -110,99 +96,44 @@ class AdminMoreScreen extends StatelessWidget {
                           children: [
                             _buildOptionTile(
                               context,
-                              "Notifications",
-                              "Customize alerts",
-                              Icons.notifications_outlined,
-                              Colors.orange,
-                                  () {},
-                            ),
-                            _buildDivider(),
-                            _buildOptionTile(
-                              context,
-                              "Privacy & Security",
-                              "Lock app & data",
-                              Icons.security,
-                              Colors.green,
-                                  () {},
-                            ),
-                            _buildDivider(),
-                            _buildOptionTile(
-                              context,
-                              "App Appearance",
-                              "Theme & Layout",
-                              Icons.palette_outlined,
-                              Colors.teal,
+                              "Content & Marketing", "Feed & Library",
+                              Icons.campaign, Colors.orange,
                                   () {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const AppAppearanceScreen()) // 🎯 Navigate here
-                                );
+                                // Example linking to feed manager from settings too
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => const FeedManagementScreen()));
                               },
                             ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        // Support Section
-                        _buildSectionLabel("Support"),
-                        _buildSectionContainer(
-                          children: [
-                            _buildOptionTile(
-                              context,
-                              "Help Center",
-                              "FAQ & Guides",
-                              Icons.help_outline,
-                              Colors.indigo,
-                                  () {},
-                            ),
                             _buildDivider(),
                             _buildOptionTile(
                               context,
-                              "Contact Us",
-                              "Get support",
-                              Icons.mail_outline,
-                              Colors.redAccent,
-                                  () {},
+                              "App Appearance", "Theme & Layout",
+                              Icons.palette_outlined, Colors.teal,
+                                  () {}, // Future: Link to AppAppearanceScreen
                             ),
                           ],
                         ),
 
                         const SizedBox(height: 40),
 
-                        // Logout Button
+                        // 🎯 LOGOUT BUTTON (WIRED UP)
                         SizedBox(
                           width: double.infinity,
                           height: 56,
                           child: ElevatedButton.icon(
-                            onPressed: () {
-                              // Implement Logout Logic
-                            },
+                            onPressed: () => _logout(context),
                             icon: const Icon(Icons.logout, color: Colors.white),
-                            label: const Text(
-                              "LOG OUT",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
-                              ),
-                            ),
+                            label: const Text("LOG OUT", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red.shade400,
                               elevation: 5,
                               shadowColor: Colors.red.withOpacity(0.4),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
                           ),
                         ),
 
                         const SizedBox(height: 20),
-                        Text(
-                          "Version 1.0.0",
-                          style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                        ),
+                        Text("Version 1.0.0", style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -223,21 +154,11 @@ class AdminMoreScreen extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.8),
-            border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1))),
-          ),
-          child: const Row(
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))),
+          child: Row(
             children: [
-              SizedBox(width: 8),
-              Text(
-                "More Options",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
+              const SizedBox(width: 8),
+              const Text("More Options", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF1A1A1A))),
             ],
           ),
         ),
@@ -248,66 +169,24 @@ class AdminMoreScreen extends StatelessWidget {
   Widget _buildSectionLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, left: 4),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey.shade500,
-            letterSpacing: 1.2,
-          ),
-        ),
-      ),
+      child: Align(alignment: Alignment.centerLeft, child: Text(label.toUpperCase(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500, letterSpacing: 1.2))),
     );
   }
 
   Widget _buildSectionContainer({required List<Widget> children}) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))]),
       child: Column(children: children),
     );
   }
 
-
-  Widget _buildOptionTile(
-      BuildContext context,
-      String title,
-      String subtitle,
-      IconData icon,
-      Color color,
-      VoidCallback onTap,
-      ) {
+  Widget _buildOptionTile(BuildContext context, String title, String subtitle, IconData icon, Color color, VoidCallback onTap) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       onTap: onTap,
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: color, size: 22),
-      ),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-      ),
+      leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 22)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87)),
+      subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
       trailing: Icon(Icons.chevron_right, size: 20, color: Colors.grey.shade300),
     );
   }

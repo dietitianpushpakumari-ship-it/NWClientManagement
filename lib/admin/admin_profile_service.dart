@@ -93,7 +93,8 @@ class AdminProfileService {
 
       if (docSnapshot.exists) {
         // 💡 ASSUMPTION: AdminProfileModel has a factory constructor `fromMap`
-        return AdminProfileModel.fromMap(docSnapshot.data()!);
+     //   return AdminProfileModel.fromMap(docSnapshot.data()!);
+        return AdminProfileModel.fromDocument(docSnapshot);
       }
       return null;
     } catch (e) {

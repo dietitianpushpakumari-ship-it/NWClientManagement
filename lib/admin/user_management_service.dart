@@ -72,7 +72,7 @@ class UserManagementService {
             email: superAdminEmail,
             firstName: 'Super',
             lastName: 'Admin',
-            role: UserRole.superAdmin,
+            role: AdminRole.superAdmin,
             createdAt: now,
             updatedAt: now,
             createdBy: 'system',
@@ -80,7 +80,7 @@ class UserManagementService {
             companyName: '',
             designation: '',
             mobile: '',
-            address: '',
+            address: '', employeeId: '',
           );
           await _firestore.collection(_adminCollection).doc(user.uid).set(superAdminProfile.toMap());
 
@@ -145,7 +145,7 @@ class UserManagementService {
     required String password,
     required String firstName,
     required String lastName,
-    required UserRole role,
+    required AdminRole role,
     required String creatorUid,
   }) async {
     final userCredential = await _auth.createUserWithEmailAndPassword(
@@ -162,7 +162,7 @@ class UserManagementService {
       companyName: '',
       designation: '',
       mobile: '',
-      address: '',
+      address: '', gender: '', employeeId: '',
     );
     await _firestore.collection(_adminCollection).doc(newUser.uid).set(adminProfile.toMap());
 

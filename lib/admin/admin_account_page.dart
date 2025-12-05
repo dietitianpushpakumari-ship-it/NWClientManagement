@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
 import 'package:nutricare_client_management/admin/admin_profile_service.dart';
+import 'package:nutricare_client_management/admin/dietitian_profile_detail_screen.dart';
 
 class AdminAccountPage extends StatefulWidget {
   const AdminAccountPage({super.key});
@@ -270,6 +271,18 @@ class __ProfileDetailsTabState extends State<_ProfileDetailsTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            IconButton(
+              icon: const Icon(Icons.visibility),
+              tooltip: "View Public Profile",
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DietitianProfileDetailScreen(profile: widget.profile),
+                  ),
+                );
+              },
+            ),
             Center(
               child: Column(
                 children: [
