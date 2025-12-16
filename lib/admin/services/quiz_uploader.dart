@@ -1,9 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/admin/quiz_bank_data.dart';
 import 'package:nutricare_client_management/admin/quiz_model.dart';
 
 class QuizUploader {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  QuizUploader(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+
 
   Future<void> uploadQuizBank() async {
     final collection = _firestore.collection('quiz_bank');

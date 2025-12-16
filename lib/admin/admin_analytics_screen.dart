@@ -1,21 +1,21 @@
 import 'dart:ui';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/admin_analytics_service.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/screens/dash/client_dashboard_screenv2.dart';
 import 'package:nutricare_client_management/modules/client/services/client_service.dart'; // To fetch full client model for navigation
 
-class AdminAnalyticsScreen extends StatefulWidget {
+class AdminAnalyticsScreen extends ConsumerStatefulWidget {
   const AdminAnalyticsScreen({super.key});
 
   @override
-  State<AdminAnalyticsScreen> createState() => _AdminAnalyticsScreenState();
+  ConsumerState<AdminAnalyticsScreen> createState() => _AdminAnalyticsScreenState();
 }
 
-class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> with SingleTickerProviderStateMixin {
+class _AdminAnalyticsScreenState extends ConsumerState<AdminAnalyticsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final AdminAnalyticsService _service = AdminAnalyticsService();
-  final ClientService _clientService = ClientService();
 
   String _timeFilter = 'This Month';
 
@@ -27,7 +27,8 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> with Single
 
   // --- ACTIONS ---
   void _navigateToClient(String clientId) async {
-    final client = await _clientService.getClientById(clientId);
+    final clientService = ref.read(clientServiceProvider);
+    final client = await clientService.getClientById(clientId);
     if (mounted) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => ClientDashboardScreen(client: client)));
     }
@@ -81,6 +82,7 @@ class _AdminAnalyticsScreenState extends State<AdminAnalyticsScreen> with Single
   // 🏥 TAB 1: CLINICAL INSIGHTS
   // =================================================================
   Widget _buildClinicalTab() {
+    final _service = ref.watch(adminAnalyticsServiceProvider);
     return FutureBuilder(
         future: Future.wait([
           _service.fetchAverageWeightVelocity(),

@@ -1,13 +1,20 @@
 // lib/services/guideline_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:nutricare_client_management/modules/master/model/guidelines.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/guidelines.dart';
 
 /// Service class for managing Guideline master data in Firestore.
 class GuidelineService {
-  final CollectionReference _collection =
-  FirebaseFirestore.instance.collection('guidelines');
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  GuidelineService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _collection => _firestore.collection('guidelines');
 
   // --- READ ---
   /// Provides a stream of all *active* guidelines, ordered by title.

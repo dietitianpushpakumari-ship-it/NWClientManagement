@@ -1,9 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/admin/feed_content_model.dart';
 
 
 class FeedService {
-  final CollectionReference _feedCollection = FirebaseFirestore.instance.collection('client_feed');
+  Ref ref;
+
+  FeedService(this.ref);
+  FirebaseFirestore get _firestore => ref.read(firestoreProvider);
+
+  CollectionReference get _feedCollection => _firestore.collection('client_feed');
 
   // --- READ (Admin Stream) ---
   Stream<List<FeedContentModel>> streamAllFeeds() {

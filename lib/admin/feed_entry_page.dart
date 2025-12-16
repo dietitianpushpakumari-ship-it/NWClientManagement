@@ -1,20 +1,22 @@
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:nutricare_client_management/admin/feed_content_model.dart';
 import 'package:nutricare_client_management/admin/feed_service.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/recipe_builder_sheet.dart';
 
-class FeedEntryPage extends StatefulWidget {
+class FeedEntryPage extends ConsumerStatefulWidget {
   final FeedContentModel? itemToEdit;
   const FeedEntryPage({super.key, this.itemToEdit});
   @override
-  State<FeedEntryPage> createState() => _FeedEntryPageState();
+  ConsumerState<FeedEntryPage> createState() => _FeedEntryPageState();
 }
 
-class _FeedEntryPageState extends State<FeedEntryPage> {
+class _FeedEntryPageState extends ConsumerState<FeedEntryPage> {
   final _formKey = GlobalKey<FormState>();
 
   // Controllers
@@ -107,7 +109,7 @@ class _FeedEntryPageState extends State<FeedEntryPage> {
       createdAt: widget.itemToEdit?.createdAt ?? DateTime.now(),
     );
 
-    await FeedService().saveFeedItem(item);
+    await ref.read(feedServiceProvider).saveFeedItem(item);
     if (mounted) Navigator.pop(context);
   }
 

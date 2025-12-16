@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/scheduler/content_scheduler_model.dart';
 import 'package:nutricare_client_management/scheduler/content_scheduler_service.dart';
@@ -7,17 +9,17 @@ import 'package:nutricare_client_management/scheduler/disease_tag.dart';
 
 // Assuming this path
 
-class ClientContentSchedulerTab extends StatefulWidget {
+class ClientContentSchedulerTab extends ConsumerStatefulWidget {
   final ClientModel client;
 
   const ClientContentSchedulerTab({super.key, required this.client});
 
   @override
-  State<ClientContentSchedulerTab> createState() => _ClientContentSchedulerTabState();
+  ConsumerState<ClientContentSchedulerTab> createState() => _ClientContentSchedulerTabState();
 }
 
-class _ClientContentSchedulerTabState extends State<ClientContentSchedulerTab> {
-  final ContentSchedulerService _schedulerService = ContentSchedulerService();
+class _ClientContentSchedulerTabState extends ConsumerState<ClientContentSchedulerTab> {
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   // Form State
@@ -73,7 +75,7 @@ class _ClientContentSchedulerTabState extends State<ClientContentSchedulerTab> {
         lastSentDate: DateTime.now().subtract(const Duration(days: 365)), // Set far in the past to ensure first send is on time
       );
 
-      await _schedulerService.saveScheduler(newScheduler);
+      await ref.read(contentSchedulerServiceProvider).saveScheduler(newScheduler);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Content Schedule created successfully!')));
@@ -109,7 +111,7 @@ class _ClientContentSchedulerTabState extends State<ClientContentSchedulerTab> {
 
     if (confirm == true) {
       try {
-        await _schedulerService.deleteScheduler(id);
+        await ref.read(contentSchedulerServiceProvider).deleteScheduler(id);
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Schedule deleted!')));
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting schedule: $e')));
@@ -182,7 +184,7 @@ class _ClientContentSchedulerTabState extends State<ClientContentSchedulerTab> {
 
   Widget _buildActiveSchedules() {
     return StreamBuilder<List<ContentSchedulerModel>>(
-      stream: _schedulerService.streamClientSchedulers(widget.client.id),
+      stream: ref.watch(contentSchedulerServiceProvider).streamClientSchedulers(widget.client.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

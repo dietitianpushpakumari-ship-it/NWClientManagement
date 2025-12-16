@@ -1,12 +1,28 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 
 import '../chat_message_model.dart';
 
+
+final adminChatServiceProvider = Provider<AdminChatService>((ref) {
+  // This watches the dynamic database provider we created earlier
+  final firestore = ref.watch(firestoreProvider);
+  return AdminChatService(firestore);
+});
 class AdminChatService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseFirestore _firestore;
+  late final FirebaseStorage _storage;
+
+
+  AdminChatService(this._firestore) {
+    // Ensure Storage uses the same App/Project as Firestore
+    _storage = FirebaseStorage.instanceFor(app: _firestore.app);
+  }
+
+  // 1️⃣ DEFINE THE PROVIDER
 
   // =================================================================
   // 🎯 1. CLIENT LIST STREAMS
@@ -178,19 +194,6 @@ class AdminChatService {
   Future<void> rejectRequest(String requestId, String reason) async {
     try {
       // TODO: Add your actual database or API logic here
-
-      // Example for Firestore:
-      // await FirebaseFirestore.instance.collection('requests').doc(requestId).update({
-      //   'status': 'rejected',
-      //   'rejection_reason': reason,
-      //   'updated_at': DateTime.now(),
-      // });
-
-      // Example for API/HTTP:
-      // await http.post(
-      //   Uri.parse('https://your-api.com/reject'),
-      //   body: {'id': requestId, 'reason': reason},
-      // );
 
       print("Request $requestId rejected because: $reason");
 

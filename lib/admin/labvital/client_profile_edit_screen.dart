@@ -2,24 +2,26 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-class ClientProfileEditScreen extends StatefulWidget {
+class ClientProfileEditScreen extends ConsumerStatefulWidget {
   final ClientModel client;
 
   const ClientProfileEditScreen({super.key, required this.client});
 
   @override
-  State<ClientProfileEditScreen> createState() => _ClientProfileEditScreenState();
+  ConsumerState<ClientProfileEditScreen> createState() => _ClientProfileEditScreenState();
 }
 
-class _ClientProfileEditScreenState extends State<ClientProfileEditScreen> {
+class _ClientProfileEditScreenState extends ConsumerState<ClientProfileEditScreen> {
   final _formKey = GlobalKey<FormState>();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore => ref.read(firestoreProvider);
   final ImagePicker _picker = ImagePicker();
 
   late TextEditingController _nameCtrl;

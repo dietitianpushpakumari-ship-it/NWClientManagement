@@ -1,4 +1,174 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/ai_translation_service.dart';
+import 'package:nutricare_client_management/core/localization/language_config.dart';
+
+// --- NEW COMPONENT: Dedicated Dialog for Editing/Adding with Translations ---
+
+class _MasterEntryDialog<T> extends ConsumerStatefulWidget {
+  final String itemLabel;
+  final T? itemToEdit;
+  final String Function(T) getName;
+  final Future<void> Function(String name, Map<String, String> localizedNames) onAdd;
+  final Future<void> Function(T item, String newName, Map<String, String> localizedNames) onEdit;
+
+  const _MasterEntryDialog({
+    required this.itemLabel,
+    this.itemToEdit,
+    required this.getName,
+    required this.onAdd,
+    required this.onEdit,
+  });
+
+  @override
+  ConsumerState<_MasterEntryDialog<T>> createState() => _MasterEntryDialogState<T>();
+}
+
+class _MasterEntryDialogState<T> extends ConsumerState<_MasterEntryDialog<T>> {
+  final TextEditingController _enNameController = TextEditingController();
+  final Map<String, TextEditingController> _localizedControllers = {};
+  final AiTranslationService _translationService = AiTranslationService();
+  final _formKey = GlobalKey<FormState>();
+
+  bool _isSaving = false;
+  bool _isTranslating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize localized controllers
+    for (var code in supportedLanguageCodes) {
+      if (code != 'en') _localizedControllers[code] = TextEditingController();
+    }
+
+    if (widget.itemToEdit != null) {
+      final item = widget.itemToEdit as dynamic; // Use dynamic to access name properties
+      _enNameController.text = widget.getName(widget.itemToEdit as T);
+
+      // Pre-fill existing translations (assuming the master model has a `nameLocalized` map)
+      final existingLocalized = item.nameLocalized ?? {};
+      existingLocalized.forEach((code, name) {
+        if (_localizedControllers.containsKey(code)) {
+          _localizedControllers[code]!.text = name;
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _enNameController.dispose();
+    _localizedControllers.values.forEach((c) => c.dispose());
+    super.dispose();
+  }
+
+  Future<void> _performAutoTranslation() async {
+    final text = _enNameController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() => _isTranslating = true);
+    try {
+      final translations = await _translationService.translateContent(text);
+      translations.forEach((code, translatedText) {
+        if (_localizedControllers.containsKey(code)) {
+          _localizedControllers[code]!.text = translatedText;
+        }
+      });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✨ Translation Complete!"), duration: Duration(milliseconds: 1000)));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Translation Failed: $e")));
+    } finally {
+      if (mounted) setState(() => _isTranslating = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSaving = true);
+
+    final String name = _enNameController.text.trim();
+    final Map<String, String> localizedNames = {
+      for (var entry in _localizedControllers.entries)
+        if (entry.value.text.trim().isNotEmpty) entry.key: entry.value.text.trim()
+    };
+
+    try {
+      if (widget.itemToEdit != null) {
+        await widget.onEdit(widget.itemToEdit as T, name, localizedNames);
+      } else {
+        await widget.onAdd(name, localizedNames);
+      }
+      if (mounted) Navigator.pop(context); // Success: Close dialog
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Save Error: $e"), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.itemToEdit != null;
+    return AlertDialog(
+      title: Text(isEdit ? "Edit ${widget.itemLabel}" : "Add New ${widget.itemLabel}"),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. English Input + Translate
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _enNameController,
+                      autofocus: true,
+                      decoration: InputDecoration(labelText: "${widget.itemLabel} Name (English)", border: const OutlineInputBorder()),
+                      validator: (v) => v!.trim().isEmpty ? "Required" : null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: _isTranslating ? null : _performAutoTranslation,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      height: 56, width: 56,
+                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.withOpacity(0.2))),
+                      child: _isTranslating
+                          ? const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+                          : const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.translate, color: Colors.indigo, size: 20), Text("Auto", style: TextStyle(fontSize: 9, color: Colors.indigo, fontWeight: FontWeight.bold))]),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 2. Localized Inputs
+              ...supportedLanguageCodes.where((c) => c != 'en').map((code) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TextFormField(
+                  controller: _localizedControllers[code],
+                  decoration: InputDecoration(labelText: "${widget.itemLabel} in ${supportedLanguages[code]}"),
+                ),
+              )).toList(),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: const Text("Cancel")),
+        ElevatedButton(
+          onPressed: _isSaving ? null : _save,
+          child: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(isEdit ? "Save Changes" : "Add"),
+        ),
+      ],
+    );
+  }
+}
+
+// --- MASTER SELECT SHEET (Parent) ---
 
 /// A reusable premium sheet for multi-selecting items from a master list.
 /// Supports Add, Edit, Delete, Search, and Multi-select.
@@ -13,9 +183,9 @@ class PremiumMasterSelectSheet<T> extends StatefulWidget {
   final String Function(T) getName;
   final String Function(T) getId;
 
-  // Actions
-  final Future<void> Function(String name) onAdd;
-  final Future<void> Function(T item, String newName) onEdit;
+  // Actions (Updated to accept localized names map)
+  final Future<void> Function(String name, Map<String, String> localizedNames) onAdd;
+  final Future<void> Function(T item, String newName, Map<String, String> localizedNames) onEdit;
   final Future<void> Function(T item) onDelete;
 
   // Initial State
@@ -50,40 +220,22 @@ class _PremiumMasterSelectSheetState<T> extends State<PremiumMasterSelectSheet<T
   }
 
   void _showAddEditDialog({T? item}) {
-    final isEdit = item != null;
-    final textCtrl = TextEditingController(text: isEdit ? widget.getName(item) : _searchCtrl.text);
-
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isEdit ? "Edit ${widget.itemLabel}" : "Add New ${widget.itemLabel}"),
-        content: TextField(
-          controller: textCtrl,
-          autofocus: true,
-          decoration: InputDecoration(
-            labelText: "${widget.itemLabel} Name",
-            border: const OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-              if (textCtrl.text.trim().isNotEmpty) {
-                if (isEdit) {
-                  await widget.onEdit(item, textCtrl.text.trim());
-                } else {
-                  await widget.onAdd(textCtrl.text.trim());
-                  // Auto-select logic could go here if we could resolve the new ID easily
-                }
-                if (mounted) Navigator.pop(ctx);
-              }
-            },
-            child: const Text("Save"),
-          ),
-        ],
+      builder: (ctx) => _MasterEntryDialog<T>(
+        itemLabel: widget.itemLabel,
+        itemToEdit: item,
+        getName: widget.getName,
+        onAdd: widget.onAdd,
+        onEdit: widget.onEdit,
       ),
-    );
+    ).then((_) {
+      // Clear search after add/edit to ensure the new item appears
+      if (_searchCtrl.text.isNotEmpty) {
+        _searchCtrl.clear();
+        setState(() => _query = "");
+      }
+    });
   }
 
   void _confirmDelete(T item) {
@@ -125,8 +277,9 @@ class _PremiumMasterSelectSheetState<T> extends State<PremiumMasterSelectSheet<T
               children: [
                 Text(widget.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 IconButton(
+                  // Pass back the final list of selected IDs
                   icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, _selectedIds.toList()),
                 ),
               ],
             ),

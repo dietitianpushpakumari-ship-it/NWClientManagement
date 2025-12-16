@@ -1,10 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/patient_service.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 
-class ClientPersonalInformationForm extends StatefulWidget {
+import 'database_provider.dart';
+
+class ClientPersonalInformationForm extends ConsumerStatefulWidget {
   final Function(ClientModel) onProfileSaved;
   final ClientModel? initialProfile;
 
@@ -15,13 +19,12 @@ class ClientPersonalInformationForm extends StatefulWidget {
   });
 
   @override
-  State<ClientPersonalInformationForm> createState() => _ClientPersonalInformationFormState();
+  ConsumerState<ClientPersonalInformationForm> createState() => _ClientPersonalInformationFormState();
 }
 
-class _ClientPersonalInformationFormState extends State<ClientPersonalInformationForm> {
+class _ClientPersonalInformationFormState extends ConsumerState<ClientPersonalInformationForm> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final PatientIdService _patientIdService = PatientIdService();
+  FirebaseFirestore get _firestore => ref.read(firestoreProvider);
 
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _mobileCtrl = TextEditingController();
@@ -54,7 +57,7 @@ class _ClientPersonalInformationFormState extends State<ClientPersonalInformatio
     setState(() => _isSaving = true);
 
     try {
-      String patientId = _isEditing ? widget.initialProfile!.patientId! : await _patientIdService.getNextPatientId();
+      String patientId = _isEditing ? widget.initialProfile!.patientId! : await ref.read(patientIdServiceProvider).getNextPatientId();
       String profileId = _isEditing ? widget.initialProfile!.id : "";
 
       final data = {

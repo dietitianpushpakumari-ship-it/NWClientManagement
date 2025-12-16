@@ -1,19 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// 🎯 FIX: Added 'contentManager' to the Enum
 enum AdminRole {
-  superAdmin,
-  dietitian,
+  superAdmin,    // 👑 YOU (Global Access)
+  clinicAdmin,   // 🏥 CLINIC OWNER (Full Access to ONE Clinic)
+  dietitian,     // 🩺 STAFF
   receptionist,
   support,
   contentManager
 }
 
 class AdminProfileModel {
+  // ... (Keep all existing fields like id, email, firstName etc.) ...
   final String id;
   final String email;
-
-  // --- Identity ---
   final String firstName;
   final String lastName;
   final String mobile;
@@ -21,35 +20,23 @@ class AdminProfileModel {
   final String photoUrl;
   final String gender;
   final DateTime? dob;
-
-  // --- KYC & Legal ---
   final String? aadharNumber;
   final String? panNumber;
   final String? address;
-
-  // --- Employment ---
   final String employeeId;
   final AdminRole role;
   final bool isActive;
   final DateTime? dateOfJoining;
-
-  // 🎯 NEW: Permissions List for granular access
   final List<String> permissions;
-
-  // --- Professional ---
   final String designation;
   final String regdNo;
   final List<String> qualifications;
   final List<String> specializations;
   final String bio;
   final int experienceYears;
-
-  // --- Company ---
   final String companyName;
   final String companyEmail;
   final String website;
-
-  // --- Auditing ---
   final bool isDeleted;
   final Timestamp createdAt;
   final Timestamp updatedAt;
@@ -66,28 +53,23 @@ class AdminProfileModel {
     this.photoUrl = '',
     this.gender = 'Female',
     this.dob,
-
     this.aadharNumber,
     this.panNumber,
     this.address,
-
     required this.employeeId,
     required this.role,
     this.isActive = true,
     this.dateOfJoining,
-    this.permissions = const [], // 🎯 Default empty
-
+    this.permissions = const [],
     required this.designation,
     this.regdNo = '',
     this.qualifications = const [],
     this.specializations = const [],
     this.bio = '',
     this.experienceYears = 0,
-
     this.companyName = '',
     this.companyEmail = '',
     this.website = '',
-
     this.isDeleted = false,
     required this.createdAt,
     required this.updatedAt,
@@ -107,32 +89,26 @@ class AdminProfileModel {
       photoUrl: data['photoUrl'] ?? '',
       gender: data['gender'] ?? 'Female',
       dob: (data['dob'] as Timestamp?)?.toDate(),
-
       aadharNumber: data['aadharNumber'],
       panNumber: data['panNumber'],
       address: data['address'],
-
       employeeId: data['employeeId'] ?? '',
-      // 🎯 Robust Enum Parsing
-      role: AdminRole.values.firstWhere(
-              (e) => e.name == (data['role'] ?? 'dietitian'),
-          orElse: () => AdminRole.dietitian
-      ),
+
+      // 🎯 PARSE ROLE CORRECTLY
+      role: _parseRole(data['role']),
+
       isActive: data['isActive'] ?? true,
       dateOfJoining: (data['dateOfJoining'] as Timestamp?)?.toDate(),
-      permissions: List<String>.from(data['permissions'] ?? []), // 🎯 Load Permissions
-
+      permissions: List<String>.from(data['permissions'] ?? []),
       designation: data['designation'] ?? '',
       regdNo: data['regdNo'] ?? '',
       qualifications: List<String>.from(data['qualifications'] ?? []),
       specializations: List<String>.from(data['specializations'] ?? []),
       bio: data['bio'] ?? '',
       experienceYears: (data['experienceYears'] as num?)?.toInt() ?? 0,
-
       companyName: data['companyName'] ?? '',
       companyEmail: data['companyEmail'] ?? '',
       website: data['website'] ?? '',
-
       isDeleted: data['isDeleted'] ?? false,
       createdAt: data['createdAt'] ?? Timestamp.now(),
       updatedAt: data['updatedAt'] ?? Timestamp.now(),
@@ -141,6 +117,45 @@ class AdminProfileModel {
     );
   }
 
+  // 🎯 STRICT ROLE PARSING
+  static AdminRole _parseRole(dynamic roleData) {
+    if (roleData == null) return AdminRole.dietitian;
+    final String roleString = roleData.toString().trim();
+
+    // 1. Super Admin (Only explicitly 'superAdmin')
+    if (roleString == 'superAdmin' || roleString == 'super_admin') {
+      return AdminRole.superAdmin;
+    }
+
+    // 2. Clinic Admin (Previously 'owner', 'admin')
+    if (roleString == 'owner' || roleString == 'admin' || roleString == 'clinicAdmin' || roleString == 'clinic_admin') {
+      return AdminRole.clinicAdmin;
+    }
+
+    // 3. Default Mapping
+    return AdminRole.values.firstWhere(
+          (e) => e.name == roleString,
+      orElse: () => AdminRole.dietitian,
+    );
+  }
+
+  // 🎯 SMART PERMISSIONS
+  bool hasAccess(String permission) {
+    // Super Admin has infinite access
+    if (role == AdminRole.superAdmin) return true;
+
+    // Clinic Admin has access to almost everything EXCEPT global tenant management
+    if (role == AdminRole.clinicAdmin) {
+      // Deny specific Super Admin actions explicitly if checked via permission string
+      if (permission == 'manage_tenants' || permission == 'db_migration') return false;
+      return true;
+    }
+
+    // Others rely on specific permission flags
+    return permissions.contains(permission);
+  }
+
+  // ... (Rest of toMap, copyWith, etc. - ensure role: role.name is used in toMap) ...
   Map<String, dynamic> toMap() {
     return {
       'email': email,
@@ -151,28 +166,23 @@ class AdminProfileModel {
       'photoUrl': photoUrl,
       'gender': gender,
       'dob': dob != null ? Timestamp.fromDate(dob!) : null,
-
       'aadharNumber': aadharNumber,
       'panNumber': panNumber,
       'address': address,
-
       'employeeId': employeeId,
-      'role': role.name, // 🎯 Save Enum as String
+      'role': role.name, // 🎯 Saves 'clinicAdmin' or 'superAdmin'
       'isActive': isActive,
       'dateOfJoining': dateOfJoining != null ? Timestamp.fromDate(dateOfJoining!) : null,
-      'permissions': permissions, // 🎯 Save Permissions
-
+      'permissions': permissions,
       'designation': designation,
       'regdNo': regdNo,
       'qualifications': qualifications,
       'specializations': specializations,
       'bio': bio,
       'experienceYears': experienceYears,
-
       'companyName': companyName,
       'companyEmail': companyEmail,
       'website': website,
-
       'isDeleted': isDeleted,
       'createdAt': createdAt,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -181,46 +191,7 @@ class AdminProfileModel {
     };
   }
 
-  factory AdminProfileModel.fromMap(Map<String, dynamic> data) {
-    return AdminProfileModel(
-      id: data['id'] ?? '',
-      email: data['email'] ?? '',
-
-      role: AdminRole.values.firstWhere(
-              (e) => e.name == (data['role'] ?? 'dietitian'),
-          orElse: () => AdminRole.dietitian
-      ),
-
-      firstName: data['firstName'] ?? '',
-      lastName: data['lastName'] ?? '',
-      mobile: data['mobile'] ?? '',
-      alternateMobile: data['alternateMobile'] ?? '',
-      photoUrl: data['photoUrl'] ?? '',
-
-      designation: data['designation'] ?? '',
-      qualifications: List<String>.from(data['qualifications'] ?? []) ,
-      regdNo: data['regdNo'] ?? '',
-      specializations: List<String>.from(data['specializations'] ?? []),
-      permissions:List<String>.from(data['permissions'] ?? []),
-      bio: data['bio'] ?? '',
-      experienceYears: (data['experienceYears'] as num?)?.toInt() ?? 0,
-
-      companyName: data['companyName'] ?? '',
-      companyEmail: data['companyEmail'] ?? '',
-      website: data['website'] ?? '',
-      address: data['address'] ?? '',
-
-      employeeId: data['employeeId'] ?? '',
-      dateOfJoining: (data['dateOfJoining'] as Timestamp?)?.toDate(),
-      isActive: data['isActive'] ?? true,
-
-      isDeleted: data['isDeleted'] ?? false,
-      createdAt: data['createdAt'] is Timestamp ? data['createdAt'] : Timestamp.now(),
-      updatedAt: data['updatedAt'] is Timestamp ? data['updatedAt'] : Timestamp.now(),
-      createdBy: data['createdBy'] ?? 'system',
-      lastModifiedBy: data['lastModifiedBy'] ?? 'system',
-    );
-  }
+  // Add copyWith...
   AdminProfileModel copyWith({
     String? id,
     String? email,
@@ -290,56 +261,4 @@ class AdminProfileModel {
   }
 
   String get fullName => "$firstName $lastName";
-
-  // 🎯 Access Helper
-  bool hasAccess(String permission) {
-    if (role == AdminRole.superAdmin) return true;
-    // Check role-specific defaults
-    if (role == AdminRole.contentManager && permission == 'manage_content') return true;
-    // Check specific assigned permissions
-    return permissions.contains(permission);
-  }
-
-  factory AdminProfileModel.fromDocument(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-
-    return AdminProfileModel(
-      id: doc.id, // <--- FIX: Gets the actual document ID (e.g., 'admin_xyz')
-      email: data['email'] ?? '',
-
-      role: AdminRole.values.firstWhere(
-              (e) => e.name == (data['role'] ?? 'dietitian'),
-          orElse: () => AdminRole.dietitian
-      ),
-
-      firstName: data['firstName'] ?? '',
-      lastName: data['lastName'] ?? '',
-      mobile: data['mobile'] ?? '',
-      alternateMobile: data['alternateMobile'] ?? '',
-      photoUrl: data['photoUrl'] ?? '',
-
-      designation: data['designation'] ?? '',
-      qualifications: List<String>.from(data['qualifications'] ?? []) ,
-      regdNo: data['regdNo'] ?? '',
-      specializations: List<String>.from(data['specializations'] ?? []),
-      permissions:List<String>.from(data['permissions'] ?? []),
-      bio: data['bio'] ?? '',
-      experienceYears: (data['experienceYears'] as num?)?.toInt() ?? 0,
-
-      companyName: data['companyName'] ?? '',
-      companyEmail: data['companyEmail'] ?? '',
-      website: data['website'] ?? '',
-      address: data['address'] ?? '',
-
-      employeeId: data['employeeId'] ?? '',
-      dateOfJoining: (data['dateOfJoining'] as Timestamp?)?.toDate(),
-      isActive: data['isActive'] ?? true,
-
-      isDeleted: data['isDeleted'] ?? false,
-      createdAt: data['createdAt'] is Timestamp ? data['createdAt'] : Timestamp.now(),
-      updatedAt: data['updatedAt'] is Timestamp ? data['updatedAt'] : Timestamp.now(),
-      createdBy: data['createdBy'] ?? 'system',
-      lastModifiedBy: data['lastModifiedBy'] ?? 'system',
-    );
-  }
 }

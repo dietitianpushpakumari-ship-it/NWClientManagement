@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import '../../../models/assigned_package_data.dart';
 import '../../client/model/client_model.dart';
 import '../model/package_assignment_model.dart';
@@ -10,83 +12,22 @@ import '../model/payment_model.dart';
 
 // Ensure your logger is correctly initialized elsewhere or use a simple print statement
 final Logger _logger = Logger(/* ... */);
-final FirebaseFirestore _db = FirebaseFirestore.instance;
-final String _assignmentCollectionName = 'packageAssignments';
-final String _paymentCollectionName = 'payments';
 
 
-final CollectionReference _clientCollection = FirebaseFirestore.instance.collection('clients');
-CollectionReference _assignmentCollection(String clientId) =>
-    _clientCollection.doc(clientId).collection(_assignmentCollectionName);
-
-///clients/0fVnqxUPFeGswQKv7z8i/packageAssignments/Ipwq6XmWaxlzqfDig8Du
-CollectionReference _paymentCollection(String clientId, String assignmentId) {
-  final path = '${_clientCollection.path}/$clientId/${_assignmentCollectionName}/$assignmentId';
-
-  // 🎯 LOGGING ADDED HERE: Now you can see the exact path being queried.
-  if (kDebugMode) {
-    _logger.i('Payment Collection Path: $path');
-  }
-  _paymentCollectionPath(clientId,assignmentId);
-  final assignmentDocRef = _assignmentCollection(clientId).doc(assignmentId);
-  return assignmentDocRef.collection(assignmentId);
-  //return _assignmentCollection(clientId).doc('payments').collection(assignmentId);
-
-
-
-
-  //final assignmentDocRef = _assignmentCollection(clientId).doc(assignmentId);
-
-  // 2. Return the subcollection reference for payments
-
-
-}
-
-// The correct helper function for the nested payments collection
-CollectionReference _paymentCollectionPath(String clientId, String assignmentId) {
-  final paymentCollectionRef = _assignmentCollection(clientId);
-    //  .doc(assignmentId)
-    //  .collection(_paymentCollectionName);
-
-  if (kDebugMode) {
-    _logger.i('Full Payment Collection Path: ${paymentCollectionRef.path}');
-  }
-  return paymentCollectionRef;
-}
-
-/*CollectionReference _paymentCollectionPath(String clientId, String assignmentId) {
-  // 1. Build the document reference for the assignment
-  final assignmentDocRef = _assignmentCollection(clientId).doc(assignmentId);
-
-  // 2. Add the subcollection reference for payments
-  final paymentCollectionRef = assignmentDocRef.collection(_paymentCollectionName);
-
-  if (kDebugMode) {
-    // 🎯 CHECK 1: Explicitly log the subcollection name to ensure it is 'payments'.
-    _logger.i('Payment Subcollection Name: $_paymentCollectionName');
-
-    // 🎯 CHECK 2: Log the .path property of the final COLLECTION REFERENCE.
-    _logger.i('Full Payment Collection Path: ${paymentCollectionRef.path}');
-  }
-
-  return paymentCollectionRef;
-} */
-final CollectionReference _paymentCollectionv2 = FirebaseFirestore.instance.collection('payments');
 
 class PackagePaymentService {
 
-  /*Future<void> addPayment(PaymentModel payment, {
-    required String clientId,
-    required String assignmentId,
-  }) async {
-    try {
-      // 🎯 CORRECT CALL: Call the function with parameters to get the CollectionReference
-      await _paymentCollection(clientId, assignmentId).add(payment.toMap());
-    } catch (e) {
-      _logger.e('Failed to record payment: $e');
-      throw Exception('Failed to record payment.');
-    }
-  }*/
+  final Ref _ref; // Store Ref to access dynamic providers
+  PackagePaymentService(this._ref);
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference _assignmentCollection(String clientId) =>
+      _firestore.collection('packageAssignments');
+  CollectionReference get _paymentCollectionv2 => _firestore.collection('payments');
+
+  CollectionReference get _clientCollection => _firestore.collection('clients');
+
+  // FirebaseFirestore  get _db => _firestore;
+
 
   Future<void> addPayment(PaymentModel payment) async {
     try {
@@ -96,10 +37,6 @@ class PackagePaymentService {
       throw Exception('Failed to record payment.');
     }
   }
-
-// NOTE: Keep all other methods (e.g., for Packages CRUD) in this file as well.
-
-
   /// Streams all payments recorded against a specific package assignment.
   Stream<List<PaymentModel>> streamPaymentsForAssignment(String assignmentId) {
     return _paymentCollectionv2
@@ -109,25 +46,12 @@ class PackagePaymentService {
         .map((snapshot) =>
         snapshot.docs.map((doc) => PaymentModel.fromFirestore(doc)).toList());
   }
-
-
-  /*Stream<List<PaymentModel>> streamPaymentsForAssignment(String clientId,
-      String assignmentId) {
-    // 🎯 CORRECT CALL: Call the function with parameters
-    return _paymentCollection(clientId, assignmentId)
-        .orderBy('paymentDate', descending: true)
-        .snapshots()
-        .map((snapshot) =>
-        snapshot.docs.map((doc) => PaymentModel.fromFirestore(doc)).toList());
-  }*/
-
-
   Future<void> deletePayment(String paymentId,
       {required String deletionReason}) async {
-    final paymentRef = _db.collection('payments').doc(paymentId);
-    final deletedPaymentsRef = _db.collection('deletedPaymentsAudit').doc();
+    final paymentRef = _firestore.collection('payments').doc(paymentId);
+    final deletedPaymentsRef = _firestore.collection('deletedPaymentsAudit').doc();
 
-    return _db.runTransaction((transaction) async {
+    return _firestore.runTransaction((transaction) async {
       // 1. Get the document to be deleted
       DocumentSnapshot paymentSnapshot = await transaction.get(paymentRef);
 
@@ -270,33 +194,9 @@ class PackagePaymentService {
       return 0.0;
     }
   }
-// 🎯 NEW HELPER: Fetch the total collected amount for a single assignment
- /* Future<double> getCollectedAmountForAssignment(String clientId, String assignmentId) async {
-    final paymentsSnapshot = await _paymentCollectionv2.doc(clientId).get();
-    final doc = await _clientCollection.doc(clientId).get();
-
-    double collectedAmount = 0.0;
-
-    for (var doc in paymentsSnapshot.docs) {
-      try {
-        final data = doc.data() as Map<String, dynamic>;
-        // Assuming payment models stores amount as 'amount'
-        collectedAmount += (data['amount'] as num?)?.toDouble() ?? 0.0;
-      } catch (e) {
-        if (kDebugMode) {
-          print('Warning: Failed to process payment document ${doc.id}: $e');
-        }
-      }
-    }
-    return collectedAmount;
-  }*/
-
-// Inside PackagePaymentService
-
-  // 1. Fetch Unsettled Appointments
 // 1. Stream Unsettled Appointments (With Client-Side Filtering)
   Stream<List<AppointmentModel>> streamUnsettledAppointments() {
-    return _db.collection('appointments')
+    return _firestore.collection('appointments')
         .where('status', whereIn: ['confirmed', 'completed']) // Only active bookings
     // ⚠️ REMOVED: .where('isSettled', isEqualTo: false)
     // Reason: Legacy docs don't have 'isSettled', so Firestore excludes them.
@@ -322,7 +222,7 @@ class PackagePaymentService {
       throw Exception("Cannot settle guest bookings. Register client first.");
     }
 
-    final batch = _db.batch();
+    final batch = _firestore.batch();
 
     // A. Create Virtual "Single Session" Assignment
     final virtualAssignmentId = "appt_${appointment.id}"; // Unique ID based on Appt
@@ -356,7 +256,7 @@ class PackagePaymentService {
     );
 
     // C. Update Appointment as Settled
-    final apptRef = _db.collection('appointments').doc(appointment.id);
+    final apptRef = _firestore.collection('appointments').doc(appointment.id);
 
     // EXECUTE
     batch.set(assignmentRef, virtualAssignment.toMap());

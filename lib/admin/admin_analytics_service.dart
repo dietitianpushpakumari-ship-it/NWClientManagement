@@ -1,11 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:collection/collection.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 
 class AdminAnalyticsService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final Ref _ref; // Store Ref to access dynamic providers
+  AdminAnalyticsService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
 
   // =================================================================
   // 📊 SECTION 1: BUSINESS METRICS (Revenue & Growth)
@@ -17,7 +24,7 @@ class AdminAnalyticsService {
 
     try {
       // 1. Total Revenue (This Month)
-      final paymentQuery = await _db.collection('payments')
+      final paymentQuery = await _firestore.collection('payments')
           .where('paymentDate', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
           .get();
 
@@ -28,7 +35,7 @@ class AdminAnalyticsService {
 
       // 2. New Leads (Clients created this month)
       // Note: Assuming 'createdAt' exists on clients. If not, use AppUser collection.
-      final leadsQuery = await _db.collection('clients')
+      final leadsQuery = await _firestore.collection('clients')
           .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
           .count()
           .get();
@@ -36,7 +43,7 @@ class AdminAnalyticsService {
       int? newLeads = leadsQuery.count;
 
       // 3. Active Clients (Status = Active)
-      final activeQuery = await _db.collection('clients')
+      final activeQuery = await _firestore.collection('clients')
           .where('status', isEqualTo: 'Active')
           .count()
           .get();
@@ -65,7 +72,7 @@ class AdminAnalyticsService {
       final monthStart = DateTime(now.year, now.month - i, 1);
       final monthEnd = DateTime(now.year, now.month - i + 1, 0);
 
-      final query = await _db.collection('payments')
+      final query = await _firestore.collection('payments')
           .where('paymentDate', isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart))
           .where('paymentDate', isLessThanOrEqualTo: Timestamp.fromDate(monthEnd))
           .get();
@@ -86,7 +93,7 @@ class AdminAnalyticsService {
     // Returns sections for PieChart
 
     try {
-      final query = await _db.collection('clientDietPlans')
+      final query = await _firestore.collection('clientDietPlans')
           .where('isActive', isEqualTo: true)
           .get();
 
@@ -133,7 +140,7 @@ class AdminAnalyticsService {
     final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
 
     try {
-      final logsQuery = await _db.collection('client_logs')
+      final logsQuery = await _firestore.collection('client_logs')
           .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
           .get();
 
@@ -179,7 +186,7 @@ class AdminAnalyticsService {
       final dayStart = DateTime(now.year, now.month, now.day - i);
       final dayEnd = dayStart.add(const Duration(days: 1));
 
-      final query = await _db.collection('client_logs')
+      final query = await _firestore.collection('client_logs')
           .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
           .where('date', isLessThan: Timestamp.fromDate(dayEnd))
           .count()
@@ -209,7 +216,7 @@ class AdminAnalyticsService {
 
     try {
       // 1. Get all active clients
-      final clientsSnapshot = await _db.collection('clients')
+      final clientsSnapshot = await _firestore.collection('clients')
           .where('status', isEqualTo: 'Active')
           .limit(50) // Limit scan size
           .get();
@@ -222,7 +229,7 @@ class AdminAnalyticsService {
         // If not, we have to query logs (Expensive).
         // Fallback: Query logs for this client > 3 days ago.
 
-        final lastLogQuery = await _db.collection('client_logs')
+        final lastLogQuery = await _firestore.collection('client_logs')
             .where('clientId', isEqualTo: doc.id)
             .orderBy('date', descending: true)
             .limit(1)
@@ -268,7 +275,7 @@ class AdminAnalyticsService {
   Future<double> fetchAverageWeightVelocity() async {
     try {
       // Get all active clients
-      final clientsSnap = await _db.collection('clients')
+      final clientsSnap = await _firestore.collection('clients')
           .where('status', isEqualTo: 'Active')
           .get();
 
@@ -279,7 +286,7 @@ class AdminAnalyticsService {
         final clientId = doc.id;
 
         // Get first and last weight record
-        final vitalsSnap = await _db.collection('vitals')
+        final vitalsSnap = await _firestore.collection('vitals')
             .where('clientId', isEqualTo: clientId)
             .orderBy('date', descending: false) // Oldest first
             .get();

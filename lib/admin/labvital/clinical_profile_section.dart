@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/labvital/clinical_model.dart';
 import 'package:nutricare_client_management/admin/labvital/generic_multi_select_dialog.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/medical_history_multiselect_dialog.dart';
-import 'package:nutricare_client_management/meal_planner/screen/disease_master_entry_screen.dart';
+import 'package:nutricare_client_management/master/screen/disease_master_entry_screen.dart';
 import 'package:nutricare_client_management/modules/master/screen/DiagonosisEntryPage.dart';
 import 'package:nutricare_client_management/modules/master/service/diagonosis_master_service.dart';
 import 'package:nutricare_client_management/widgets/diagonosis_multi_select_dialog.dart';
 
 import 'clinical_master_service.dart';
-class ClinicalProfileSection extends StatefulWidget {
+class ClinicalProfileSection extends ConsumerStatefulWidget {
   final List<String> selectedDiagnosisIds;
   final Map<String, String> medicalHistoryWithDuration;
   final List<String> selectedComplaints;
@@ -47,13 +49,14 @@ class ClinicalProfileSection extends StatefulWidget {
   });
 
   @override
-  State<ClinicalProfileSection> createState() => _ClinicalProfileSectionState();
+  ConsumerState<ClinicalProfileSection> createState() => _ClinicalProfileSectionState();
 }
 
-class _ClinicalProfileSectionState extends State<ClinicalProfileSection> {
+class _ClinicalProfileSectionState extends ConsumerState<ClinicalProfileSection> {
   // 1. Diagnosis Handlers (Existing)
   Future<void> _openDiagnosisSelect() async {
-    final allDiagnoses = await DiagnosisMasterService().fetchAllDiagnosisMaster();
+    final diagnosisService = ref.watch(diagnosisMasterServiceProvider);
+    final allDiagnoses = await diagnosisService.fetchAllDiagnosisMaster();
     final result = await showDialog<List<String>>(
       context: context,
       builder: (context) => DiagnosisMultiSelectDialog(allDiagnoses: allDiagnoses, initialSelectedIds: widget.selectedDiagnosisIds),
@@ -332,13 +335,14 @@ class _ClinicalProfileSectionState extends State<ClinicalProfileSection> {
   }
 
   Widget _buildDiagnosisChips() {
+    final diagnosisService = ref.watch(diagnosisMasterServiceProvider);
     /* Use FutureBuilder to resolve names like before */
     // (Implementation same as previous step, just ensuring it's here)
     return widget.selectedDiagnosisIds.isEmpty
         ? const Text("None selected", style: TextStyle(color: Colors.grey, fontSize: 12))
         : FutureBuilder(
       // ... future builder logic for names ...
-        future: DiagnosisMasterService().fetchAllDiagnosisMasterByIds(widget.selectedDiagnosisIds),
+        future: diagnosisService.fetchAllDiagnosisMasterByIds(widget.selectedDiagnosisIds),
         builder: (ctx, snap) => Wrap(spacing: 8, children: (snap.data ?? []).map((d) => Chip(label: Text(d.enName), onDeleted: () => widget.onDiagnosesChanged(List.from(widget.selectedDiagnosisIds)..remove(d.id)))).toList())
     );
   }

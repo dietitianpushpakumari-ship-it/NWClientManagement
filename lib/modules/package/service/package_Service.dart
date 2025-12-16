@@ -1,3 +1,7 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
+
 import '../model/package_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -12,8 +16,13 @@ final Logger _logger = Logger(/* ... */);
 
 
 class PackageService {
+  final Ref _ref; // Store Ref to access dynamic providers
+  PackageService(this._ref);
 
-  final CollectionReference _packageCollection = FirebaseFirestore.instance.collection('packages');
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _packageCollection => _firestore.collection(MasterCollectionMapper.getPath(MasterEntity.entity_packages));
 
   Future<void> addPackage(PackageModel package) async {
     _logger.i('Adding new package: ${package.name}');

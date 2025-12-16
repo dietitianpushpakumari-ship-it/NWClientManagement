@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_entry_screen.dart';
 import 'package:nutricare_client_management/modules/client/screen/plan_report_view_screen.dart';
 import 'package:nutricare_client_management/modules/client/services/client_diet_plan_service.dart';
 
-class AssignedDietPlanListScreen extends StatefulWidget {
+class AssignedDietPlanListScreen extends ConsumerStatefulWidget {
   final ClientModel client;
   final VoidCallback onMealPlanSaved;
 
@@ -17,11 +19,10 @@ class AssignedDietPlanListScreen extends StatefulWidget {
   });
 
   @override
-  State<AssignedDietPlanListScreen> createState() => _AssignedDietPlanListScreenState();
+  ConsumerState<AssignedDietPlanListScreen> createState() => _AssignedDietPlanListScreenState();
 }
 
-class _AssignedDietPlanListScreenState extends State<AssignedDietPlanListScreen> {
-  final ClientDietPlanService _service = ClientDietPlanService();
+class _AssignedDietPlanListScreenState extends ConsumerState<AssignedDietPlanListScreen> {
   bool _isArchiveExpanded = false;
 
   // --- ACTIONS ---
@@ -58,7 +59,7 @@ class _AssignedDietPlanListScreenState extends State<AssignedDietPlanListScreen>
 
   Future<void> _setAsPrimary(ClientDietPlanModel plan) async {
     try {
-      await _service.setAsPrimary(widget.client.id, plan.id);
+      await ref.read(clientDietPlanServiceProvider).setAsPrimary(widget.client.id, plan.id);
       widget.onMealPlanSaved();
       if (mounted) _showSnackbar('Plan "${plan.name}" is now Primary.', Colors.green);
     } catch (e) {
@@ -70,7 +71,7 @@ class _AssignedDietPlanListScreenState extends State<AssignedDietPlanListScreen>
     try {
       final newStatus = !plan.isReadyToDeliver;
       final updated = plan.copyWith(isReadyToDeliver: newStatus);
-      await _service.savePlan(updated);
+      await ref.read(clientDietPlanServiceProvider).savePlan(updated);
       widget.onMealPlanSaved();
       if (mounted) _showSnackbar(newStatus ? 'Plan Locked.' : 'Plan Unlocked for editing.', Colors.blue);
     } catch (e) {
@@ -80,7 +81,7 @@ class _AssignedDietPlanListScreenState extends State<AssignedDietPlanListScreen>
 
   Future<void> _toggleProvisional(ClientDietPlanModel plan) async {
     try {
-      await _service.toggleProvisional(plan.id, plan.isProvisional);
+      await ref.read(clientDietPlanServiceProvider).toggleProvisional(plan.id, plan.isProvisional);
       widget.onMealPlanSaved();
       if (mounted) _showSnackbar(plan.isProvisional ? 'Marked as Final.' : 'Marked as Provisional.', Colors.orange);
     } catch (e) {
@@ -107,7 +108,7 @@ class _AssignedDietPlanListScreenState extends State<AssignedDietPlanListScreen>
 
     if (confirm == true) {
       try {
-        await _service.deletePlan(plan.id);
+        await ref.read(clientDietPlanServiceProvider).deletePlan(plan.id);
         widget.onMealPlanSaved();
         if (mounted) _showSnackbar('Plan deleted.', Colors.grey);
       } catch (e) {
@@ -167,7 +168,7 @@ class _AssignedDietPlanListScreenState extends State<AssignedDietPlanListScreen>
                 // Plan List
                 Expanded(
                   child: StreamBuilder<List<ClientDietPlanModel>>(
-                    stream: _service.streamAllNonDeletedPlansForClient(widget.client.id),
+                    stream: ref.watch(clientDietPlanServiceProvider).streamAllNonDeletedPlansForClient(widget.client.id),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                       final allPlans = snapshot.data ?? [];

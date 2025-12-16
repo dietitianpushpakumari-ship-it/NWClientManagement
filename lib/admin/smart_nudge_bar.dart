@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/admin_provider.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:nutricare_client_management/admin/admin_appointment_detail_screen.dart';
 
 class SmartNudgeBar extends StatelessWidget {
   final String coachId;
-  const SmartNudgeBar({super.key, required this.coachId});
+  final Ref ref;
+  const SmartNudgeBar({super.key, required this.coachId, required this.ref});
 
   @override
   Widget build(BuildContext context) {
-    final MeetingService service = MeetingService();
+
 
     return StreamBuilder<List<AppointmentModel>>(
-      stream: service.streamNudgeAppointments(coachId),
+      stream: ref.watch(meetingServiceProvider).streamNudgeAppointments(coachId),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
 

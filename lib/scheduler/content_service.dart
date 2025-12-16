@@ -1,12 +1,20 @@
 // lib/services/content_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/scheduler/dieititan_content_model.dart';
 import 'package:nutricare_client_management/scheduler/disease_tag.dart';
 
 class ContentService {
-  final CollectionReference _contentCollection =
-  FirebaseFirestore.instance.collection('dietitian_content');
+  final Ref _ref; // Store Ref to access dynamic providers
+  ContentService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+
+   CollectionReference get _contentCollection => _firestore.collection('dietitian_content');
 
   // --- CREATE / UPDATE ---
   Future<void> saveContent(DietitianContentModel content) async {

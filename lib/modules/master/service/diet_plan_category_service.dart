@@ -1,20 +1,29 @@
 // lib/services/diet_plan_category_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 
-import '../model/diet_plan_category.dart';
+import '../../../master/model/diet_plan_category.dart';
 
 /// Service class for managing DietPlanCategory master data in Firestore.
 class DietPlanCategoryService {
-  final CollectionReference _collection =
-  FirebaseFirestore.instance.collection('dietPlanCategories');
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  DietPlanCategoryService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _collection => _firestore.collection(MasterCollectionMapper.getPath(MasterEntity.entity_DietPlanCategories));
 
   // --- READ ---
   /// Provides a stream of all *active* diet plan categories.
   Stream<List<DietPlanCategory>> streamAllActive() {
     return _collection
         .where('isDeleted', isEqualTo: false)
-        .orderBy('enName')
+        .orderBy('name')
         .snapshots()
         .map((snapshot) => snapshot.docs
         .map((doc) => DietPlanCategory.fromFirestore(doc))
@@ -47,7 +56,7 @@ class DietPlanCategoryService {
 
       QuerySnapshot<Object?> snapshot = await _collection
           .where('isDeleted', isEqualTo: false)
-          .orderBy('enName')
+          .orderBy('name')
           .get(); // 🎯 Key change: .get() instead of .snapshots()
 
       // 2. Map the QuerySnapshot documents to a List<FoodItem>

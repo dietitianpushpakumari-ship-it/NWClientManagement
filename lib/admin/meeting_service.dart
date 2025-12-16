@@ -1,15 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart'; // For TimeOfDay
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
 import 'package:nutricare_client_management/admin/schedule_meeting_utils.dart';
 
+import 'database_provider.dart';
+
 final Logger _logger = Logger();
 
 class MeetingService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final Ref _ref; // Store Ref to access dynamic providers
+
+  MeetingService(this._ref);
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
 
   final String _scheduleCollection = 'schedules';
   final String _appointmentsCollection = 'appointments';

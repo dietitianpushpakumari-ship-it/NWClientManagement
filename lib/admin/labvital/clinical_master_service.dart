@@ -1,18 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/clinical_model.dart';
 
-
 class ClinicalMasterService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final Ref _ref; // Store Ref to access dynamic providers
+  ClinicalMasterService(this._ref);
 
-  // Collection Names
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+
+  // Collection Names (These are unused now that we use dynamic collectionName in methods)
   static const String colComplaints = 'master_complaints';
   static const String colAllergies = 'master_allergies';
   static const String colMedicines = 'master_medicines';
-  static const String colClinicalNotes = 'master_clinical_notes'; // 🎯 NEW
-  static const String colInstructions = 'master_instructions';    // 🎯 NEW
+  static const String colClinicalNotes = 'master_clinical_notes';
+  static const String colInstructions = 'master_instructions';
 
-  CollectionReference _getCollection(String name) => _db.collection(name);
+  CollectionReference _getCollection(String name) => _firestore.collection(name);
 
   // 1. Stream Active Items
   Stream<List<ClinicalItemModel>> streamActiveItems(String collectionName) {
@@ -33,35 +38,52 @@ class ClinicalMasterService {
     final trimmedName = item.name.trim();
     if (trimmedName.isEmpty) return;
 
+    final dataToSave = item.toMap();
+
+    // Check if new item
     if (item.id.isEmpty) {
-      // CHECK DUPLICATE BEFORE CREATE
+      dataToSave['createdAt'] = FieldValue.serverTimestamp();
+
+      // Duplicate Check
       final duplicateCheck = await _getCollection(collectionName)
           .where('name', isEqualTo: trimmedName)
           .where('isDeleted', isEqualTo: false)
           .limit(1)
           .get();
 
-      if (duplicateCheck.docs.isNotEmpty) return; // Prevent duplicate
+      if (duplicateCheck.docs.isNotEmpty) {
+        throw Exception("Item '$trimmedName' already exists.");
+      }
 
-      await _getCollection(collectionName).add({
-        'name': trimmedName,
-        'isDeleted': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await _getCollection(collectionName).add(dataToSave);
     } else {
-      // UPDATE
-      await _getCollection(collectionName).doc(item.id).update({
-        'name': trimmedName,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      // Update existing
+      dataToSave['updatedAt'] = FieldValue.serverTimestamp();
+      await _getCollection(collectionName).doc(item.id).update(dataToSave);
     }
   }
 
-  Future<void> addItem(String collectionName, String name) async {
-    await saveItem(collectionName, ClinicalItemModel(id: '', name: name));
+  // 🎯 4. GET ITEM BY ID (NEWLY ADDED)
+  Future<ClinicalItemModel> getItemById(String collectionName, String id) async {
+    final docSnapshot = await _getCollection(collectionName).doc(id).get();
+    if (!docSnapshot.exists || docSnapshot.data() == null) {
+      throw Exception("Item with ID $id not found in $collectionName.");
+    }
+    return ClinicalItemModel.fromFirestore(docSnapshot);
   }
 
-  // 3. Soft Delete
+  // 5. ADD ITEM (Restored & Updated)
+  // This creates a basic item (English only) for quick-add scenarios.
+  Future<void> addItem(String collectionName, String name, Map<String,String> nameLocalized) async {
+    // Note: Assuming nameLocalized is non-nullable based on the signature.
+    await saveItem(collectionName, ClinicalItemModel(
+      id: '',
+      name: name,
+      nameLocalized: nameLocalized,
+    ));
+  }
+
+  // 6. Soft Delete
   Future<void> deleteItem(String collectionName, String id) async {
     await _getCollection(collectionName).doc(id).update({
       'isDeleted': true,

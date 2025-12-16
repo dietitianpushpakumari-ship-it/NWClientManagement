@@ -1,16 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/modules/client/screen/investigation_master_model.dart';
 
 class InvestigationMasterService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final String _collectionName = 'investigations';
-  final CollectionReference _collection =
-  FirebaseFirestore.instance.collection("investigations");
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  InvestigationMasterService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _collection => _firestore.collection(MasterCollectionPath.collection_Investigation);
 
   /// Fetches a stream of all non-deleted diagnoses.
   Stream<List<InvestigationMasterModel>> getInvestigation() {
-    return _db
-        .collection(_collectionName)
+    return _collection
         .where('isDeleted', isEqualTo: false)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -20,7 +26,7 @@ class InvestigationMasterService {
 
   /// Adds a new investigation or updates an existing one.
   Future<void> addOrUpdateInvestigation(InvestigationMasterModel investigation) async {
-    final docRef = _db.collection(_collectionName).doc(investigation.id.isEmpty ? null : investigation.id);
+    final docRef = _collection.doc(investigation.id.isEmpty ? null : investigation.id);
     await docRef.set(
       investigation.toMap(),
       SetOptions(merge: true), // Use merge to only update fields present
@@ -29,7 +35,7 @@ class InvestigationMasterService {
 
   /// Soft deletes a investigation (sets isDeleted to true).
   Future<void> softDeleteInvestigation(String investigationId) async {
-    await _db.collection(_collectionName).doc(investigationId).update({
+    await _collection.doc(investigationId).update({
       'isDeleted': true,
     });
   }

@@ -80,7 +80,7 @@ class _GenericClinicalMultiSelectDialogState extends State<GenericClinicalMultiS
 
     // Add to Firestore Master
     try {
-      await _service.addItem(widget.collectionName, text);
+      await _service.addItem(widget.collectionName, );
       // Select it automatically once added
       setState(() {
         _selectedItems.add(text);

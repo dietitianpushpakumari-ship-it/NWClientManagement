@@ -1,17 +1,19 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/feed_content_model.dart';
 import 'package:nutricare_client_management/admin/feed_entry_page.dart';
 import 'package:nutricare_client_management/admin/feed_service.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 
 
-class FeedManagementScreen extends StatelessWidget {
-  const FeedManagementScreen({super.key});
+class FeedManagementScreen extends ConsumerWidget {
+
+   FeedManagementScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final FeedService service = FeedService();
+  Widget build(BuildContext context , WidgetRef ref) {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
@@ -26,13 +28,13 @@ class FeedManagementScreen extends StatelessWidget {
                 _buildHeader(context),
                 Expanded(
                   child: StreamBuilder<List<FeedContentModel>>(
-                    stream: service.streamAllFeeds(),
+                    stream: ref.watch(feedServiceProvider).streamAllFeeds(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                       final items = snapshot.data ?? [];
 
                       if (items.isEmpty) return const Center(child: Text("No feed items yet."));
-
+                      final  service = ref.watch(feedServiceProvider);
                       return ListView.separated(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
                         itemCount: items.length,

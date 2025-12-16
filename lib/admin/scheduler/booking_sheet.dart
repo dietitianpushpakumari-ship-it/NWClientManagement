@@ -2,11 +2,13 @@ import 'package:firebase_auth/firebase_auth.dart'; // 🎯 AUTH IMPORT
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/services/client_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class BookingSheet extends StatefulWidget {
+class BookingSheet extends ConsumerStatefulWidget {
   final AppointmentSlot slot;
   final String coachId;
   final int initialDurationMinutes;
@@ -14,12 +16,12 @@ class BookingSheet extends StatefulWidget {
   const BookingSheet({super.key, required this.slot, required this.coachId, required this.initialDurationMinutes});
 
   @override
-  State<BookingSheet> createState() => _BookingSheetState();
+  ConsumerState<BookingSheet> createState() => _BookingSheetState();
 }
 
-class _BookingSheetState extends State<BookingSheet> {
-  final MeetingService _meetingService = MeetingService();
-  final ClientService _clientService = ClientService();
+class _BookingSheetState extends ConsumerState<BookingSheet> {
+
+  //final ClientService _clientService = ClientService();
   final _formKey = GlobalKey<FormState>();
 
   bool _isGuest = false;
@@ -69,7 +71,7 @@ class _BookingSheetState extends State<BookingSheet> {
       final adminUid = currentUser?.uid ?? 'unknown_admin';
       final adminName = currentUser?.displayName ?? currentUser?.email ?? 'Admin';
 
-      await _meetingService.bookSession(
+      await ref.read(meetingServiceProvider).bookSession(
         clientId: _isGuest ? null : _selectedClient!.id,
         clientName: _isGuest ? _nameController.text : _selectedClient!.name,
         guestPhone: _phoneController.text,
@@ -178,14 +180,14 @@ class _BookingSheetState extends State<BookingSheet> {
   }
 }
 
-class ClientPickerSheet extends StatefulWidget {
+class ClientPickerSheet extends ConsumerStatefulWidget {
   const ClientPickerSheet({super.key});
   @override
-  State<ClientPickerSheet> createState() => _ClientPickerSheetState();
+  ConsumerState<ClientPickerSheet> createState() => _ClientPickerSheetState();
 }
 
-class _ClientPickerSheetState extends State<ClientPickerSheet> {
-  final ClientService _clientService = ClientService();
+class _ClientPickerSheetState extends ConsumerState<ClientPickerSheet> {
+
   List<ClientModel> _allClients = [];
   List<ClientModel> _filteredClients = [];
   bool _isLoading = true;
@@ -197,7 +199,8 @@ class _ClientPickerSheetState extends State<ClientPickerSheet> {
   }
 
   Future<void> _fetchClients() async {
-    final clients = await _clientService.getAllClients();
+    final clientService = ref.read(clientServiceProvider);
+    final clients = await clientService.getAllClients();
     if(mounted) setState(() { _allClients = clients; _filteredClients = clients; _isLoading = false; });
   }
 

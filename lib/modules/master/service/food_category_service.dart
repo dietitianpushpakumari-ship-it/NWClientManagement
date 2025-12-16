@@ -1,12 +1,20 @@
 // lib/services/food_category_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../model/food_category.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import '../../../master/model/food_category.dart';
 
 /// Service class for managing FoodCategory master data in Firestore.
 class FoodCategoryService {
-  final CollectionReference _collection =
-  FirebaseFirestore.instance.collection('foodCategories');
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  FoodCategoryService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _collection => _firestore.collection('foodCategories');
 
   // --- READ ---
   /// Provides a stream of all *active* food categories, ordered by displayOrder.

@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 
 // 🎯 Project Imports
 import '../../models/assigned_package_data.dart';
@@ -11,15 +13,14 @@ import '../../modules/package/service/package_payment_service.dart';
 // Helper Enum
 enum PaymentFilter { all, fullyPaid, pending }
 
-class ClientLedgerOverviewScreen extends StatefulWidget {
+class ClientLedgerOverviewScreen extends ConsumerStatefulWidget {
   const ClientLedgerOverviewScreen({super.key});
 
   @override
-  State<ClientLedgerOverviewScreen> createState() => _ClientLedgerOverviewScreenState();
+  ConsumerState<ClientLedgerOverviewScreen> createState() => _ClientLedgerOverviewScreenState();
 }
 
-class _ClientLedgerOverviewScreenState extends State<ClientLedgerOverviewScreen> {
-  final PackagePaymentService _paymentService = PackagePaymentService();
+class _ClientLedgerOverviewScreenState extends ConsumerState<ClientLedgerOverviewScreen> {
   late Future<List<AssignedPackageData>> _ledgerDataFuture;
 
   PaymentFilter _currentFilter = PaymentFilter.all;
@@ -35,7 +36,7 @@ class _ClientLedgerOverviewScreenState extends State<ClientLedgerOverviewScreen>
   @override
   void initState() {
     super.initState();
-    _ledgerDataFuture = _paymentService.getAllAssignmentsWithCollectedAmounts();
+    _ledgerDataFuture = ref.watch(packagePaymentServiceProvider).getAllAssignmentsWithCollectedAmounts();
   }
 
   void _calculateTotals(List<AssignedPackageData> data) {

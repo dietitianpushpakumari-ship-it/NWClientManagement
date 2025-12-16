@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/package/model/package_model.dart';
 import 'package:nutricare_client_management/modules/package/service/package_Service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class PackageAssignmentPage extends StatefulWidget {
+class PackageAssignmentPage extends ConsumerStatefulWidget {
   final ClientModel client;
 
   const PackageAssignmentPage({super.key, required this.client});
 
   @override
-  State<PackageAssignmentPage> createState() => _PackageAssignmentPageState();
+  ConsumerState<PackageAssignmentPage> createState() => _PackageAssignmentPageState();
 }
 
-class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
+class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
   PackageModel? _selectedPackage;
   DateTime _startDate = DateTime.now();
   bool _isLoading = false;
@@ -102,9 +105,9 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-      await FirebaseFirestore.instance.collection('subscriptions').add(subscriptionData);
+      await ref.read(firestoreProvider).collection('subscriptions').add(subscriptionData);
 
-      await FirebaseFirestore.instance.collection('clients').doc(widget.client.id).update({
+      await ref.read(firestoreProvider).collection('clients').doc(widget.client.id).update({
         'currentPlan': _selectedPackage!.name,
         'planExpiry': Timestamp.fromDate(endDate),
         'clientType': 'active',
@@ -136,7 +139,7 @@ class _PackageAssignmentPageState extends State<PackageAssignmentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final packageService = Provider.of<PackageService>(context);
+    final packageService = ref.watch(packageServiceProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),

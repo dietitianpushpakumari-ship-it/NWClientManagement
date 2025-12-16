@@ -1,287 +1,519 @@
-import 'dart:ui';
-import 'package:flutter/material.dart';
+// lib/screens/dash/master_Setup_page.dart
 
-// 🎯 Project Imports
-import 'package:nutricare_client_management/admin/habit_master_screen.dart';
-import 'package:nutricare_client_management/meal_planner/screen/InvestigationMasterScreen.dart';
-import 'package:nutricare_client_management/meal_planner/screen/dash/diet_plan_master_dashboard.dart';
-import 'package:nutricare_client_management/meal_planner/screen/disease_master_list_screen.dart';
-import 'package:nutricare_client_management/meal_planner/screen/guideline_list_page.dart';
-import 'package:nutricare_client_management/modules/client/screen/supplementation_master_screen.dart';
-import 'package:nutricare_client_management/modules/master/screen/diagonosis_master_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:nutricare_client_management/admin/labvital/lab_test_config_list_screen.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
+import 'package:nutricare_client_management/admin/master_sub_module_screen.dart';
+import 'package:nutricare_client_management/admin/company_profile_master_screen.dart';
+import 'dart:ui';
+import 'package:nutricare_client_management/admin/master_data_uploader_screen.dart';
 import 'package:nutricare_client_management/modules/master/screen/master_diet_plan_list_screen.dart';
 import 'package:nutricare_client_management/screens/package_list_page.dart';
-import 'package:nutricare_client_management/screens/program_feature_master_screen.dart';
-// Note: ClinicalMasterScreen (Complaints/Allergies/Meds) can be added here if you have the import path.
 
-class MasterSetupPage extends StatefulWidget {
-  const MasterSetupPage({super.key});
-
-  @override
-  State<MasterSetupPage> createState() => _MasterSetupPageState();
+class MasterModule {
+  final String title;
+  final Color color;
+  final List<Map<String, dynamic>> masters;
+  const MasterModule({required this.title, required this.color, required this.masters});
 }
 
-class _MasterSetupPageState extends State<MasterSetupPage> {
-  // Expansion State
-  bool _isPackageExpanded = true;
-  bool _isDietExpanded = false;
-  bool _isClinicalExpanded = false;
+// Data definition (Retained structure, only Clinical Masters modified)
+final List<MasterModule> _masterModules = const [
+  // 1. PACKAGE MANAGEMENT MODULE
+  MasterModule(
+    title: 'Plan & Package Masters',
+    color: Colors.teal,
+    masters: [
+      {
+        'title': 'Package Master',
+        'entity': MasterEntity.entity_packages,
+        'icon': Icons.card_giftcard,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'Program Feature Master',
+        'entity': MasterEntity.entity_packagefeature,
+        'icon': Icons.featured_play_list,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'Package Inclusions',
+        'entity': MasterEntity.entity_packageInclusion,
+        'icon': Icons.check_circle_outline,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'Package Categories',
+        'entity': MasterEntity.entity_packageCategory,
+        'icon': Icons.category_sharp,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'Target Conditions',
+        'entity': MasterEntity.entity_packageTargetCondition,
+        'icon': Icons.medical_information,
+        'color': Colors.teal,
+      },
+    ],
+  ),
 
-  void _navigateTo(Widget page) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  // 2. DIET PLAN MODULE
+  MasterModule(
+    title: 'Diet Plan Masters',
+    color: Colors.indigo,
+    masters: [
+      {
+        'title': 'Master Diet Plans',
+        'entity': 'NAV_MASTER_DIET_PLANS',
+        'icon': Icons.restaurant_menu,
+        'color': Colors.indigo,
+      },
+      {
+        'title': 'Diet Plan Categories',
+        'entity': MasterEntity.entity_DietPlanCategories,
+        'icon': Icons.category,
+        'color': Colors.indigo,
+      },
+      {
+        'title': 'Meal Names',
+        'entity': MasterEntity.entity_MealNames,
+        'icon': Icons.access_time,
+        'color': Colors.indigo,
+      },
+      {
+        'title': 'Serving Units',
+        'entity': MasterEntity.entity_ServingUnits,
+        'icon': Icons.line_weight,
+        'color': Colors.indigo,
+      },
+      {
+        'title': 'Guidelines',
+        'entity': MasterEntity.entity_Guidelines,
+        'icon': Icons.list_alt,
+        'color': Colors.indigo,
+      },
+    ],
+  ),
+
+  // 3. FOOD/RECIPE MASTERS
+  MasterModule(
+    title: 'Food & Recipe Masters',
+    color: Colors.orange,
+    masters: [
+      {
+        'title': 'Food Item Master',
+        'entity': MasterEntity.entity_FoodItem,
+        'icon': Icons.fastfood,
+        'color': Colors.orange,
+      },
+      {
+        'title': 'Food Category Master',
+        'entity': MasterEntity.entity_FoodCategory,
+        'icon': Icons.category,
+        'color': Colors.orange,
+      },
+    ],
+  ),
+
+  // 4. CLINICAL MASTERS (Lab Config added here)
+  MasterModule(
+    title: 'Clinical & Health Masters',
+    color: Colors.blue,
+    masters: [
+      // 🎯 NEW: Lab Configuration Master Screen
+      {
+        'title': 'Lab Configuration',
+        'entity': 'NAV_LAB_CONFIG', // Custom navigation key
+        'icon': Icons.settings,
+        'color': Colors.redAccent, // Distinct color for config
+      },
+      {
+        'title': 'Diagnosis Master',
+        'entity': MasterEntity.entity_Diagnosis,
+        'icon': Icons.local_hospital,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Disease Master',
+        'entity': MasterEntity.entity_disease,
+        'icon': Icons.medical_services,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Investigation Master',
+        'entity': MasterEntity.entity_Investigation,
+        'icon': Icons.science,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Supplement Master',
+        'entity': MasterEntity.entity_supplement,
+        'icon': Icons.add_box,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Lifestyle Habit Master',
+        'entity': MasterEntity.entity_LifestyleHabit,
+        'icon': Icons.self_improvement,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Clinical Notes Structure',
+        'entity': MasterEntity.entity_Clinicalnotes,
+        'icon': Icons.notes,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Clinical Complaints',
+        'entity': MasterEntity.entity_Complaint,
+        'icon': Icons.psychology,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Food Allergies',
+        'entity': MasterEntity.entity_allergy,
+        'icon': Icons.warning_amber,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'GI Symptoms',
+        'entity': MasterEntity.entity_giSymptom,
+        'icon': Icons.sick,
+        'color': Colors.blue,
+      },
+    ],
+  ),
+
+  // 5. Simple Dropdown Masters
+  MasterModule(
+    title: 'Simple Dropdown Masters',
+    color: Colors.deepPurple,
+    masters: [
+      {
+        'title': 'Develop Habits',
+        'entity': MasterEntity.entity_develop_habits,
+        'icon': Icons.star_rate,
+        'color': Colors.deepPurple,
+      },
+      {
+        'title': 'Water Intake Options',
+        'entity': MasterEntity.entity_waterIntake,
+        'icon': Icons.local_drink,
+        'color': Colors.deepPurple,
+      },
+      {
+        'title': 'Caffeine Source',
+        'entity': MasterEntity.entity_caffeineSource,
+        'icon': Icons.coffee,
+        'color': Colors.deepPurple,
+      },
+      {
+        'title': 'Activity Levels',
+        'entity': MasterEntity.entity_ActivityLevels,
+        'icon': Icons.directions_run,
+        'color': Colors.deepPurple,
+      },
+      {
+        'title': 'Sleep Quality',
+        'entity': MasterEntity.entity_SleepQuality,
+        'icon': Icons.bed,
+        'color': Colors.deepPurple,
+      },
+      {
+        'title': 'Menstrual Status',
+        'entity': MasterEntity.entity_MenstrualStatus,
+        'icon': Icons.female,
+        'color': Colors.deepPurple,
+      },
+      {
+        'title': 'Food Habits Options',
+        'entity': MasterEntity.entity_foodHabitsOptions,
+        'icon': Icons.favorite,
+        'color': Colors.deepPurple,
+      },
+    ],
+  ),
+];
+
+
+class MasterSetupPage extends StatelessWidget {
+  const MasterSetupPage({super.key});
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 10, 20, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1A1A1A), size: 20),
+            onPressed: () => Navigator.pop(context),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+                'Master Data Setup',
+                style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A1A)
+                )
+            ),
+          ),
+          const Icon(Icons.tune, color: Colors.indigo, size: 30),
+        ],
+      ),
+    );
   }
+
+  // NEW: Reusable widget to build an individual master item card inside the ExpansionTile
+  Widget _buildMasterItem(BuildContext context, Map<String, dynamic> master, Color moduleColor) {
+    // Determine target screen based on entity type
+    Widget targetScreen;
+    if (master['entity'] == 'NAV_MASTER_DIET_PLANS') {
+      targetScreen = const MasterDietPlanListScreen();
+    } else if (master['entity'] == MasterEntity.entity_packages) {
+      targetScreen = const PackageListPage();
+      // 🎯 NEW NAVIGATION LOGIC
+    } else if (master['entity'] == 'NAV_LAB_CONFIG') {
+      targetScreen = const LabTestConfigListScreen();
+    } else {
+      // Fallback for generic master data screens
+      targetScreen = MasterDataSubModuleScreen(
+        moduleTitle: master['title'] as String,
+        masters: [master],
+        color: moduleColor,
+      );
+    }
+
+    final color = master['color'] as Color? ?? moduleColor;
+    final title = master['title'] as String;
+    final icon = master['icon'] as IconData;
+
+    return InkWell(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => targetScreen));
+      },
+      child: Card(
+        color: color.withOpacity(0.05), // Lighter background than the module card itself
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: color,
+                  ),
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // NEW: Function to create an ExpansionTile for a module
+  Widget _buildModuleGroup(BuildContext context, MasterModule module) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 20.0),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Theme( // Use a distinct Theme for the ExpansionTile border/color
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: false, // Start collapsed
+          collapsedIconColor: module.color,
+          iconColor: module.color,
+          backgroundColor: Colors.white, // Ensure tile background is white
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          title: Text(
+            module.title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: module.color,
+            ),
+          ),
+          children: module.masters.map((master) {
+            // Pass the module's color for consistent styling of the sub-items
+            return _buildMasterItem(context, master, module.color);
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE), // Premium Light Background
-      body: Stack(
-        children: [
-          // 1. Ambient Background Glow
-          Positioned(
-            top: -100,
-            right: -100,
-            child: Container(
-              width: 400, height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.05), blurRadius: 100, spreadRadius: 40),
-                  BoxShadow(color: Colors.purple.withOpacity(0.05), blurRadius: 100, spreadRadius: 40, offset: const Offset(-50, 50)),
-                ],
-              ),
-            ),
-          ),
-
-          Column(
-            children: [
-              // 2. Custom Glass Header
-              _buildHeader(),
-
-              // 3. Scrollable Content
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
-                  physics: const BouncingScrollPhysics(),
-                  children: [
-                    _buildSection(
-                      title: "Package Management",
-                      subtitle: "Features & Subscriptions",
-                      icon: Icons.inventory_2_outlined,
-                      color: Colors.deepPurple,
-                      isExpanded: _isPackageExpanded,
-                      onToggle: (v) => setState(() => _isPackageExpanded = v),
-                      children: [
-                        _buildTile("Program Features", "Define reusable service features", Icons.star_outline, Colors.amber, () => _navigateTo(const ProgramFeatureMasterScreen())),
-                        _buildTile("Service Packages", "Create & manage subscription plans", Icons.card_giftcard, Colors.purple, () => _navigateTo(const PackageListPage())),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    _buildSection(
-                      title: "Diet Planner Config",
-                      subtitle: "Foods, Meals & Templates",
-                      icon: Icons.restaurant_menu,
-                      color: Colors.teal,
-                      isExpanded: _isDietExpanded,
-                      onToggle: (v) => setState(() => _isDietExpanded = v),
-                      children: [
-                        _buildTile("Food & Meal Database", "Manage food items and master meals", Icons.lunch_dining, Colors.orange, () => _navigateTo(const DietPlanMasterPage())),
-                        _buildTile("Diet Templates", "Pre-set meal plan templates", Icons.copy_all, Colors.teal, () => _navigateTo(const MasterDietPlanListScreen())),
-                        _buildTile("Guidelines", "Global diet instructions", Icons.rule, Colors.blueGrey, () => _navigateTo(const GuidelineListPage())),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    _buildSection(
-                      title: "Clinical & Medical",
-                      subtitle: "Diagnosis, Labs & Habits",
-                      icon: Icons.medical_services_outlined,
-                      color: Colors.redAccent,
-                      isExpanded: _isClinicalExpanded,
-                      onToggle: (v) => setState(() => _isClinicalExpanded = v),
-                      children: [
-                        _buildTile("Diagnosis Master", "Clinical conditions list", Icons.local_hospital, Colors.red, () => _navigateTo(const DiagnosisListPage())),
-                        _buildTile("Lab Investigations", "Tests and biomarkers", Icons.science, Colors.blue, () => _navigateTo(const InvestigationMasterScreen())),
-                        _buildTile("Supplementation", "Vitamins and minerals", Icons.medication, Colors.green, () => _navigateTo(const SupplementationMasterScreen())),
-                        _buildTile("Disease Management", "Chronic conditions master", Icons.healing, Colors.pink, () => _navigateTo(const DiseaseMasterListScreen())),
-                        _buildTile("Daily Habits", "Lifestyle tracking habits", Icons.check_circle_outline, Theme.of(context).colorScheme.primary, () => _navigateTo(const HabitMasterScreen())),
-                      ],
-                    ),
-
-                    const SizedBox(height: 40),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- WIDGET HELPERS ---
-
-  Widget _buildHeader() {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top + 20,
-            bottom: 20,
-            left: 20,
-            right: 20,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.8),
-            border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1))),
-          ),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-                  ),
-                  child: const Icon(Icons.arrow_back, size: 20, color: Colors.black87),
-                ),
-              ),
-              const SizedBox(width: 16),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Master Setup", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1A1A1A))),
-                    Text("Configure system-wide data", style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.1), shape: BoxShape.circle),
-                child: Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSection({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required bool isExpanded,
-    required ValueChanged<bool> onToggle,
-    required List<Widget> children,
-  }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: isExpanded ? color.withOpacity(0.15) : Colors.black.withOpacity(0.03),
-            blurRadius: isExpanded ? 20 : 10,
-            offset: const Offset(0, 5),
-          )
-        ],
-        border: Border.all(color: isExpanded ? color.withOpacity(0.3) : Colors.transparent),
-      ),
-      child: Column(
-        children: [
-          // Header
-          InkWell(
-            onTap: () => onToggle(!isExpanded),
-            borderRadius: BorderRadius.vertical(
-              top: const Radius.circular(20),
-              bottom: Radius.circular(isExpanded ? 0 : 20),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(icon, color: color, size: 24),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2D3142))),
-                        Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                    color: Colors.grey.shade400,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Children
-          AnimatedSize(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            child: isExpanded
-                ? Column(
-              children: [
-                Divider(height: 1, color: Colors.grey.shade100, indent: 20, endIndent: 20),
-                const SizedBox(height: 8),
-                ...children,
-                const SizedBox(height: 16),
-              ],
-            )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTile(String title, String subtitle, IconData icon, Color color, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: SafeArea(
+        top: false,
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-              child: Icon(icon, size: 18, color: color),
-            ),
-            const SizedBox(width: 16),
+            _buildCustomHeader(context),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87)),
-                  Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+
+                  // Dedicated tiles (remain outside the expansion logic)
+                  const CompanyProfileTile(),
+                  const SizedBox(height: 20),
+                  const MasterUploaderTile(),
+                  const SizedBox(height: 20),
+
+                  // Existing master modules (Now using ExpansionTile structure)
+                  ..._masterModules.map((module) => _buildModuleGroup(context, module)).toList(),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade300),
           ],
         ),
       ),
+    );
+  }
+}
+
+
+// Tile for the Company Profile (Singleton) (Retained)
+class CompanyProfileTile extends StatelessWidget {
+  const CompanyProfileTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Colors.blueGrey;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Company Profile Master',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const Divider(),
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CompanyProfileMasterScreen(),
+              ),
+            );
+          },
+          child: Card(
+            color: color.withOpacity(0.1),
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Icon(Icons.business_center, color: color),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Manage Your Company Details',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Tile for the Master Data Uploader (Singleton Utility) (Retained)
+class MasterUploaderTile extends StatelessWidget {
+  const MasterUploaderTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Colors.purple;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Data Utility Tools',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const Divider(),
+        InkWell(
+          onTap: () {
+            // DIRECT NAVIGATION to the Master Data Uploader screen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const MasterDataUploaderScreen(),
+              ),
+            );
+          },
+          child: Card(
+            color: color.withOpacity(0.1),
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Icon(Icons.upload_file, color: color),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Bulk Data Uploader',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

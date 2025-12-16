@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:nutricare_client_management/admin/admin_provider.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/schedule_meeting_utils.dart';
@@ -8,17 +11,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 // [Keep Extension at bottom]
 
-class ClientMeetingScheduleTab extends StatefulWidget {
+class ClientMeetingScheduleTab extends ConsumerStatefulWidget {
   final ClientModel client;
   const ClientMeetingScheduleTab({super.key, required this.client});
 
   @override
-  State<ClientMeetingScheduleTab> createState() => _ClientMeetingScheduleTabState();
+  ConsumerState<ClientMeetingScheduleTab> createState() => _ClientMeetingScheduleTabState();
 }
 
-class _ClientMeetingScheduleTabState extends State<ClientMeetingScheduleTab> {
+class _ClientMeetingScheduleTabState extends ConsumerState<ClientMeetingScheduleTab> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final MeetingService _meetingService = MeetingService();
 
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
@@ -32,10 +34,10 @@ class _ClientMeetingScheduleTabState extends State<ClientMeetingScheduleTab> {
   @override
   void initState() {
     super.initState();
-    _meetingsFuture = _meetingService.getClientMeetings(widget.client.id);
+    _meetingsFuture = ref.watch(meetingServiceProvider).getClientMeetings(widget.client.id);
   }
 
-  void _refresh() => setState(() => _meetingsFuture = _meetingService.getClientMeetings(widget.client.id));
+  void _refresh() => setState(() => _meetingsFuture = ref.watch(meetingServiceProvider).getClientMeetings(widget.client.id));
 
   Future<void> _schedule() async {
     if (!_formKey.currentState!.validate() || _selectedDate == null || _selectedTime == null) return;
@@ -43,7 +45,7 @@ class _ClientMeetingScheduleTabState extends State<ClientMeetingScheduleTab> {
 
     try {
       final dt = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, _selectedTime!.hour, _selectedTime!.minute);
-      await _meetingService.scheduleMeeting(
+      await ref.watch(meetingServiceProvider).scheduleMeeting(
           clientId: widget.client.id, startTime: dt, meetingType: _selectedMeetingType, purpose: _purposeCtrl.text.trim(), meetLink: _linkCtrl.text.trim()
       );
       if (mounted) {

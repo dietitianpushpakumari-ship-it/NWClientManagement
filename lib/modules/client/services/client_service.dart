@@ -1,105 +1,85 @@
-// lib/services/client_service.dart
-import 'dart:typed_data';
+import 'dart:io';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
-import 'package:nutricare_client_management/modules/package/model/package_assignment_model.dart';
-import '../model/client_model.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/admin/tenant_model.dart';
+import 'package:nutricare_client_management/modules/client/model/client_model.dart';
+import 'package:nutricare_client_management/modules/package/model/package_assignment_model.dart'; // Required for Firebase.app()
 
-// --- Logger Setup ---
-final Logger _logger = Logger(
-  printer: PrettyPrinter(
-    methodCount: 0,
-    errorMethodCount: 5,
-    lineLength: 80,
-    colors: true,
-    printEmojis: true,
-    printTime: false,
-  ),
-);
-
-// --- Helper Functions ---
-String _getMimeType(String? extension) {
-  final ext = extension?.toLowerCase();
-  if (ext == 'jpg' || ext == 'jpeg') return 'image/jpeg';
-  if (ext == 'png') return 'image/png';
-  return 'application/octet-stream';
-}
-
-// Placeholder Services (Required for ClientDashboardScreen to compile)
+final Logger _logger = Logger();
 
 class ClientService {
-  final CollectionReference _clientCollection = FirebaseFirestore.instance.collection('clients');
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final Random _random = Random();
-  final passwordLength = 10;
-  final FirebaseFirestore _db = FirebaseFirestore.instance; // Re-use the _db instance
-  final FirebaseFunctions _functions = FirebaseFunctions.instance; // Instance for Cloud Function
+  final Ref _ref; // Store Ref to access dynamic providers
 
-  String generateSystemId() {
-    // Ensure the maximum value for random generation is at least 1
-    final int maxRandom = 10 > 0 ? 10 : 1000;
+  ClientService(this._ref);
 
-    final Random random = Random();
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  FirebaseAuth get _auth => _ref.read(authProvider);
 
-    // Calculate a random number using the adjusted max
-    int randomNumber = random.nextInt(maxRandom);
+  // Storage usually follows the app instance too
+  FirebaseStorage get _storage => FirebaseStorage.instanceFor(
+      app: _firestore.app
+  );
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  CollectionReference get _clientCollection => _firestore.collection('clients');
 
-    // You might also want to combine a timestamp or a unique prefix
-    return 'CID-${DateTime.now().millisecondsSinceEpoch % 1000}${randomNumber.toString().padLeft(4, '0')}';
-  }
-  String generateFixedRandomSystemId() {
-    final Random random = Random();
-    // Generate a random number between 100000 and 999999
-    int min = 100000;
-    int max = 900000; // The difference is 900,000, max random number will be up to 899,999
-    int randomNumber = random.nextInt(max) + min; // Result is between 100,000 and 999,999
-    return 'CID-$randomNumber';
-  }
+  // =================================================================
+  // 🎯 NEW METHODS FOR MULTI-TENANT LOGIN
+  // =================================================================
 
-  Future<bool> _isMobileNumberUnique(String mobile) async {
-    _logger.i('Checking mobile number uniqueness: $mobile');
-    final query = await _clientCollection.where('mobile', isEqualTo: mobile).limit(1).get();
-    return query.docs.isEmpty;
-  }
-
-  Future<String?> _uploadPhotoToStorage(PlatformFile photoFile, String clientId) async {
-    _logger.d('Attempting photo upload for client ID: $clientId');
-    final fileBytes = photoFile.bytes;
-    final fileName = photoFile.name;
-
-    if (fileBytes == null) {
-      _logger.w('Photo file bytes were null.');
-      return null;
-    }
-
-    final bytesToUpload = fileBytes;
-    final mimeType = _getMimeType(photoFile.extension);
-    final path = 'client_photos/$clientId/$fileName';
+  /// Fetches the configuration for a specific tenant (e.g., 'guest')
+  Future<TenantModel> fetchTenantConfig(String tenantId) async {
+    // Always check the MASTER DB (Default App) for tenant configs
+    final masterDb = FirebaseFirestore.instanceFor(app: Firebase.app());
 
     try {
-      final storageRef = _storage.ref().child(path);
-      final uploadTask = storageRef.putData(
-        bytesToUpload,
-        SettableMetadata(contentType: mimeType),
-      );
-      await uploadTask.catchError((error) { throw error; });
-      final snapshot = await uploadTask.whenComplete(() {});
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      _logger.i('Photo uploaded successfully: $downloadUrl');
-      return downloadUrl;
+      final doc = await masterDb.collection('tenants').doc(tenantId).get();
 
-    } catch (e, stack) {
-      _logger.e('CRITICAL UPLOAD ERROR: $e', error: e, stackTrace: stack);
-      throw Exception('Firebase Storage Upload Failed. Check console for details.');
+      if (!doc.exists) {
+        // Fallback for initial setup if 'guest' doc doesn't exist yet
+        if (tenantId == 'guest') {
+          throw Exception("Guest configuration not found in Master DB.");
+        }
+        throw Exception("Tenant '$tenantId' not found.");
+      }
+
+      return TenantModel.fromMap(doc.id, doc.data()!);
+    } catch (e) {
+      throw Exception("Failed to load tenant settings: $e");
     }
   }
+
+  /// Looks up which tenant a mobile number belongs to
+  Future<String> getUserTenant(String mobile) async {
+    final email = "$mobile@nutricarewellness.in";
+    // Always check the LIVE DB's directory
+    final liveDb = FirebaseFirestore.instanceFor(app: Firebase.app());
+
+    try {
+      final doc = await liveDb.collection('user_directory').doc(email).get();
+      if (doc.exists) {
+        return doc.data()?['tenant_id'] ?? 'live';
+      }
+    } catch (e) {
+      _logger.e("Directory lookup failed: $e");
+    }
+    return 'live'; // Default
+  }
+
+  // =================================================================
+  // ♻️ EXISTING LOGIC (Refactored to use dynamic _firestore & _auth)
+  // =================================================================
+
   Future<void> addClient(ClientModel client, String password, PlatformFile? photo, PlatformFile? agreement) async {
     _logger.i('Attempting to add new client: ${client.name}');
 
@@ -107,17 +87,8 @@ class ClientService {
     String? photoUrl = await _uploadFile(photo, 'clients/${client.id}/photo');
     String? agreementUrl = await _uploadFile(agreement, 'clients/${client.id}/agreement');
 
-    // 2. Prepare Data
-    //final clientData = client.copyWith(photoUrl: photoUrl, agreementUrl: agreementUrl).toMap();
-
-
-    final newDocRef = _clientCollection.doc();
+    final newDocRef = _clientCollection.doc(); // Uses dynamic collection
     final clientId = newDocRef.id;
-
-    String? imageUrl;
-    if (photo != null) {
-      imageUrl = await _uploadPhotoToStorage(photo, clientId);
-    }
 
     final data = client.toMap();
     data['photoUrl'] = photoUrl;
@@ -129,34 +100,14 @@ class ClientService {
     await newDocRef.set(data);
     _logger.i('Client added successfully with ID: $clientId');
 
-    // 4. Securely set initial password (via Cloud Function)
-    // The service layer handles this by calling the secure admin function.
-    await _callAdminSetPasswordFunction(client.id, password);
-
-    _logger.i('Successfully added client ${client.id} and set password.');
+    // Note: If using Cloud Functions for password, ensure the function
+    // supports the tenant ID or use client-side auth creation for now.
+    // await _callAdminSetPasswordFunction(client.id, password);
   }
 
-
-  Future<void> updateClient(ClientModel client, PlatformFile? photo, PlatformFile? agreement) async {
-    _logger.i('Attempting to update client: ${client.id}');
-
-    // 1. Upload files if new ones exist (they will overwrite existing ones in storage)
-    // NOTE: This assumes ClientModel has a copyWith method to update URLs
-    String? photoUrl = await _uploadFile(photo, 'clients/${client.id}/photo') ?? client.photoUrl;
-    String? agreementUrl = await _uploadFile(agreement, 'clients/${client.id}/agreement') ?? client.agreementUrl;
-
-    // 2. Prepare Data
-    // For simplicity without copyWith, we will update the map fields directly:
-    final Map<String, dynamic> updateData = client.toMap();
-    updateData['photoUrl'] = photoUrl;
-    updateData['agreementUrl'] = agreementUrl;
-    updateData['updatedAt'] = FieldValue.serverTimestamp();
-
-    // 3. Update Client Firestore Document
-    await _clientCollection.doc(client.id).update(updateData);
-
-    _logger.i('Successfully updated client ${client.id}.');
-  }
+  // ... (Keep your other methods like updateClient, softDeleteClient)
+  // Just ensure you replace `FirebaseFirestore.instance` with `_firestore`
+  // and `FirebaseAuth.instance` with `_auth`.
 
   Future<Map<String, dynamic>> softDeleteClient({required String clientId, bool isCheckOnly = false}) async {
     final clientDoc = await _clientCollection.doc(clientId).get();
@@ -202,6 +153,25 @@ class ClientService {
   }
 
 
+  Future<String?> _uploadFile(PlatformFile? file, String path) async {
+    if (file == null || file.bytes == null) return null;
+    try {
+      final extension = file.extension ?? 'bin';
+      final storageRef = _storage.ref().child('$path.$extension'); // Dynamic storage
+      final uploadTask = storageRef.putData(file.bytes!, SettableMetadata(contentType: _getMimeType(extension)));
+      final snapshot = await uploadTask;
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  String _getMimeType(String? extension) {
+    final ext = extension?.toLowerCase();
+    if (ext == 'jpg' || ext == 'jpeg') return 'image/jpeg';
+    if (ext == 'png') return 'image/png';
+    return 'application/octet-stream';
+  }
 
   Future<String> changeLoginIdToSystem(String clientId, String currentMobile) async {
     _logger.i('Attempting to change login ID for client: $clientId');
@@ -227,6 +197,18 @@ class ClientService {
       _logger.e('Error changing login ID: ${e.toString()}', error: e, stackTrace: stack);
       rethrow;
     }
+  }
+  String generateSystemId() {
+    // Ensure the maximum value for random generation is at least 1
+    final int maxRandom = 10 > 0 ? 10 : 1000;
+
+    final Random random = Random();
+
+    // Calculate a random number using the adjusted max
+    int randomNumber = random.nextInt(maxRandom);
+
+    // You might also want to combine a timestamp or a unique prefix
+    return 'CID-${DateTime.now().millisecondsSinceEpoch % 1000}${randomNumber.toString().padLeft(4, '0')}';
   }
 
   // --- Authentication/Credential Methods (with Robust Logging) ---
@@ -610,8 +592,6 @@ class ClientService {
 
     _logger.i('Successfully changed password and updated hasPasswordSet flag for $clientId.');
   }
-
-  /// Private helper to call the admin Cloud Function.
   Future<void> _callAdminSetPasswordFunction(String clientId, String password) async {
     try {
       // NOTE: The actual Firebase Cloud Function 'adminSetClientPassword' must be deployed
@@ -623,9 +603,9 @@ class ClientService {
         'password': password,
       });
 
-      if (kDebugMode) {
+      //if (kDebugMode) {
         _logger.d('Cloud Function Response: ${result.data}');
-      }
+     // }
 
     } on FirebaseFunctionsException catch (e) {
       _logger.e('Firebase Function Error (adminSetClientPassword): ${e.code} - ${e.message}');
@@ -636,46 +616,5 @@ class ClientService {
     }
   }
 
-
-
-  /// Helper function to upload a file (photo or agreement) to Firebase Storage.
-  Future<String?> _uploadFile(PlatformFile? file, String path) async {
-    if (file == null || file.bytes == null) return null;
-
-    try {
-      final extension = file.extension ?? 'bin';
-      final storageRef = _storage.ref().child('$path.$extension');
-
-      final uploadTask = storageRef.putData(
-        file.bytes!,
-        SettableMetadata(contentType: _getMimeType(extension)),
-      );
-
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
-      _logger.i('File uploaded to: $downloadUrl');
-      return downloadUrl;
-
-    } on FirebaseException catch (e) {
-      _logger.e('Firebase Storage Error during upload: ${e.code} - ${e.message}');
-      return null;
-    }
-  }
-// ... inside ClientService class
-
-  // 🎯 NEW: Update Client Type (Manual Override)
-  Future<void> updateClientType(String clientId, String newType) async {
-    try {
-      await _clientCollection.doc(clientId).update({
-        'clientType': newType,
-        'updatedAt': FieldValue.serverTimestamp()
-      });
-    } catch (e) {
-      throw Exception("Failed to update client type: $e");
-    }
-  }
-
-// ... rest of class
 
 }

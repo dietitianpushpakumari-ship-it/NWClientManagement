@@ -1,7 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/labvital/client_profile_edit_screen.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
+import 'package:nutricare_client_management/admin/labvital/vitals_comprasion_screen.dart';
 import 'package:nutricare_client_management/screens/dash/client-personal_info_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -17,22 +20,22 @@ import 'package:nutricare_client_management/modules/client/screen/assigned_diet_
 import 'package:nutricare_client_management/modules/client/screen/master_plan_assignment_page.dart';
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
 
-
-class ClientDashboardScreen extends StatefulWidget {
+class ClientDashboardScreen extends ConsumerStatefulWidget {
   final ClientModel client;
 
   const ClientDashboardScreen({super.key, required this.client});
 
   @override
-  State<ClientDashboardScreen> createState() => _ClientDashboardScreenState();
+  ConsumerState<ClientDashboardScreen> createState() => _ClientDashboardScreenState();
 }
 
-class _ClientDashboardScreenState extends State<ClientDashboardScreen> with SingleTickerProviderStateMixin {
+class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> with SingleTickerProviderStateMixin {
   late ClientModel _currentClient;
-  final ClientService _clientService = ClientService();
+
   late TabController _tabController;
   bool _isLoading = false;
 
+  // ... (omitted sheet opening methods) ...
 
   void _openPersonalInfoSheet() {
     showModalBottomSheet(
@@ -73,6 +76,9 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
     super.initState();
     _currentClient = widget.client;
     _tabController = TabController(length: 6, vsync: this);
+
+    // 🎯 FIX 1: Explicitly call refresh on initial load
+    _refreshClientData();
   }
 
   @override
@@ -82,13 +88,20 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
   }
 
   Future<void> _refreshClientData() async {
-    setState(() => _isLoading = true);
+    setState(() => _isLoading = true); // Sets loading to true
     try {
-      final updatedClient = await _clientService.getClientById(_currentClient.id);
-      if (mounted) setState(() => _currentClient = updatedClient);
+      final clientService = ref.read(clientServiceProvider);
+      // Calls clientService.getClientById()
+      final updatedClient = await clientService.getClientById(_currentClient.id);
+      if (mounted) setState(() => _currentClient = updatedClient); // Updates state on success
     } catch (e) {
-      // Handle error silently or toast
+      // 🎯 FIX 2: Log the error to diagnose the issue, but guarantee loading state reset
+      print("Error refreshing client data: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to refresh data: $e')));
+      }
     } finally {
+      // Guarantees loading state is reset, preventing infinite spinner
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -105,7 +118,8 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
   }
 
   Future<void> _handleSoftDelete() async {
-    final check = await _clientService.softDeleteClient(clientId: _currentClient.id, isCheckOnly: true);
+    final clientService = ref.read(clientServiceProvider);
+    final check = await clientService.softDeleteClient(clientId: _currentClient.id, isCheckOnly: true);
 
     if (!check['canDelete']) {
       _showDialog("Cannot Delete", check['message'], isError: true);
@@ -129,7 +143,8 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
     );
 
     if (confirm == true) {
-      await _clientService.softDeleteClient(clientId: _currentClient.id, isCheckOnly: false);
+      final clientService = ref.read(clientServiceProvider);
+      await clientService.softDeleteClient(clientId: _currentClient.id, isCheckOnly: false);
       if (mounted) Navigator.pop(context); // Exit dashboard
     }
   }
@@ -196,6 +211,8 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
       ),
     );
   }
+
+  // ... (omitted _buildCustomHeader and _buildPremiumTabBar for brevity)
 
   Widget _buildCustomHeader() {
     // Status Logic
@@ -404,18 +421,42 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
       mainAxisSpacing: 16,
       childAspectRatio: 1.1, // Square-ish cards
       children: [
+        // 1. Vitals Log
         _buildActionCard(
-          "Vitals", "Log Measurements", Icons.monitor_heart, Colors.red,
+          "Vitals Log", "Log Measurements", Icons.monitor_heart, Colors.red,
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name))),
         ),
+
+        // 🎯 2. NEW: Vitals Comparison/Progress Analysis
+        _buildActionCard(
+          "Vitals Progress",
+          "Compare Labs Side-by-Side",
+          Icons.show_chart,
+          Colors.blue, // Use a distinct color
+              () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => VitalsComparisonScreen( // Assuming this class is ready
+                      clientId: _currentClient.id,
+                      clientName: _currentClient.name
+                  )
+              )
+          ),
+        ),
+
+        // 3. New Package
         _buildActionCard(
           "New Package", "Assign Service", Icons.card_giftcard, Colors.deepPurple,
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => PackageAssignmentPage(client: _currentClient))).then((_) => _refreshClientData()),
         ),
+
+        // 4. Diet Template
         _buildActionCard(
           "Diet Template", "Assign Master", Icons.restaurant_menu, Theme.of(context).colorScheme.primary,
-              () => Navigator.push(context, MaterialPageRoute(builder: (_) => MasterPlanSelectionPage(client: _currentClient, onMasterPlanAssigned: _refreshClientData))),
+              (){}// => Navigator.push(context, MaterialPageRoute(builder: (_) => MasterPlanSelectionPage(client: _currentClient, onMasterPlanAssigned: _refreshClientData))),
         ),
+
+        // 5. Custom Plan
         _buildActionCard(
           "Custom Plan", "Edit Details", Icons.edit_note, Colors.orange,
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssignedDietPlanListScreen(client: _currentClient, onMealPlanSaved: _refreshClientData))),
@@ -423,8 +464,6 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> with Sing
       ],
     );
   }
-
-  // --- WIDGET HELPERS ---
 
   Widget _buildActionCard(String title, String subtitle, IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(

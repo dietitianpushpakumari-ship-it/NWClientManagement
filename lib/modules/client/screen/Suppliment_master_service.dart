@@ -1,16 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/modules/client/screen/suppliment_master_model.dart';
 
 class SupplimentMasterService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final String _collectionName = 'suppliments';
-  final CollectionReference _collection =
-  FirebaseFirestore.instance.collection("suppliments");
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  SupplimentMasterService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _collection => _firestore.collection(MasterCollectionPath.collection_master_suppliment);
+
+
 
   /// Fetches a stream of all non-deleted diagnoses.
   Stream<List<SupplimentMasterModel>> getSupplimentMaster() {
-    return _db
-        .collection(_collectionName)
+    return _collection
         .where('isDeleted', isEqualTo: false)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -20,7 +28,7 @@ class SupplimentMasterService {
 
   /// Adds a new investigation or updates an existing one.
   Future<void> addOrUpdateSupplimentMaster(SupplimentMasterModel suppliment) async {
-    final docRef = _db.collection(_collectionName).doc(suppliment.id.isEmpty ? null : suppliment.id);
+    final docRef = _collection.doc(suppliment.id.isEmpty ? null : suppliment.id);
     await docRef.set(
       suppliment.toMap(),
       SetOptions(merge: true), // Use merge to only update fields present
@@ -29,7 +37,7 @@ class SupplimentMasterService {
 
   /// Soft deletes a suppliment (sets isDeleted to true).
   Future<void> softDeleteSupplimentMaster(String SupplimentMasterId) async {
-    await _db.collection(_collectionName).doc(SupplimentMasterId).update({
+    await _collection.doc(SupplimentMasterId).update({
       'isDeleted': true,
     });
   }

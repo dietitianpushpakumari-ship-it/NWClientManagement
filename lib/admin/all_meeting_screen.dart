@@ -2,25 +2,29 @@
 
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutricare_client_management/admin/admin_booking_session_screen.dart';
+import 'package:nutricare_client_management/admin/admin_provider.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:nutricare_client_management/admin/staff_management_service.dart'; // 🎯 Added import
 import 'package:url_launcher/url_launcher.dart';
 
-class AllMeetingsScreen extends StatefulWidget {
+import 'database_provider.dart';
+
+class AllMeetingsScreen extends ConsumerStatefulWidget {
   const AllMeetingsScreen({super.key});
 
   @override
-  State<AllMeetingsScreen> createState() => _AllMeetingsScreenState();
+  ConsumerState<AllMeetingsScreen> createState() => _AllMeetingsScreenState();
 }
 
-class _AllMeetingsScreenState extends State<AllMeetingsScreen> with SingleTickerProviderStateMixin {
+class _AllMeetingsScreenState extends ConsumerState<AllMeetingsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final MeetingService _service = MeetingService();
-  final StaffManagementService _staffService = StaffManagementService(); // 🎯 Added service
+                    // 🎯 Added service
 
   @override
   void initState() {
@@ -30,7 +34,7 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> with SingleTicker
 
   // --- ACTIONS ---
   Future<void> _updateStatus(AppointmentModel appt, AppointmentStatus status) async {
-    await FirebaseFirestore.instance.collection('appointments').doc(appt.id).update({
+    await   ref.read(firestoreProvider).collection('appointments').doc(appt.id).update({
       'status': status.name
     });
   }
@@ -44,7 +48,7 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> with SingleTicker
   // 🎯 NEW: Correctly fetch data before navigation
   void _navigateToBooking() async {
     // Show loader if needed or just wait
-    final staff = await _staffService.getAllDietitians();
+    final staff = await ref.watch(staffManagementProvider).getAllDietitians();
 
     // Map to the Dietitian model required by the Booking Screen
     final dietitians = staff.map((s) => Dietitian(
@@ -96,7 +100,7 @@ class _AllMeetingsScreenState extends State<AllMeetingsScreen> with SingleTicker
                 // LIST
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('appointments').orderBy('startTime', descending: true).snapshots(),
+                    stream: ref.watch(firestoreProvider).collection('appointments').orderBy('startTime', descending: true).snapshots(),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 

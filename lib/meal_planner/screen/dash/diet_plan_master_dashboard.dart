@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/meal_planner/screen/food_category_list_page.dart';
-import 'package:nutricare_client_management/meal_planner/screen/food_item_list_page.dart';
-import 'package:nutricare_client_management/meal_planner/screen/master_meal_name_list_page.dart';
-import 'package:nutricare_client_management/meal_planner/screen/serving_unit_list_page.dart';
+import 'package:nutricare_client_management/master/screen/food_category_list_page.dart';
+import 'package:nutricare_client_management/master/screen/food_item_list_page.dart';
+import 'package:nutricare_client_management/master/screen/master_meal_name_list_page.dart';
+import 'package:nutricare_client_management/master/screen/serving_unit_list_page.dart';
+
+import '../../../master_diet_planner/diet_plan_category_list_page.dart';
 
 class DietPlanMasterPage extends StatelessWidget {
   const DietPlanMasterPage({super.key});
@@ -27,6 +29,9 @@ class DietPlanMasterPage extends StatelessWidget {
                     crossAxisSpacing: 16,
                     childAspectRatio: 1.1,
                     children: [
+                      // 🎯 GOAL CATEGORIES CARD
+                      _buildCard(context, "Plan Categories", Icons.flag_circle, Colors.blueAccent, const DietPlanCategoryListPage()),
+
                       _buildCard(context, "Food Items", Icons.lunch_dining, Colors.orange, const FoodItemListPage()),
                       _buildCard(context, "Food Categories", Icons.category, Colors.green, const FoodCategoryListPage()),
                       _buildCard(context, "Meal Names", Icons.access_time, Colors.blue, const MasterMealNameListPage()),

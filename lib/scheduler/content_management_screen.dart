@@ -1,18 +1,20 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/scheduler/content_service.dart';
 import 'package:nutricare_client_management/scheduler/dieititan_content_model.dart';
 import 'package:nutricare_client_management/scheduler/disease_tag.dart';
 
-class ContentManagementScreen extends StatefulWidget {
+class ContentManagementScreen extends ConsumerStatefulWidget {
   final DietitianContentModel? initialContent;
   const ContentManagementScreen({super.key, this.initialContent});
 
   @override
-  State<ContentManagementScreen> createState() => _ContentManagementScreenState();
+  ConsumerState<ContentManagementScreen> createState() => _ContentManagementScreenState();
 }
 
-class _ContentManagementScreenState extends State<ContentManagementScreen> {
+class _ContentManagementScreenState extends ConsumerState<ContentManagementScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _contentCtrl = TextEditingController();
@@ -47,7 +49,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
       publishedAt: widget.initialContent?.publishedAt ?? DateTime.now(),
     );
 
-    await ContentService().saveContent(content);
+    await ref.read(contentServiceProvider).saveContent(content);
     if (mounted) Navigator.pop(context, true);
   }
 

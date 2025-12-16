@@ -1,22 +1,24 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // 🎯 Import
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/admin/staff_management_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'admin_profile_model.dart';
 import 'dietitian_onboarding_screen.dart'; // 🎯 Import
 
-class StaffManagementScreen extends StatefulWidget {
+class StaffManagementScreen extends ConsumerStatefulWidget {
   const StaffManagementScreen({super.key});
 
   @override
-  State<StaffManagementScreen> createState() => _StaffManagementScreenState();
+  ConsumerState<StaffManagementScreen> createState() => _StaffManagementScreenState();
 }
 
-class _StaffManagementScreenState extends State<StaffManagementScreen> {
-  final StaffManagementService _service = StaffManagementService();
+class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
+
   final TextEditingController _searchCtrl = TextEditingController();
 
   AdminRole? _selectedRole;
@@ -129,7 +131,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
 
     if (confirm == true) {
-      await FirebaseFirestore.instance.collection('admins').doc(staff.id).update({'isActive': newStatus});
+      await ref.read(firestoreProvider).collection('admins').doc(staff.id).update({'isActive': newStatus});
     }
   }
 
@@ -162,7 +164,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                 const SizedBox(height: 16),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('admins').snapshots(),
+                    stream: ref.watch(firestoreProvider).collection('admins').snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                       var docs = snapshot.data?.docs ?? [];
@@ -266,13 +268,25 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         child: Row(
           children: [
             Stack(children: [
-              Container(padding: const EdgeInsets.all(3), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: isActive ? Colors.indigo.withOpacity(0.2) : Colors.grey, width: 2)), child: CircleAvatar(radius: 28, backgroundImage: staff.photoUrl.isNotEmpty ? NetworkImage(staff.photoUrl) : null, backgroundColor: isActive ? Colors.indigo.shade50 : Colors.grey.shade200, child: staff.photoUrl.isEmpty ? Text(staff.firstName[0], style: TextStyle(fontWeight: FontWeight.bold, color: isActive ? Colors.indigo : Colors.grey, fontSize: 20)) : null)),
+              Container(padding: const EdgeInsets.all(3), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: isActive ? Colors.indigo.withOpacity(0.2) : Colors.grey, width: 2)),
+                  child: CircleAvatar(radius: 28, backgroundImage: staff.photoUrl.isNotEmpty ? NetworkImage(staff.photoUrl) : null,
+                      backgroundColor: isActive ? Colors.indigo.shade50 : Colors.grey.shade200,
+                      child: staff.photoUrl.isEmpty
+                          ? Text(
+                        staff.firstName.isNotEmpty ? staff.firstName[0].toUpperCase() : 'S',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isActive ? Colors.indigo : Colors.grey,
+                        ),
+                      )
+                          : null,
+                         )),
               if (isActive) Positioned(bottom: 2, right: 2, child: Container(width: 14, height: 14, decoration: BoxDecoration(color: Colors.green, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)))),
             ]),
             const SizedBox(width: 16),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(staff.fullName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isActive ? const Color(0xFF1A1A1A) : Colors.grey)),
+                Text(staff.firstName.isNotEmpty ? "${staff.firstName} ${staff.lastName}" : "Unnamed Staff", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isActive ? const Color(0xFF1A1A1A) : Colors.grey)),
                 const SizedBox(height: 4),
                 Text("${staff.designation} • ${staff.role.name.toUpperCase()}", style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),

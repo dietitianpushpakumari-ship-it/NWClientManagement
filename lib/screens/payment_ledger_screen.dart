@@ -1,14 +1,16 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 
 import '../modules/package/model/package_assignment_model.dart';
 import '../modules/package/model/payment_model.dart';
 import '../modules/package/service/package_payment_service.dart';
 
-class PaymentLedgerScreen extends StatefulWidget {
+class PaymentLedgerScreen extends ConsumerStatefulWidget {
   final PackageAssignmentModel assignment;
   final String clientName;
   final double initialCollectedAmount;
@@ -21,11 +23,11 @@ class PaymentLedgerScreen extends StatefulWidget {
   });
 
   @override
-  State<PaymentLedgerScreen> createState() => _PaymentLedgerScreenState();
+  ConsumerState<PaymentLedgerScreen> createState() => _PaymentLedgerScreenState();
 }
 
-class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
-  final PackagePaymentService paymentService = PackagePaymentService();
+class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
+
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _narrationController = TextEditingController();
@@ -112,7 +114,8 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
 
     if (shouldDelete == true) {
       try {
-        await paymentService.deletePayment(payment.id, deletionReason: reasonController.text.trim());
+        final _paymentLedgerService = ref.watch(packagePaymentServiceProvider);
+        await _paymentLedgerService.deletePayment(payment.id, deletionReason: reasonController.text.trim());
         setState(() {
           _currentTotalCollected -= payment.amount;
           _amountController.text = _pendingBalance > 0 ? _pendingBalance.toStringAsFixed(2) : '0.00';
@@ -128,6 +131,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
   }
 
   Future<void> _recordPayment() async {
+    final _paymentLedgerService = ref.watch(packagePaymentServiceProvider);
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a payment date.')));
@@ -155,7 +159,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
     );
 
     try {
-      await paymentService.addPayment(newPayment);
+      await _paymentLedgerService.addPayment(newPayment);
       setState(() {
         _currentTotalCollected += amount;
         _amountController.text = _pendingBalance > 0 ? _pendingBalance.toStringAsFixed(2) : '0.00';
@@ -172,6 +176,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final _paymentLedgerService = ref.watch(packagePaymentServiceProvider);
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
       body: Stack(
@@ -213,7 +218,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
                 // 3. Main Content
                 Expanded(
                   child: StreamBuilder<List<PaymentModel>>(
-                    stream: paymentService.streamPaymentsForAssignment(widget.assignment.id),
+                    stream: _paymentLedgerService.streamPaymentsForAssignment(widget.assignment.id),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                       if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));

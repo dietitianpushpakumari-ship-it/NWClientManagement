@@ -100,7 +100,7 @@ class AdminMoreScreen extends StatelessWidget {
                               Icons.campaign, Colors.orange,
                                   () {
                                 // Example linking to feed manager from settings too
-                                Navigator.push(context, MaterialPageRoute(builder: (_) => const FeedManagementScreen()));
+                                Navigator.push(context, MaterialPageRoute(builder: (_) =>  FeedManagementScreen()));
                               },
                             ),
                             _buildDivider(),

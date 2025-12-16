@@ -1,18 +1,27 @@
 // lib/services/food_item_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../model/food_item.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
+import '../../../master/model/food_item.dart';
 
 /// Service class for managing FoodItem master data in Firestore.
 class FoodItemService {
-  final CollectionReference _collection =
-  FirebaseFirestore.instance.collection('foodItems');
+  final Ref _ref; // Store Ref to access dynamic providers
+  FoodItemService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _collection => _firestore.collection(MasterCollectionMapper.getPath(MasterEntity.entity_FoodItem));
+
 
   // --- READ ---
   Stream<List<FoodItem>> streamAllActive() {
     return _collection
         .where('isDeleted', isEqualTo: false)
-        .orderBy('enName')
+        .orderBy('name')
         .snapshots()
         .map((snapshot) => snapshot.docs
         .map((doc) => FoodItem.fromFirestore(doc))
@@ -24,7 +33,7 @@ class FoodItemService {
     return _collection
         .where('isDeleted', isEqualTo: false)
         .where('categoryId', isEqualTo: categoryId)
-        .orderBy('enName')
+        .orderBy('name')
         .snapshots()
         .map((snapshot) => snapshot.docs
         .map((doc) => FoodItem.fromFirestore(doc))
@@ -57,7 +66,7 @@ class FoodItemService {
 
       QuerySnapshot<Object?> snapshot = await _collection
           .where('isDeleted', isEqualTo: false)
-          .orderBy('enName')
+          .orderBy('name')
           .get(); // 🎯 Key change: .get() instead of .snapshots()
 
       // 2. Map the QuerySnapshot documents to a List<FoodItem>

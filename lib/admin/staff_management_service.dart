@@ -3,11 +3,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart'; // For debugPrint
 import 'package:flutter/material.dart'; // For DateUtils
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 
 import 'admin_profile_model.dart';
 
 class StaffManagementService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  StaffManagementService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // 🎯 CONFIG: Centralized Domain
@@ -123,7 +132,7 @@ class StaffManagementService {
         lastModifiedBy: creatorUid,
       );
 
-      await _db.collection('admins').doc(cred.user!.uid).set(newStaff.toMap());
+      await _firestore.collection('admins').doc(cred.user!.uid).set(newStaff.toMap());
 
       return empId;
 
@@ -181,7 +190,7 @@ class StaffManagementService {
     required DateTime dob,
   }) async {
     try {
-      final snap = await _db.collection('admins')
+      final snap = await _firestore.collection('admins')
           .where('employeeId', isEqualTo: empId.trim())
           .limit(1)
           .get();
@@ -216,7 +225,7 @@ class StaffManagementService {
     required String uid,
     required String newPassword
   }) async {
-    final doc = await _db.collection('admins').doc(uid).get();
+    final doc = await _firestore.collection('admins').doc(uid).get();
     if (!doc.exists) throw Exception("User record not found.");
 
     // 🎯 Use Firestore data to construct credentials
@@ -250,8 +259,8 @@ class StaffManagementService {
   // ===========================================================================
 
   Future<String> _generateEmployeeId() async {
-    final docRef = _db.collection('configurations').doc('staff_counter');
-    return _db.runTransaction((transaction) async {
+    final docRef = _firestore.collection('configurations').doc('staff_counter');
+    return _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(docRef);
       int currentCount = 1000;
       if (snapshot.exists) currentCount = snapshot.data()?['count'] ?? 1000;
@@ -266,7 +275,7 @@ class StaffManagementService {
   Stream<List<String>> streamDesignations() => _streamMasterList('designations');
 
   Stream<List<String>> _streamMasterList(String field) {
-    return _db.collection('configurations').doc('staff_master').snapshots().map((doc) {
+    return _firestore.collection('configurations').doc('staff_master').snapshots().map((doc) {
       if (!doc.exists) return [];
       return List<String>.from(doc.data()?[field] ?? []);
     });
@@ -277,7 +286,7 @@ class StaffManagementService {
   Future<void> addDesignationToMaster(String val) async => await _addToMasterArray('designations', val);
 
   Future<void> _addToMasterArray(String field, String value) async {
-    final docRef = _db.collection('configurations').doc('staff_master');
+    final docRef = _firestore.collection('configurations').doc('staff_master');
     final doc = await docRef.get();
     if (!doc.exists) {
       await docRef.set({field: [value]});
@@ -287,14 +296,14 @@ class StaffManagementService {
   }
 
   Future<void> deleteFromMaster(String field, String value) async {
-    await _db.collection('configurations').doc('staff_master').update({
+    await _firestore.collection('configurations').doc('staff_master').update({
       field: FieldValue.arrayRemove([value])
     });
   }
 
   Future<void> updateInMaster(String field, String oldValue, String newValue) async {
-    final docRef = _db.collection('configurations').doc('staff_master');
-    await _db.runTransaction((transaction) async {
+    final docRef = _firestore.collection('configurations').doc('staff_master');
+    await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(docRef);
       if (!snapshot.exists) return;
       List<String> list = List<String>.from(snapshot.data()?[field] ?? []);
@@ -307,7 +316,7 @@ class StaffManagementService {
   }
 
   Future<List<AdminProfileModel>> getAllDietitians() async {
-    final snap = await _db.collection('admins')
+    final snap = await _firestore.collection('admins')
         .where('role', whereIn: ['dietitian', 'superAdmin']) // 🎯 Fixed
         .where('isActive', isEqualTo: true)
         .get();
@@ -315,10 +324,10 @@ class StaffManagementService {
   }
 
   Future<void> updateStaffProfile(AdminProfileModel staff) async {
-    await _db.collection('admins').doc(staff.id).update(staff.toMap());
+    await _firestore.collection('admins').doc(staff.id).update(staff.toMap());
   }
   Stream<List<AdminProfileModel>> streamAllStaff() {
-    return _db.collection('admins')
+    return _firestore.collection('admins')
         .where('role', whereIn: ['dietitian', 'superAdmin']) // 🎯 Fixed
         .where('isActive', isEqualTo: true)
         .snapshots()

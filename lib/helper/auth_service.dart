@@ -1,10 +1,21 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart'; // To access authProvider
 
-// NOTE: This class requires proper implementation for file handling
-// (e.g., image_picker) and Firebase Storage interaction.
-class AuthService extends ChangeNotifier {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+// 🎯 1. GLOBAL RIVERPOD PROVIDER DEFINITION
+// This registers AuthService and injects the Ref object.
+final authServiceProvider = Provider<AuthService>((ref) => AuthService(ref));
+
+// 🎯 2. SERVICE CLASS (No longer extends ChangeNotifier)
+class AuthService {
+  final Ref _ref;
+
+  // 🎯 3. Constructor accepts Ref
+  AuthService(this._ref);
+
+  // 🎯 4. Dynamic Getter for Multi-Tenancy
+  // This ensures the service uses the correct FirebaseAuth instance for the active tenant.
+  FirebaseAuth get _auth => _ref.read(authProvider);
 
   User? get currentUser => _auth.currentUser;
 
@@ -12,12 +23,10 @@ class AuthService extends ChangeNotifier {
   Future<void> updateProfileImage(String newImageUrl) async {
     if (currentUser == null) throw Exception("User not authenticated.");
     try {
-      // In a real app:
-      // 1. Use image_picker/file_picker to get a file.
-      // 2. Upload the file to Firebase Storage.
-      // 3. Get the download URL (newImageUrl).
+      // 🎯 Uses the current user from the dynamic auth instance
       await currentUser!.updatePhotoURL(newImageUrl);
-      notifyListeners(); // Notify UI components (like the Drawer) to rebuild
+      // Note: Call notifyListeners() is removed. UI should watch a StreamProvider (like userStreamProvider)
+      // or manually refresh the user object after this call.
     } catch (e) {
       throw Exception("Failed to update profile image: $e");
     }
@@ -28,7 +37,7 @@ class AuthService extends ChangeNotifier {
     if (currentUser == null) throw Exception("User not authenticated.");
     try {
       await currentUser!.updateDisplayName(newName);
-      notifyListeners();
+      // notifyListeners() removed.
     } catch (e) {
       throw Exception("Failed to update profile name: $e");
     }
@@ -37,6 +46,7 @@ class AuthService extends ChangeNotifier {
   /// Sends a password reset email to the user's registered email.
   Future<void> sendPasswordResetEmail(String email) async {
     try {
+      // 🎯 Uses the dynamic Auth instance
       await _auth.sendPasswordResetEmail(email: email);
     } catch (e) {
       throw Exception("Failed to send reset email: $e");
@@ -44,6 +54,7 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    // 🎯 Uses the dynamic Auth instance
     await _auth.signOut();
   }
 }

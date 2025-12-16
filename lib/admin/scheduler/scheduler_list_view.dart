@@ -1,23 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/admin_appointment_detail_screen.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
 import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/modules/client/services/client_service.dart';
 import 'package:nutricare_client_management/screens/dash/client_dashboard_screenv2.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class SchedulerListView extends StatefulWidget {
+class SchedulerListView extends ConsumerStatefulWidget {
   const SchedulerListView({super.key});
 
   @override
-  State<SchedulerListView> createState() => _SchedulerListViewState();
+  ConsumerState<SchedulerListView> createState() => _SchedulerListViewState();
 }
 
-class _SchedulerListViewState extends State<SchedulerListView> with SingleTickerProviderStateMixin {
+class _SchedulerListViewState extends ConsumerState<SchedulerListView> with SingleTickerProviderStateMixin {
   late TabController _listTabController;
-  final ClientService _clientService = ClientService();
+
 
   // 🎯 NEW: Smart Filters State
   final Set<String> _historyStatusFilters = {};
@@ -62,11 +65,12 @@ class _SchedulerListViewState extends State<SchedulerListView> with SingleTicker
   Future<void> _handleStartConsultation(AppointmentModel appt) async {
     if (appt.clientId == null) return;
     try {
-      final client = await _clientService.getClientById(appt.clientId!);
+      final clientService = ref.read(clientServiceProvider);
+      final client = await clientService.getClientById(appt.clientId!);
       if (!mounted) return;
 
       if (client.clientType == 'new' || client.clientType == 'pending') {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(initialProfile: client)));
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(client: client)));
       } else {
         Navigator.push(context, MaterialPageRoute(builder: (_) => ClientDashboardScreen(client: client)));
       }
@@ -108,7 +112,7 @@ class _SchedulerListViewState extends State<SchedulerListView> with SingleTicker
         // CONTENT VIEW
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('appointments').snapshots(),
+            stream: ref.watch(firestoreProvider).collection('appointments').snapshots(),
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 

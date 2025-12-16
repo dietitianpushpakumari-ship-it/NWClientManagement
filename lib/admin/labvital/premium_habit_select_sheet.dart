@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/habit_master_model.dart';
 import 'package:nutricare_client_management/admin/habit_master_service.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 
-class PremiumHabitSelectSheet extends StatefulWidget {
+class PremiumHabitSelectSheet extends ConsumerStatefulWidget {
   final List<String> initialSelectedIds;
 
   const PremiumHabitSelectSheet({super.key, required this.initialSelectedIds});
 
   @override
-  State<PremiumHabitSelectSheet> createState() => _PremiumHabitSelectSheetState();
+  ConsumerState<PremiumHabitSelectSheet> createState() => _PremiumHabitSelectSheetState();
 }
 
-class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
-  final HabitMasterService _service = HabitMasterService();
+class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectSheet> {
+
   Set<String> _selectedIds = {};
 
   @override
@@ -22,6 +24,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
   }
 
   void _showAddEditDialog({HabitMasterModel? habit}) {
+    final _service = ref.read(habitMasterServiceProvider);
     final titleCtrl = TextEditingController(text: habit?.title ?? '');
     final descCtrl = TextEditingController(text: habit?.description ?? '');
     String selectedIcon = habit?.iconCode ?? 'check';
@@ -79,7 +82,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
               style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
               onPressed: () {
                 if (titleCtrl.text.isNotEmpty) {
-                  _service.saveHabit(HabitMasterModel(
+                  _service.save(HabitMasterModel(
                     id: habit?.id ?? '',
                     title: titleCtrl.text.trim(),
                     description: descCtrl.text.trim(),
@@ -98,6 +101,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
   }
 
   void _confirmDelete(HabitMasterModel habit) {
+    final _service = ref.read(habitMasterServiceProvider);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -106,7 +110,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () { _service.deleteHabit(habit.id); Navigator.pop(ctx); },
+            onPressed: () { _service.delete(habit.id); Navigator.pop(ctx); },
             child: const Text("Delete"),
           )
         ],
@@ -116,6 +120,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final _service = ref.read(habitMasterServiceProvider);
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -138,7 +143,7 @@ class _PremiumHabitSelectSheetState extends State<PremiumHabitSelectSheet> {
           const Divider(),
           Expanded(
             child: StreamBuilder<List<HabitMasterModel>>(
-              stream: _service.streamAllHabits(),
+              stream: _service.streamActiveHabits(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                 final habits = snapshot.data!;

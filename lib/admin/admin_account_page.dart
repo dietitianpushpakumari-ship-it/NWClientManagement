@@ -1,22 +1,19 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
+import 'package:nutricare_client_management/admin/admin_provider.dart';
 import 'package:nutricare_client_management/admin/admin_profile_service.dart';
-import 'package:nutricare_client_management/admin/dietitian_profile_detail_screen.dart';
+import 'package:nutricare_client_management/login_screen.dart';
 
-class AdminAccountPage extends StatefulWidget {
+class AdminAccountPage extends ConsumerStatefulWidget {
   const AdminAccountPage({super.key});
 
   @override
-  State<AdminAccountPage> createState() => _AdminAccountPageState();
+  ConsumerState<AdminAccountPage> createState() => _AdminAccountPageState();
 }
 
-class _AdminAccountPageState extends State<AdminAccountPage> with SingleTickerProviderStateMixin {
+class _AdminAccountPageState extends ConsumerState<AdminAccountPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final AdminProfileService _service = AdminProfileService();
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
-  final String _adminUid = FirebaseAuth.instance.currentUser?.uid ?? 'development_test_admin_uid';
 
   @override
   void initState() {
@@ -25,51 +22,157 @@ class _AdminAccountPageState extends State<AdminAccountPage> with SingleTickerPr
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (_currentUser == null) return _buildUnauthView();
+    final adminAsync = ref.watch(currentAdminProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      body: Stack(
-        children: [
-          // Ambient Glow
-          Positioned(
-              top: -100, right: -100,
-              child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.purple.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
-
-          SafeArea(
-            child: Column(
+      body: adminAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text("Error: $err")),
+        data: (profile) {
+          if (profile == null) return const Center(child: Text("Profile not found"));
+          return NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              _buildSliverAppBar(profile),
+            ],
+            body: TabBarView(
+              controller: _tabController,
               children: [
-                // 1. Custom Header with TabBar
-                _buildHeader(),
+                _ProfileDetailsTab(profile: profile),
+                const _SettingsTab(), // Placeholder
+                const _SecurityTab(), // Placeholder
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-                // 2. Tab Views
-                Expanded(
-                  child: StreamBuilder<AdminProfileModel>(
-                    stream: _service.streamAdminProfile(_adminUid),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                      if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-                      if (!snapshot.hasData) return const Center(child: Text('No profile data found.'));
+  SliverAppBar _buildSliverAppBar(AdminProfileModel profile) {
+    return SliverAppBar(
+      expandedHeight: 220,
+      pinned: true,
+      backgroundColor: Colors.indigo,
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF3949AB), Color(0xFF1A237E)],
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 40),
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: Colors.white,
+                backgroundImage: profile.photoUrl.isNotEmpty ? NetworkImage(profile.photoUrl) : null,
 
-                      final profile = snapshot.data!;
-                      return TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _ProfileDetailsTab(profile: profile, service: _service, adminUid: _adminUid),
-                          _SecurityLoginTab(loginId: profile.email, service: _service, currentUser: _currentUser),
-                          const _SettingsDashboardTab(),
-                        ],
-                      );
-                    },
-                  ),
-                ),
+                // 🎯 SAFETY CHECK 1 (Header)
+                child: profile.photoUrl.isEmpty
+                    ? Text(
+                    profile.firstName.isNotEmpty ? profile.firstName[0] : 'A',
+                    style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.indigo)
+                )
+                    : null,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "${profile.firstName} ${profile.lastName}",
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                profile.designation,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      ),
+      bottom: TabBar(
+        controller: _tabController,
+        indicatorColor: Colors.white,
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white60,
+        tabs: const [
+          Tab(text: "Details"),
+          Tab(text: "Settings"),
+          Tab(text: "Security"),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileDetailsTab extends StatelessWidget {
+  final AdminProfileModel profile;
+  const _ProfileDetailsTab({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          _buildSection("Personal Info", [
+            _buildRow(Icons.email, "Email", profile.email),
+            _buildRow(Icons.phone, "Phone", profile.mobile),
+            if (profile.alternateMobile.isNotEmpty)
+              _buildRow(Icons.phone_android, "Alt Phone", profile.alternateMobile),
+          ]),
+          const SizedBox(height: 20),
+          _buildSection("Professional Info", [
+            _buildRow(Icons.business, "Company", profile.companyName),
+            _buildRow(Icons.badge, "Designation", profile.designation),
+            if (profile.regdNo.isNotEmpty)
+              _buildRow(Icons.verified, "Regd No", profile.regdNo),
+            _buildRow(Icons.star, "Specializations", profile.specializations.join(", ")),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSection(String title, List<Widget> children) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo)),
+          const Divider(height: 24),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: Colors.grey),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 4),
+                Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -77,303 +180,41 @@ class _AdminAccountPageState extends State<AdminAccountPage> with SingleTickerPr
       ),
     );
   }
-
-  Widget _buildHeader() {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-                child: Row(
-                  children: [
-                    GestureDetector(onTap: () => Navigator.pop(context), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: const Icon(Icons.arrow_back, size: 20))),
-                    const SizedBox(width: 16),
-                    const Text("Account & Settings", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
-                  ],
-                ),
-              ),
-              TabBar(
-                controller: _tabController,
-                indicatorColor: Theme.of(context).colorScheme.primary,
-                labelColor: Theme.of(context).colorScheme.primary,
-                unselectedLabelColor: Colors.grey,
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                tabs: const [
-                  Tab(text: 'Profile', icon: Icon(Icons.person_outline, size: 20)),
-                  Tab(text: 'Security', icon: Icon(Icons.lock_outline, size: 20)),
-                  Tab(text: 'App Info', icon: Icon(Icons.info_outline, size: 20)),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUnauthView() {
-    return Scaffold(
-      body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.lock, size: 64, color: Colors.red), const SizedBox(height: 20), const Text("Authentication Required")])),
-    );
-  }
 }
 
-// ... [Keep _ProfileDetailsTab, _SecurityLoginTab, _SettingsDashboardTab, _SectionHeader classes unchanged from previous version, just ensuring they use the new styling hooks if any] ...
-// (For brevity, assuming the child tab widgets code from previous context is reused here. They are compatible.)
-class _ProfileDetailsTab extends StatefulWidget {
-  final AdminProfileModel profile;
-  final AdminProfileService service;
-  final String adminUid;
-  const _ProfileDetailsTab({required this.profile, required this.service, required this.adminUid});
-  @override
-  State<_ProfileDetailsTab> createState() => __ProfileDetailsTabState();
-}
-class __ProfileDetailsTabState extends State<_ProfileDetailsTab> {
-  // ... (Copy existing logic for _ProfileDetailsTab)
-  // Ensure build returns SingleChildScrollView(padding: EdgeInsets.all(20), child: Column(...))
-  final _formKey = GlobalKey<FormState>();
-
-  // Controllers matching the AdminProfileModel structure
-  late TextEditingController _firstNameController;
-  late TextEditingController _lastNameController;
-  late TextEditingController _phoneController;
-  late TextEditingController _altPhoneController;
-  late TextEditingController _websiteController;
-  late TextEditingController _addressController;
-  late TextEditingController _designationController;
-  late TextEditingController _companyController;
-  late TextEditingController _regdNoController;
-  late TextEditingController _companyEmailController; // 🎯 NEW CONTROLLER
-
-  bool _isEditing = false;
-  bool _isSaving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeControllers();
-  }
-
-  // Update controllers when new stream data arrives and we are not actively editing
-  @override
-  void didUpdateWidget(_ProfileDetailsTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!_isEditing && widget.profile.updatedAt != oldWidget.profile.updatedAt) {
-      _initializeControllers();
-    }
-  }
-
-  void _initializeControllers() {
-    _firstNameController = TextEditingController(text: widget.profile.firstName);
-    _lastNameController = TextEditingController(text: widget.profile.lastName);
-    _phoneController = TextEditingController(text: widget.profile.mobile);
-    _altPhoneController = TextEditingController(text: widget.profile.alternateMobile); // 🎯 Initializing
-    _websiteController = TextEditingController(text: widget.profile.website);         // 🎯 Initializing
-    _addressController = TextEditingController(text: widget.profile.address);
-    _designationController = TextEditingController(text: widget.profile.designation);
-    _companyController = TextEditingController(text: widget.profile.companyName);
-    _regdNoController = TextEditingController(text: widget.profile.regdNo);
-    _companyEmailController = TextEditingController(text: widget.profile.companyEmail);
-  }
-
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _phoneController.dispose();
-    _altPhoneController.dispose(); // 🎯 Disposing
-    _websiteController.dispose();  // 🎯 Disposing
-    _addressController.dispose();
-    _designationController.dispose();
-    _companyController.dispose();
-    _regdNoController.dispose();
-    _companyEmailController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() { _isSaving = true; });
-
-    final updateFields = {
-      'firstName': _firstNameController.text,
-      'lastName': _lastNameController.text,
-      'mobile': _phoneController.text,
-      'alternateMobile': _altPhoneController.text, // 🎯 Included in save map
-      'website': _websiteController.text,         // 🎯 Included in save map
-      'address': _addressController.text,
-      'designation': _designationController.text,
-      'companyName': _companyController.text,
-      'regdNo': _regdNoController.text,
-      'companyEmail': _companyEmailController.text,
-    };
-
-    try {
-      await widget.service.updateAdminProfile(
-        adminUid: widget.adminUid,
-        updateFields: updateFields,
-        modifierUid: widget.adminUid, // Current user is the modifier
-      );
-      setState(() {
-        _isEditing = false;
-        _isSaving = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated successfully!')),
-      );
-    } catch (e) {
-      setState(() { _isSaving = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save profile: ${e.toString()}'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Widget _buildTextField(TextEditingController controller, String label, {int maxLines = 1, TextInputType type = TextInputType.text, bool enabled = true}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: TextFormField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          enabled: _isEditing && enabled, // Uses local enabled flag
-          fillColor: (_isEditing && enabled) ? Colors.white : Colors.grey.shade100,
-          filled: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        ),
-        keyboardType: type,
-        maxLines: maxLines,
-        validator: (value) {
-          if (label.contains('Name') && (value == null || value.isEmpty)) {
-            return 'Please enter a name.';
-          }
-          if (label.contains('Phone') && (value == null || value.isEmpty)) {
-            return 'Please enter a phone number.';
-          }
-          return null;
-        },
-      ),
-    );
-  }
-
+class _SettingsTab extends StatelessWidget {
+  const _SettingsTab();
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.visibility),
-              tooltip: "View Public Profile",
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DietitianProfileDetailScreen(profile: widget.profile),
-                  ),
-                );
-              },
-            ),
-            Center(
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundImage: NetworkImage(
-                      widget.profile.photoUrl.isNotEmpty
-                          ? widget.profile.photoUrl
-                          : 'https://placehold.co/150x150/cccccc/333333?text=${widget.profile.firstName[0]}',
-                    ),
-                    child: _isEditing ? const Icon(Icons.camera_alt, size: 30, color: Colors.white70) : null,
-                  ),
-                  TextButton.icon(
-                    icon: Icon(_isEditing ? Icons.upload : Icons.person_pin),
-                    label: Text(_isEditing ? 'Change Photo' : 'Profile Photo'),
-                    onPressed: _isEditing ? () {} : null,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildTextField(_firstNameController, 'First Name'),
-            _buildTextField(_lastNameController, 'Last Name'),
-            _buildTextField(_phoneController, 'Phone'),
-            _buildTextField(_companyEmailController, 'Company Email'),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                icon: Icon(_isEditing ? Icons.save : Icons.edit),
-                label: Text(_isEditing ? 'Save Changes' : 'Edit Profile'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isEditing ? Colors.green : Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () {
-                  if (_isEditing) _saveProfile();
-                  else setState(() => _isEditing = true);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const Center(child: Text("App Settings (Theme, Notifications) - Coming Soon"));
   }
 }
 
-class _SecurityLoginTab extends StatelessWidget {
-  final String loginId;
-  final AdminProfileService service;
-  final User? currentUser;
-  const _SecurityLoginTab({required this.loginId, required this.service, required this.currentUser});
+class _SecurityTab extends StatelessWidget {
+  const _SecurityTab();
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    return ListView(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
-            child: ListTile(
-              leading: Icon(Icons.email, color: Theme.of(context).colorScheme.primary),
-              title: const Text("Login Email"),
-              subtitle: Text(loginId, style: const TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: () {}, // Implement change password dialog
-              icon: const Icon(Icons.lock_reset),
-              label: const Text("Change Password"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            ),
-          )
-        ],
-      ),
+      children: [
+        ListTile(
+          leading: const Icon(Icons.lock_reset, color: Colors.orange),
+          title: const Text("Change Password"),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: () {},
+        ),
+        ListTile(
+          leading: const Icon(Icons.logout, color: Colors.red),
+          title: const Text("Logout"),
+          onTap: () {
+            // Logout logic handled by provider/service usually
+            Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false
+            );
+          },
+        ),
+      ],
     );
-  }
-}
-
-class _SettingsDashboardTab extends StatelessWidget {
-  const _SettingsDashboardTab();
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: Text("App Settings Placeholder"));
   }
 }

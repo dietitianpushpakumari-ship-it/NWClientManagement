@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../master/model/diet_plan_item_model.dart' show MasterDietPlanModel, MasterDayPlanModel;
+import 'package:nutricare_client_management/master/model/diet_plan_item_model.dart';
+
 
 class ClientDietPlanModel {
   final String id;

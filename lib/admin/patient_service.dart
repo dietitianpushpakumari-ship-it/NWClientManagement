@@ -1,7 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 
 class PatientIdService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  PatientIdService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+
   static const String _counterCollection = 'counters';
   static const String _patientIdDoc = 'patientIdCounter';
   // Start at 10000. The first generated ID will be 10001, ensuring 5 digits.

@@ -8,7 +8,7 @@ import 'package:nutricare_client_management/admin/user_auth_meta_data_model.dart
 // --- 1. User Role Definitions ---
 enum UserRole {
   superAdmin,
-  admin,
+  clinicAdmin,
   client,
 }
 
@@ -17,7 +17,7 @@ const String _clientAuthDomain = '@nutricare-client.app';
 UserRole stringToRole(dynamic roleString) {
   if (roleString is String) {
     if (roleString == UserRole.superAdmin.name) return UserRole.superAdmin;
-    if (roleString == UserRole.admin.name) return UserRole.admin;
+    if (roleString == UserRole.clinicAdmin.name) return UserRole.clinicAdmin;
   }
   return UserRole.client;
 }

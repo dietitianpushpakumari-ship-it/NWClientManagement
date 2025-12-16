@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/meal_planner/screen/disease_master_model.dart';
-import 'package:nutricare_client_management/meal_planner/screen/disease_master_service.dart';
+import 'package:nutricare_client_management/master/model/disease_master_model.dart';
+import 'package:nutricare_client_management/master/service/disease_master_service.dart';
 
 class MedicalHistoryMultiSelectDialog extends StatefulWidget {
   final List<String> initialSelectedNames;

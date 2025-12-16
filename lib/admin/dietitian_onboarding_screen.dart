@@ -1,23 +1,25 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
+import 'package:nutricare_client_management/admin/admin_provider.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/staff_management_service.dart';
 import 'package:nutricare_client_management/image_compressor.dart';
 
-class DietitianOnboardingScreen extends StatefulWidget {
+class DietitianOnboardingScreen extends ConsumerStatefulWidget {
   final AdminProfileModel? staffToEdit;
   const DietitianOnboardingScreen({super.key, this.staffToEdit});
 
   @override
-  State<DietitianOnboardingScreen> createState() => _DietitianOnboardingScreenState();
+  ConsumerState<DietitianOnboardingScreen> createState() => _DietitianOnboardingScreenState();
 }
 
-class _DietitianOnboardingScreenState extends State<DietitianOnboardingScreen> {
+class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingScreen> {
   final _formKey = GlobalKey<FormState>();
-  final StaffManagementService _service = StaffManagementService();
 
   // Controllers
   final _fnameCtrl = TextEditingController();
@@ -101,7 +103,7 @@ class _DietitianOnboardingScreenState extends State<DietitianOnboardingScreen> {
   // --- MASTER DATA HANDLERS ---
   Future<void> _addDesig() async {
     if (_desigInputCtrl.text.isNotEmpty) {
-      await _service.addDesignationToMaster(_desigInputCtrl.text.trim());
+      await ref.read(staffManagementProvider).addDesignationToMaster(_desigInputCtrl.text.trim());
       setState(() => _selectedDesignation = _desigInputCtrl.text.trim());
       _desigInputCtrl.clear();
       if (mounted) Navigator.pop(context);
@@ -111,7 +113,7 @@ class _DietitianOnboardingScreenState extends State<DietitianOnboardingScreen> {
   Future<void> _addQual() async {
     if (_qualInputCtrl.text.isNotEmpty) {
       final val = _qualInputCtrl.text.trim();
-      await _service.addQualificationToMaster(val);
+      await ref.read(staffManagementProvider).addQualificationToMaster(val);
       setState(() => _selectedQuals.add(val));
       _qualInputCtrl.clear();
       if (mounted) Navigator.pop(context);
@@ -121,7 +123,7 @@ class _DietitianOnboardingScreenState extends State<DietitianOnboardingScreen> {
   Future<void> _addSpec() async {
     if (_specInputCtrl.text.isNotEmpty) {
       final val = _specInputCtrl.text.trim();
-      await _service.addSpecializationToMaster(val);
+      await ref.read(staffManagementProvider).addSpecializationToMaster(val);
       setState(() => _selectedSpecs.add(val));
       _specInputCtrl.clear();
       if (mounted) Navigator.pop(context);
@@ -169,11 +171,11 @@ class _DietitianOnboardingScreenState extends State<DietitianOnboardingScreen> {
           photoUrl: photoUrl,
           permissions: _selectedPermissions, // 🎯 Save permissions on edit
         );
-        await _service.updateStaffProfile(updatedStaff);
+        await ref.read(staffManagementProvider).updateStaffProfile(updatedStaff);
         if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated!"), backgroundColor: Colors.green)); Navigator.pop(context); }
       } else {
         // 🎯 FIX: Pass permissions to onboardStaff
-        final empId = await _service.onboardStaff(
+        final empId = await ref.read(staffManagementProvider).onboardStaff(
           firstName: _fnameCtrl.text.trim(),
           lastName: _lnameCtrl.text.trim(),
           mobile: _mobileCtrl.text.trim(),
@@ -254,9 +256,9 @@ class _DietitianOnboardingScreenState extends State<DietitianOnboardingScreen> {
               // 4. Professional
               _buildPremiumCard("Professional Profile", Icons.school, Colors.teal, [
                 // DESIGNATION
-                _buildMasterHeader("Designation", _service.streamDesignations(), () => _showAddDialog("Designation", _desigInputCtrl, _addDesig)),
+                _buildMasterHeader("Designation", ref.watch(staffManagementProvider).streamDesignations(), () => _showAddDialog("Designation", _desigInputCtrl, _addDesig)),
                 StreamBuilder<List<String>>(
-                    stream: _service.streamDesignations(),
+                    stream: ref.watch(staffManagementProvider).streamDesignations(),
                     builder: (ctx, snap) => DropdownButtonFormField<String>(
                       value: (snap.data ?? []).contains(_selectedDesignation) ? _selectedDesignation : null,
                       items: (snap.data ?? []).map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
@@ -268,9 +270,9 @@ class _DietitianOnboardingScreenState extends State<DietitianOnboardingScreen> {
                 const SizedBox(height: 20),
 
                 // QUALIFICATIONS
-                _buildMasterHeader("Qualifications", _service.streamQualifications(), () => _showAddDialog("Qualification", _qualInputCtrl, _addQual)),
+                _buildMasterHeader("Qualifications", ref.watch(staffManagementProvider).streamQualifications(), () => _showAddDialog("Qualification", _qualInputCtrl, _addQual)),
                 StreamBuilder<List<String>>(
-                  stream: _service.streamQualifications(),
+                  stream: ref.watch(staffManagementProvider).streamQualifications(),
                   builder: (context, snapshot) {
                     final items = snapshot.data ?? [];
                     return Wrap(spacing: 8, children: items.map((q) => FilterChip(
@@ -285,9 +287,9 @@ class _DietitianOnboardingScreenState extends State<DietitianOnboardingScreen> {
                 const SizedBox(height: 20),
 
                 // SPECIALIZATIONS
-                _buildMasterHeader("Specializations", _service.streamSpecializations(), () => _showAddDialog("Specialization", _specInputCtrl, _addSpec)),
+                _buildMasterHeader("Specializations", ref.watch(staffManagementProvider).streamSpecializations(), () => _showAddDialog("Specialization", _specInputCtrl, _addSpec)),
                 StreamBuilder<List<String>>(
-                  stream: _service.streamSpecializations(),
+                  stream: ref.watch(staffManagementProvider).streamSpecializations(),
                   builder: (context, snapshot) {
                     final items = snapshot.data ?? [];
                     return Wrap(spacing: 8, children: items.map((s) => FilterChip(

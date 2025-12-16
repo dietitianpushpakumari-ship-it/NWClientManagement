@@ -1,18 +1,32 @@
 import 'dart:ui';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+// 🎯 CRITICAL: Riverpod Imports
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/screens/dash/client_dashboard_screenv2.dart';
 
-class PendingClientListScreen extends StatefulWidget {
+// 🎯 CRITICAL FIX: The centralized provider definition (Assuming clientServiceProvider is global)
+// This provider watches the ClientService, which ensures the dynamic _firestore is used.
+final allActiveClientsStreamProvider = StreamProvider.autoDispose<List<ClientModel>>((ref) {
+  // Watching the service forces a restart of the stream when the tenant context changes.
+  final clientService = ref.watch(clientServiceProvider);
+  // Assuming this method uses the dynamic _firestore instance in ClientService.
+  return clientService.streamAllClientsForReporting();
+});
+
+
+// 🎯 CONVERSION TO CONSUMERSTATEFUL
+class PendingClientListScreen extends ConsumerStatefulWidget {
   const PendingClientListScreen({super.key});
 
   @override
-  State<PendingClientListScreen> createState() => _PendingClientListScreenState();
+  ConsumerState<PendingClientListScreen> createState() => _PendingClientListScreenState();
 }
 
-class _PendingClientListScreenState extends State<PendingClientListScreen> with SingleTickerProviderStateMixin {
+class _PendingClientListScreenState extends ConsumerState<PendingClientListScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String _searchQuery = "";
   final TextEditingController _searchController = TextEditingController();
@@ -30,27 +44,19 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
     super.dispose();
   }
 
-  // 🎯 STREAM: Fetch All Clients
-  Stream<List<ClientModel>> _streamClients() {
-    return FirebaseFirestore.instance
-        .collection('clients')
-        .where('isSoftDeleted', isEqualTo: false)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => ClientModel.fromFirestore(doc)).toList());
-  }
-
   @override
   Widget build(BuildContext context) {
+    // 🎯 FIX: Watch the centralized Riverpod stream provider
+    final clientsAsync = ref.watch(allActiveClientsStreamProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
 
-      // 🎯 NEW: FLOATING ACTION BUTTON
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          // Navigate to Checklist with NULL profile (Starts fresh creation flow)
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const ClientConsultationChecklistScreen(initialProfile: null)),
+            MaterialPageRoute(builder: (_) =>  ClientConsultationChecklistScreen(client: null)),
           );
         },
         backgroundColor: Theme.of(context).colorScheme.primary,
@@ -76,7 +82,7 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
           SafeArea(
             child: Column(
               children: [
-                // 2. CUSTOM HEADER (No App Bar)
+                // 2. CUSTOM HEADER
                 _buildHeader(),
 
                 // 3. SEARCH BAR
@@ -90,19 +96,13 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
                 _buildTabBar(),
                 const SizedBox(height: 16),
 
-                // 5. TAB VIEWS
+                // 5. TAB VIEWS (Use clientsAsync)
                 Expanded(
-                  child: StreamBuilder<List<ClientModel>>(
-                    stream: _streamClients(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const Center(child: Text("No clients found."));
-                      }
+                  child: clientsAsync.when(
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (err, stack) => Center(child: Text("Error loading clients: ${err.toString()}")),
+                    data: (allClients) {
 
-                      final allClients = snapshot.data!;
                       // Filter by Search
                       final filtered = allClients.where((c) =>
                       c.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -231,7 +231,6 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
     }
 
     return ListView.builder(
-      // 🎯 Added bottom padding so FAB doesn't cover the last item
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
       itemCount: clients.length,
       itemBuilder: (context, index) {
@@ -243,13 +242,10 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
   // --- CLIENT CARD ---
   Widget _buildClientCard(ClientModel client, Color color, bool isNew, bool isActive, bool isHistory) {
     return GestureDetector(
-      // 🎯 Navigation Logic
       onTap: () {
         if (isNew) {
-          // New -> Onboarding Flow
-          Navigator.push(context, MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(initialProfile: client)));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(client: client)));
         } else {
-          // Active/History -> Dashboard
           Navigator.push(context, MaterialPageRoute(builder: (_) => ClientDashboardScreen(client: client)));
         }
       },
@@ -323,7 +319,7 @@ class _PendingClientListScreenState extends State<PendingClientListScreen> with 
                   children: [
                     if (isNew)
                       _buildActionBtn("Onboard", Icons.arrow_forward, Theme.of(context).colorScheme.primary, () {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(initialProfile: client)));
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(client: client)));
                       }),
                     if (!isNew)
                       _buildActionBtn("Manage", Icons.settings, Colors.grey, () {

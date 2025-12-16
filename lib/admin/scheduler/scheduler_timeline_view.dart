@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/admin_booking_session_screen.dart';
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:nutricare_client_management/admin/scheduler/scheduler_model.dart';
 import 'package:nutricare_client_management/modules/client/services/client_service.dart';
@@ -11,7 +13,7 @@ import 'dietitian_filter_dialog.dart';
 import 'booking_sheet.dart';
 
 
-class SchedulerTimelineView extends StatefulWidget {
+class SchedulerTimelineView extends ConsumerStatefulWidget {
   final List<AdminProfileModel> allStaff;
   final List<String> selectedCoachIds;
   final DateTime selectedDay;
@@ -30,11 +32,10 @@ class SchedulerTimelineView extends StatefulWidget {
   });
 
   @override
-  State<SchedulerTimelineView> createState() => _SchedulerTimelineViewState();
+  ConsumerState<SchedulerTimelineView> createState() => _SchedulerTimelineViewState();
 }
 
-class _SchedulerTimelineViewState extends State<SchedulerTimelineView> {
-  final MeetingService _service = MeetingService();
+class _SchedulerTimelineViewState extends ConsumerState<SchedulerTimelineView> {
   final List<SlotStatus> _statusFilters = [SlotStatus.available, SlotStatus.booked, SlotStatus.pending_payment, SlotStatus.locked];
 
   TimeOfDay _genStart = const TimeOfDay(hour: 9, minute: 0);
@@ -259,7 +260,7 @@ class _SchedulerTimelineViewState extends State<SchedulerTimelineView> {
 
   Future<void> _processReassign(String oldCoachId, String newCoachId, ScheduleBlock block) async {
     try {
-      await _service.reassignSession(
+      await ref.read(meetingServiceProvider).reassignSession(
           oldCoachId: oldCoachId,
           newCoachId: newCoachId,
           date: widget.selectedDay,
@@ -303,7 +304,7 @@ class _SchedulerTimelineViewState extends State<SchedulerTimelineView> {
   Future<void> _generate(String coachId) async {
     setState(() => _isGenerating = true);
     try {
-      await _service.generateDaySchedule(coachId: coachId, date: widget.selectedDay, start: _genStart, end: _genEnd);
+      await ref.read(meetingServiceProvider).generateDaySchedule(coachId: coachId, date: widget.selectedDay, start: _genStart, end: _genEnd);
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Created!"), backgroundColor: Colors.green));
     } catch (e) {
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
@@ -313,11 +314,11 @@ class _SchedulerTimelineViewState extends State<SchedulerTimelineView> {
   }
 
   Future<void> _deleteBlock(List<String> slotIds, String coachId) async {
-    for (var id in slotIds) await _service.deleteSlot(coachId: coachId, date: widget.selectedDay, slotId: id);
+    for (var id in slotIds) await ref.read(meetingServiceProvider).deleteSlot(coachId: coachId, date: widget.selectedDay, slotId: id);
   }
 
   Future<void> _toggleLock(String slotId, bool isLocked, String coachId) async {
-    await _service.toggleSlotLock(coachId, widget.selectedDay, slotId, isLocked);
+    await ref.read(meetingServiceProvider).toggleSlotLock(coachId, widget.selectedDay, slotId, isLocked);
   }
 
 
@@ -438,7 +439,7 @@ class _SchedulerTimelineViewState extends State<SchedulerTimelineView> {
 
   Widget _buildResourceView() {
     return StreamBuilder<List<AppointmentSlot>>(
-      stream: _service.streamMasterSchedule(widget.selectedDay, widget.selectedCoachIds),
+      stream: ref.watch(meetingServiceProvider).streamMasterSchedule(widget.selectedDay, widget.selectedCoachIds),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
         final allSlots = snapshot.data ?? [];
@@ -655,7 +656,7 @@ class _SchedulerTimelineViewState extends State<SchedulerTimelineView> {
     );
 
     if (confirm == true) {
-      await _service.deleteFreeSlots(coachId: coachId, date: widget.selectedDay, startTime: start, endTime: end);
+      await ref.read(meetingServiceProvider).deleteFreeSlots(coachId: coachId, date: widget.selectedDay, startTime: start, endTime: end);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Range deleted successfully.")));
     }
   }
@@ -685,7 +686,7 @@ class _SchedulerTimelineViewState extends State<SchedulerTimelineView> {
     );
 
     if (confirm == true) {
-      await _service.deleteFreeSlots(coachId: coachId, date: widget.selectedDay);
+      await ref.read(meetingServiceProvider).deleteFreeSlots(coachId: coachId, date: widget.selectedDay);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Day schedule cleared.")));
     }
   }
@@ -745,7 +746,7 @@ class _SchedulerTimelineViewState extends State<SchedulerTimelineView> {
 
   Future<void> _processReschedule(String coachId, DateTime oldStart, DateTime newStart, int duration) async {
     try {
-      await _service.rescheduleSession(
+      await ref.read(meetingServiceProvider).rescheduleSession(
         coachId: coachId,
         oldStartTime: oldStart,
         newStartTime: newStart,

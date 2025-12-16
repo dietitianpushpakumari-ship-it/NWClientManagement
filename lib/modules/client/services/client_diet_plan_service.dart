@@ -1,24 +1,34 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/diet_plan_item_model.dart';
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
-import 'package:nutricare_client_management/modules/master/model/diet_plan_item_model.dart'
-    show MasterDietPlanModel;
 
 class ClientDietPlanService {
-  static const String _clientCollection = 'clients';
-  static const String _assignedPlansSubCollection = 'clientDietPlans';
+  final Ref _ref; // Store Ref to access dynamic providers
+  ClientDietPlanService(this._ref);
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference<ClientDietPlanModel> get _clientPlansCollection => _firestore.collection('clientDietPlans')
+      .withConverter<ClientDietPlanModel>(
+  fromFirestore: (snapshot, _) =>
+  ClientDietPlanModel.fromFirestore(snapshot),
+  toFirestore: (plan, _) => plan.toFirestore(),
+  );
+
+  CollectionReference<MasterDietPlanModel> get _collection => _firestore.collection('masterDietPlan').
+  withConverter<MasterDietPlanModel>(
+    // Use the factory constructor to convert DocumentSnapshot to Model
+    fromFirestore: (snapshot, _) => MasterDietPlanModel.fromFirestore(snapshot),
+    // Use the instance method to convert Model to Map<String, dynamic>
+    toFirestore: (plan, _) => plan.toFirestore(),
+  );
+
+  CollectionReference get _assignedPlansSubCollection => _firestore.collection('clientDietPlans');
+
   final Logger logger = Logger();
 
-  CollectionReference<ClientDietPlanModel> get _clientPlansCollection =>
-      _firestore
-          .collection('clientDietPlans')
-          .withConverter<ClientDietPlanModel>(
-        fromFirestore: (snapshot, _) =>
-            ClientDietPlanModel.fromFirestore(snapshot),
-        toFirestore: (plan, _) => plan.toFirestore(),
-      );
 
   // 🎯 CORE: Set as Primary (Exclusive Active Status)
   Future<void> setAsPrimary(String clientId, String planId) async {
@@ -70,6 +80,47 @@ class ClientDietPlanService {
       logger.e('Error toggling provisional status: $e');
       rethrow;
     }
+  }
+
+  // 🎯 NEW METHOD: Handles the assignment of a master plan to a client
+  Future<void> assignMasterPlan(Map<String, dynamic> assignmentData) async {
+    final String masterPlanId = assignmentData['masterPlanId'];
+    final String clientId = assignmentData['clientId'];
+
+    // 1. Fetch the Master Plan details
+    final masterPlanDoc = await _collection.doc(masterPlanId).get();
+    if (!masterPlanDoc.exists) {
+      throw Exception('Master Plan template not found.');
+    }
+
+    final masterPlanData = masterPlanDoc.data() as Map<String, dynamic>;
+
+    // 2. Create the Client's Assigned Plan Document (Copy the master plan)
+    // We only copy the core structure (e.g., meals, recipes, cycles) and merge intervention data.
+    final clientPlanData = {
+      ...masterPlanData, // Copy the entire structure from the master plan
+
+      // Override and add client-specific data:
+      'clientId': clientId,
+      'masterPlanId': masterPlanId, // Keep reference to the master
+      'status': 'Active',
+      'assignedAt': FieldValue.serverTimestamp(),
+      'lastUpdated': FieldValue.serverTimestamp(),
+
+      // Add Intervention Data from the Assignment Screen
+      'assignedGuidelines': assignmentData['assignedGuidelines'] ?? [],
+      'assignedInvestigations': assignmentData['assignedInvestigations'] ?? [],
+      'followUpDays': assignmentData['followUpDays'] ?? 14,
+      'lifestyleGoals': assignmentData['lifestyleGoals'] ?? '',
+
+      // Clean up fields that shouldn't be on the client instance (e.g., admin metadata)
+      'isMasterTemplate': false,
+      'isDeleted': false,
+    };
+
+    // 3. Save the new client-specific plan instance
+    // You may want to check for existing active plans and deactivate them first.
+    await _assignedPlansSubCollection.add(clientPlanData);
   }
 
   // --- Existing Methods ---
@@ -167,8 +218,7 @@ class ClientDietPlanService {
     required String clientId,
     required String masterPlanId,
   }) async {
-    final querySnapshot = await _firestore
-        .collection(_assignedPlansSubCollection)
+    final querySnapshot = await _assignedPlansSubCollection
         .where('clientId', isEqualTo: clientId)
         .where('masterPlanId', isEqualTo: masterPlanId)
         .limit(1)

@@ -1,19 +1,31 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// --- 1. Master Models (For the Database) ---
-
 class ClinicalItemModel {
   final String id;
-  final String name;
+  final String name; // English Name
+  final Map<String, String> nameLocalized; // 🎯 Stores translations (e.g., {'hi': '...', 'od': '...'})
   final bool isDeleted;
 
-  const ClinicalItemModel({required this.id, required this.name, this.isDeleted = false});
+  const ClinicalItemModel({
+    required this.id,
+    required this.name,
+    this.nameLocalized = const {}, // Default empty
+    this.isDeleted = false
+  });
 
   factory ClinicalItemModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+
+    // Safely parse the map
+    Map<String, String> loc = {};
+    if (data['nameLocalized'] != null) {
+      loc = Map<String, String>.from(data['nameLocalized']);
+    }
+
     return ClinicalItemModel(
       id: doc.id,
       name: data['name'] ?? '',
+      nameLocalized: loc,
       isDeleted: data['isDeleted'] ?? false,
     );
   }
@@ -21,18 +33,32 @@ class ClinicalItemModel {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
+      'nameLocalized': nameLocalized, // 🎯 Save to DB
       'isDeleted': isDeleted,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
+
+  ClinicalItemModel copyWith({
+    String? id,
+    String? name,
+    Map<String, String>? nameLocalized,
+    bool? isDeleted,
+  }) {
+    return ClinicalItemModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      nameLocalized: nameLocalized ?? this.nameLocalized,
+      isDeleted: isDeleted ?? this.isDeleted,
+    );
+  }
 }
 
-// --- 2. Client Assignment Model (For the Vitals Form) ---
-
+// ... (PrescribedMedication class remains unchanged)
 class PrescribedMedication {
   final String medicineName;
-  final String frequency; // e.g., "1-0-1", "Once a day"
-  final String timing;    // e.g., "Before Food", "After Food"
+  final String frequency;
+  final String timing;
 
   const PrescribedMedication({
     required this.medicineName,
@@ -40,7 +66,6 @@ class PrescribedMedication {
     required this.timing,
   });
 
-  // Convert to Map for Firestore
   Map<String, dynamic> toMap() {
     return {
       'medicineName': medicineName,
@@ -49,7 +74,6 @@ class PrescribedMedication {
     };
   }
 
-  // Create from Map
   factory PrescribedMedication.fromMap(Map<String, dynamic> map) {
     return PrescribedMedication(
       medicineName: map['medicineName'] ?? '',
@@ -58,7 +82,8 @@ class PrescribedMedication {
     );
   }
 
-  // Helper for display
+
+
   @override
   String toString() => '$medicineName ($frequency, $timing)';
 }

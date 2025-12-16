@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
 import 'package:nutricare_client_management/modules/master/service/diagonosis_master_service.dart';
-import 'package:nutricare_client_management/modules/master/model/diagonosis_master.dart';
+import 'package:nutricare_client_management/master/model/diagonosis_master.dart';
 
-class VitalsPickerSheet extends StatefulWidget {
+class VitalsPickerSheet extends ConsumerStatefulWidget {
   final String clientId;
   final String? selectedId;
 
@@ -16,12 +18,11 @@ class VitalsPickerSheet extends StatefulWidget {
   });
 
   @override
-  State<VitalsPickerSheet> createState() => _VitalsPickerSheetState();
+  ConsumerState<VitalsPickerSheet> createState() => _VitalsPickerSheetState();
 }
 
-class _VitalsPickerSheetState extends State<VitalsPickerSheet> {
-  final VitalsService _vitalsService = VitalsService();
-  final DiagnosisMasterService _diagnosisService = DiagnosisMasterService();
+class _VitalsPickerSheetState extends ConsumerState<VitalsPickerSheet> {
+
 
   late Future<List<VitalsModel>> _vitalsFuture;
   Map<String, String> _diagnosisNames = {}; // Map ID -> Name
@@ -30,14 +31,23 @@ class _VitalsPickerSheetState extends State<VitalsPickerSheet> {
   @override
   void initState() {
     super.initState();
-    _vitalsFuture = _vitalsService.getClientVitals(widget.clientId);
+    _fetchVitalsData();
     _loadDiagnosisNames();
+  }
+
+  void _fetchVitalsData() {
+    // 🎯 FIX 1: Access VitalsService via Riverpod and use the correct method name
+    final vitalsService = ref.read(vitalsServiceProvider);
+
+    // Assuming getClientVitals was added back to the service definition
+    _vitalsFuture = vitalsService.getClientVitals(widget.clientId);
   }
 
   // Fetch all diagnoses once to resolve IDs to Names
   Future<void> _loadDiagnosisNames() async {
     try {
-      final allDiagnoses = await _diagnosisService.fetchAllDiagnosisMaster();
+      final diagnosisService = ref.watch(diagnosisMasterServiceProvider);
+      final allDiagnoses = await diagnosisService.fetchAllDiagnosisMaster();
       if (mounted) {
         setState(() {
           _diagnosisNames = {for (var d in allDiagnoses) d.id: d.enName};
@@ -161,7 +171,7 @@ class _VitalsPickerSheetState extends State<VitalsPickerSheet> {
                                 _buildMetric("Weight", "${vital.weightKg} kg"),
                                 _buildMetric("BMI", vital.bmi.toStringAsFixed(1)),
                                 _buildMetric("BP", "${vital.bloodPressureSystolic ?? '-'}/${vital.bloodPressureDiastolic ?? '-'}"),
-                                _buildMetric("Sugar (F)", vital.labResults['fbs'] ?? '-'),
+                                _buildMetric("Sugar (F)", vital.labResults['fbs'].toString() ?? '-'),
                               ],
                             ),
 

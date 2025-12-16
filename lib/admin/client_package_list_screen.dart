@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
 
-class ClientPackageListScreen extends StatefulWidget {
+class ClientPackageListScreen extends ConsumerStatefulWidget {
   final ClientModel client;
 
   const ClientPackageListScreen({super.key, required this.client});
 
   @override
-  State<ClientPackageListScreen> createState() => _ClientPackageListScreenState();
+  ConsumerState<ClientPackageListScreen> createState() => _ClientPackageListScreenState();
 }
 
-class _ClientPackageListScreenState extends State<ClientPackageListScreen> {
+class _ClientPackageListScreenState extends ConsumerState<ClientPackageListScreen> {
 
   // --- ACTIONS ---
 
@@ -35,11 +37,11 @@ class _ClientPackageListScreenState extends State<ClientPackageListScreen> {
     );
 
     if (confirm == true) {
-      await FirebaseFirestore.instance.collection('subscriptions').doc(subId).delete();
+      await ref.read(firestoreProvider).collection('subscriptions').doc(subId).delete();
 
       // If we deleted the active plan, clear the client profile
       if (wasActive) {
-        await FirebaseFirestore.instance.collection('clients').doc(widget.client.id).update({
+        await ref.read(firestoreProvider).collection('clients').doc(widget.client.id).update({
           'currentPlan': FieldValue.delete(),
           'planExpiry': FieldValue.delete(),
           'clientType': 'lead', // Revert to lead
@@ -109,7 +111,7 @@ class _ClientPackageListScreenState extends State<ClientPackageListScreen> {
                     final bool isActive = data['status'] == 'active';
 
                     // Update Subscription
-                    await FirebaseFirestore.instance.collection('subscriptions').doc(doc.id).update({
+                    await ref.read(firestoreProvider).collection('subscriptions').doc(doc.id).update({
                       'sessionsRemaining': newSessions,
                       'freeSessionsRemaining': newFree,
                       'endDate': Timestamp.fromDate(expiryDate),
@@ -117,7 +119,7 @@ class _ClientPackageListScreenState extends State<ClientPackageListScreen> {
 
                     // Sync Client Profile if active
                     if (isActive) {
-                      await FirebaseFirestore.instance.collection('clients').doc(widget.client.id).update({
+                      await ref.read(firestoreProvider).collection('clients').doc(widget.client.id).update({
                         'planExpiry': Timestamp.fromDate(expiryDate),
                         'freeSessionsRemaining': newFree,
                       });
@@ -159,7 +161,7 @@ class _ClientPackageListScreenState extends State<ClientPackageListScreen> {
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
+        stream: ref.watch(firestoreProvider)
             .collection('subscriptions')
             .where('clientId', isEqualTo: widget.client.id)
             .orderBy('createdAt', descending: true)

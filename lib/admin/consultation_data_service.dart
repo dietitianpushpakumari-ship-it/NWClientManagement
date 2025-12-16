@@ -1,8 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/modules/client/services/client_service.dart';
 
+import 'database_provider.dart';
+
 class ConsultationDataService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final Ref _ref; // Store Ref to access dynamic providers
+
+  ConsultationDataService(this._ref);
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
 
   // Collection where temporary vitals data is stored (Step 2)
   static const String _vitalsCollection = 'clientVitals';

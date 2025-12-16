@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:nutricare_client_management/modules/master/model/diagonosis_master.dart';
+import 'package:nutricare_client_management/master/model/diagonosis_master.dart';
 
 class DiagnosisMultiSelectDialog extends StatefulWidget {
   final List<DiagnosisMasterModel> allDiagnoses;

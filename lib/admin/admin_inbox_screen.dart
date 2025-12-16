@@ -1,21 +1,21 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🎯 Added Riverpod
 import 'package:intl/intl.dart';
 import 'admin_chat_screen.dart';
 import 'services/admin_chat_service.dart';
 import 'chat_message_model.dart';
 
-class AdminInboxScreen extends StatefulWidget {
+class AdminInboxScreen extends ConsumerStatefulWidget {
   const AdminInboxScreen({super.key});
 
   @override
-  State<AdminInboxScreen> createState() => _AdminInboxScreenState();
+  ConsumerState<AdminInboxScreen> createState() => _AdminInboxScreenState();
 }
 
-class _AdminInboxScreenState extends State<AdminInboxScreen> with SingleTickerProviderStateMixin {
+class _AdminInboxScreenState extends ConsumerState<AdminInboxScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final AdminChatService _chatService = AdminChatService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
 
@@ -34,6 +34,9 @@ class _AdminInboxScreenState extends State<AdminInboxScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    // 🎯 CRITICAL FIX: Get the service instance that is connected to the Tenant DB
+    final chatService = ref.watch(adminChatServiceProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
       body: Stack(
@@ -54,8 +57,9 @@ class _AdminInboxScreenState extends State<AdminInboxScreen> with SingleTickerPr
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildClientListTab(),
-                      _buildGlobalTicketsTab(),
+                      // Pass the correct service to the tabs
+                      _buildClientListTab(chatService),
+                      _buildGlobalTicketsTab(chatService),
                     ],
                   ),
                 ),
@@ -102,10 +106,8 @@ class _AdminInboxScreenState extends State<AdminInboxScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildClientListTab() {
-    // ... (Existing List Logic with _searchController, StreamBuilder, etc.) ...
-    // Ensure you remove any Scaffold wrapping here since it's inside a TabBarView
-    // Only return the Column/ListView structure.
+  // 🎯 Updated to accept AdminChatService
+  Widget _buildClientListTab(AdminChatService chatService) {
     return Column(
       children: [
         // Search Bar
@@ -131,7 +133,7 @@ class _AdminInboxScreenState extends State<AdminInboxScreen> with SingleTickerPr
         // Client Stream
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: _chatService.getAllChats(),
+            stream: chatService.getAllChats(), // 🎯 Uses correct DB
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -139,6 +141,7 @@ class _AdminInboxScreenState extends State<AdminInboxScreen> with SingleTickerPr
 
               var docs = snapshot.data?.docs ?? [];
 
+              // Search Filter
               if (_searchQuery.isNotEmpty) {
                 docs = docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
@@ -148,6 +151,7 @@ class _AdminInboxScreenState extends State<AdminInboxScreen> with SingleTickerPr
 
               if (docs.isEmpty) return const Center(child: Text("No clients found."));
 
+              // Sorting: Tickets First, then Alphabetical
               docs.sort((a, b) {
                 final dataA = a.data() as Map<String, dynamic>;
                 final dataB = b.data() as Map<String, dynamic>;
@@ -183,7 +187,6 @@ class _AdminInboxScreenState extends State<AdminInboxScreen> with SingleTickerPr
     final int ticketCount = data['activeTicketCount'] ?? (data['hasPendingRequest'] == true ? 1 : 0);
 
     return ListTile(
-      // tileColor: Colors.transparent, // Use transparent to show background
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminChatScreen(clientId: clientId, clientName: clientName))),
       leading: CircleAvatar(
@@ -200,9 +203,10 @@ class _AdminInboxScreenState extends State<AdminInboxScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildGlobalTicketsTab() {
+  // 🎯 Updated to accept AdminChatService
+  Widget _buildGlobalTicketsTab(AdminChatService chatService) {
     return StreamBuilder<List<ChatMessageModel>>(
-      stream: _chatService.getActiveTickets(),
+      stream: chatService.getActiveTickets(), // 🎯 Uses correct DB
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
         final tickets = snapshot.data ?? [];

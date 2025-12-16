@@ -1,38 +1,29 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 import 'package:intl/intl.dart';
 
 import 'package:nutricare_client_management/admin/labvital/clinical_master_service.dart';
 import 'package:nutricare_client_management/admin/labvital/clinical_model.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/premium_habit_select_sheet.dart';
 import 'package:nutricare_client_management/admin/labvital/premium_master_select_sheet.dart';
-import 'package:nutricare_client_management/admin/labvital/premium_master_select_sheet.dart';
 import 'package:nutricare_client_management/admin/labvital/vitals_picker_sheet.dart';
-
-// 🎯 MODELS & SERVICES
-// ... (Keep existing imports) ...
+import 'package:nutricare_client_management/master/model/diet_plan_item_model.dart';
+import 'package:nutricare_client_management/master/model/food_item.dart';
+import 'package:nutricare_client_management/master/model/guidelines.dart';
+import 'package:nutricare_client_management/master/model/meal_master_name.dart';
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/modules/client/screen/premium_meal_entry_list.dart';
-import 'package:nutricare_client_management/modules/master/model/diet_plan_item_model.dart';
-import 'package:nutricare_client_management/modules/master/model/food_item.dart';
-import 'package:nutricare_client_management/modules/master/model/meal_master_name.dart';
-import 'package:nutricare_client_management/modules/master/model/diagonosis_master.dart';
-import 'package:nutricare_client_management/modules/master/model/guidelines.dart';
+
+import 'package:nutricare_client_management/master/model/diagonosis_master.dart';
 import 'package:nutricare_client_management/modules/client/screen/investigation_master_model.dart';
 import 'package:nutricare_client_management/modules/client/screen/suppliment_master_model.dart';
-import 'package:nutricare_client_management/admin/habit_master_model.dart'; // 🎯
-import 'package:nutricare_client_management/admin/habit_master_service.dart'; // 🎯
+import 'package:nutricare_client_management/admin/habit_master_model.dart';
+import 'package:nutricare_client_management/admin/habit_master_service.dart';
 
-import 'package:nutricare_client_management/modules/client/services/client_diet_plan_service.dart';
-import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
-import 'package:nutricare_client_management/modules/master/service/food_item_service.dart';
-import 'package:nutricare_client_management/modules/master/service/master_meal_name_service.dart';
-import 'package:nutricare_client_management/modules/master/service/diagonosis_master_service.dart';
-import 'package:nutricare_client_management/modules/master/service/guideline_service.dart';
-import 'package:nutricare_client_management/modules/client/screen/investigation_master_service.dart';
-import 'package:nutricare_client_management/modules/client/screen/Suppliment_master_service.dart';
 
 
 extension IterableExtensions<T> on Iterable<T> {
@@ -44,7 +35,7 @@ extension IterableExtensions<T> on Iterable<T> {
   }
 }
 
-class ClientDietPlanEntryPage extends StatefulWidget {
+class ClientDietPlanEntryPage extends ConsumerStatefulWidget {
   final String? planId;
   final ClientDietPlanModel? initialPlan;
   final VoidCallback onMealPlanSaved;
@@ -57,12 +48,11 @@ class ClientDietPlanEntryPage extends StatefulWidget {
   });
 
   @override
-  State<ClientDietPlanEntryPage> createState() => _ClientDietPlanEntryPageState();
+  ConsumerState<ClientDietPlanEntryPage> createState() => _ClientDietPlanEntryPageState();
 }
 
-class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with TickerProviderStateMixin {
+class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPage> with TickerProviderStateMixin {
   final Logger logger = Logger();
-  final ClinicalMasterService _clinicalService = ClinicalMasterService();
 
   TabController? _tabController;
   bool _isSaving = false;
@@ -102,24 +92,28 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
   }
 
   Future<void> _loadData() async {
-    final foods = await FoodItemService().fetchAllActiveFoodItems();
-    final meals = await MasterMealNameService().fetchAllMealNames();
+    final foodItemService = ref.read(foodItemServiceProvider);
+    final masterMealNameService = ref.read(masterMealNameServiceProvider);
+    final clientDietPlanService = ref.read(clientDietPlanServiceProvider);
+    final foods = await foodItemService.fetchAllActiveFoodItems();
+    final meals = await masterMealNameService.fetchAllMealNames();
     meals.sort((a, b) => (a.startTime ?? "").compareTo(b.startTime ?? ""));
 
     ClientDietPlanModel plan;
     if (widget.planId != null) {
-      plan = await ClientDietPlanService().fetchPlanById(widget.planId!);
+      plan = await clientDietPlanService.fetchPlanById(widget.planId!);
     } else if (widget.initialPlan != null) {
       plan = widget.initialPlan!;
     } else {
-      final initialMeals = meals.map((m) => DietPlanMealModel(id: m.id, mealNameId: m.id, mealName: m.enName, items: [], order: m.order)).toList();
+      final initialMeals = meals.map((m) => DietPlanMealModel(id: m.id, mealNameId: m.id, mealName: m.name, items: [], order: m.order)).toList();
       plan = ClientDietPlanModel(days: [MasterDayPlanModel(id: 'd1', dayName: 'Fixed Day', meals: initialMeals)]);
     }
 
     VitalsModel? loadedVitals;
     if (plan.linkedVitalsId != null && plan.linkedVitalsId!.isNotEmpty && plan.clientId.isNotEmpty) {
       try {
-        final allVitals = await VitalsService().getClientVitals(plan.clientId);
+        final vitalsService = ref.read(vitalsServiceProvider);
+        final allVitals = await vitalsService.getClientVitals(plan.clientId);
         loadedVitals = IterableExtensions(allVitals).firstWhereOrNull((v) => v.id == plan.linkedVitalsId);
       } catch (e) {
         logger.w("Could not load linked vitals: $e");
@@ -169,6 +163,14 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
   // --- SHEET LAUNCHERS ---
 
   void _openSettingsSheet() {
+
+    final _diagonisService = ref.read(diagnosisMasterServiceProvider);
+    final _guidelineService = ref.read(guidelineServiceProvider);
+    final _investigationService = ref.read(investigationMasterServiceProvider);
+    final _supplementationService = ref.read(supplimentMasterServiceProvider);
+    final _clinicalService = ref.read(clinicalMasterServiceProvider); // Added clinical service
+    final _habitService = ref.read(habitMasterServiceProvider); // Added habit service
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -215,7 +217,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
                             _buildSlider("Mindfulness", _mindfulnessGoal.toDouble(), 0, 60, 6, "$_mindfulnessGoal Min", Colors.teal, (v) => updateState(() => _mindfulnessGoal = v.toInt())),
 
                             const Divider(height: 30),
-                            _buildHabitSection(updateState),
+                            _buildHabitSection(updateState, _habitService), // Pass service
                           ],
                         )
                     ),
@@ -230,11 +232,29 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
                           children: [
                             _buildVitalsLinker(updateState),
                             const Divider(height: 30),
-                            _buildMultiSelectWithChips<DiagnosisMasterModel>(context, title: "Diagnosis", selectedIds: _diagnosisIds, stream: DiagnosisMasterService().getDiagnoses(), getName: (d) => d.enName, getId: (d) => d.id, onAdd: (name) async => await DiagnosisMasterService().addOrUpdateDiagnosis(DiagnosisMasterModel(id: '', enName: name)), onEdit: (item, name) async => await DiagnosisMasterService().addOrUpdateDiagnosis(item.copyWith(enName: name)), onDelete: (item) async => await DiagnosisMasterService().softDeleteDiagnosis(item.id), onUpdate: (ids) => updateState(() => _diagnosisIds = ids), nameResolver: (ids) => DiagnosisMasterService().fetchAllDiagnosisMasterByIds(ids).then((l) => l.map((e) => e.enName).toList())),
+                            // 🎯 FIX 1: Diagnosis Master
+                            _buildMultiSelectWithChips<DiagnosisMasterModel>(context,
+                                service: _diagonisService, // Pass service
+                                title: "Diagnosis", selectedIds: _diagnosisIds, stream: _diagonisService.getDiagnoses(), getName: (d) => d.enName, getId: (d) => d.id,
+                                // 🎯 FIX: ADD LOCALIZED NAMES TO ONADD/ONEDIT
+                                onAdd: (name, localizedNames) async => await _diagonisService.addOrUpdateDiagnosis(DiagnosisMasterModel(id: '', enName: name, nameLocalized: localizedNames)),
+                                onEdit: (item, name, localizedNames) async => await _diagonisService.addOrUpdateDiagnosis(item.copyWith(enName: name, nameLocalized: localizedNames)),
+                                onDelete: (item) async => await _diagonisService.softDeleteDiagnosis(item.id),
+                                onUpdate: (ids) => updateState(() => _diagnosisIds = ids),
+                                nameResolver: (ids) => _diagonisService.fetchAllDiagnosisMasterByIds(ids).then((l) => l.map((e) => e.enName).toList())
+                            ),
                             const SizedBox(height: 20),
-                            _buildStringMultiSelectWithChips(context, title: "Chief Complaints", selectedItems: _complaints, collection: ClinicalMasterService.colComplaints, onUpdate: (list) => updateState(() => _complaints = list)),
+                            // 🎯 FIX 2: Complaints Master
+                            _buildStringMultiSelectWithChips(context,
+                                service: _clinicalService, // Pass service
+                                title: "Chief Complaints", selectedItems: _complaints, collection: ClinicalMasterService.colComplaints, onUpdate: (list) => updateState(() => _complaints = list)
+                            ),
                             const SizedBox(height: 20),
-                            _buildStringMultiSelectWithChips(context, title: "Clinical Notes", selectedItems: _clinicalNotes, collection: ClinicalMasterService.colClinicalNotes, onUpdate: (list) => updateState(() => _clinicalNotes = list)),
+                            // 🎯 FIX 3: Clinical Notes Master
+                            _buildStringMultiSelectWithChips(context,
+                                service: _clinicalService, // Pass service
+                                title: "Clinical Notes", selectedItems: _clinicalNotes, collection: ClinicalMasterService.colClinicalNotes, onUpdate: (list) => updateState(() => _clinicalNotes = list)
+                            ),
                           ],
                         )
                     ),
@@ -247,13 +267,41 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildMultiSelectWithChips<Guideline>(context, title: "Guidelines", selectedIds: _guidelineIds, stream: GuidelineService().streamAllActive(), getName: (g) => g.enTitle, getId: (g) => g.id, onAdd: (name) async => await GuidelineService().save(Guideline(id: '', enTitle: name)), onEdit: (item, name) async => await GuidelineService().save(item.copyWith(enTitle: name)), onDelete: (item) async => await GuidelineService().softDelete(item.id), onUpdate: (ids) => updateState(() => _guidelineIds = ids), nameResolver: (ids) => GuidelineService().fetchGuidelinesByIds(ids).then((l) => l.map((e) => e.enTitle).toList())),
+                            _buildMultiSelectWithChips<Guideline>(context,
+                                service: _guidelineService, title: "Guidelines", selectedIds: _guidelineIds, stream: _guidelineService.streamAllActive(), getName: (g) => g.enTitle, getId: (g) => g.id,
+                                // 🎯 FIX: ADD LOCALIZED NAMES
+                                onAdd: (name, localizedNames) async => await _guidelineService.save(Guideline(id: '', enTitle: name, titleLocalized: localizedNames)),
+                                onEdit: (item, name, localizedNames) async => await _guidelineService.save(item.copyWith(enTitle: name, titleLocalized: localizedNames)),
+                                onDelete: (item) async => await _guidelineService.softDelete(item.id),
+                                onUpdate: (ids) => updateState(() => _guidelineIds = ids),
+                                nameResolver: (ids) => _guidelineService.fetchGuidelinesByIds(ids).then((l) => l.map((e) => e.enTitle).toList())
+                            ),
                             const SizedBox(height: 20),
-                            _buildMultiSelectWithChips<InvestigationMasterModel>(context, title: "Investigations", selectedIds: _investigationIds, stream: InvestigationMasterService().getInvestigation(), getName: (i) => i.enName, getId: (i) => i.id, onAdd: (name) async => await InvestigationMasterService().addOrUpdateInvestigation(InvestigationMasterModel(id: '', enName: name)), onEdit: (item, name) async => await InvestigationMasterService().addOrUpdateInvestigation(item.copyWith(enName: name)), onDelete: (item) async => await InvestigationMasterService().softDeleteInvestigation(item.id), onUpdate: (ids) => updateState(() => _investigationIds = ids), nameResolver: (ids) => InvestigationMasterService().fetchAllInvestigationMasterByIds(ids).then((l) => l.map((e) => e.enName).toList())),
+                            // 🎯 FIX 4: Investigation Master
+                            _buildMultiSelectWithChips<InvestigationMasterModel>(context,
+                                service: _investigationService, title: "Investigations", selectedIds: _investigationIds, stream: _investigationService.getInvestigation(), getName: (i) => i.enName, getId: (i) => i.id,
+                                onAdd: (name, localizedNames) async => await _investigationService.addOrUpdateInvestigation(InvestigationMasterModel(id: '', enName: name, nameLocalized: localizedNames)),
+                                onEdit: (item, name, localizedNames) async => await _investigationService.addOrUpdateInvestigation(item.copyWith(enName: name, nameLocalized: localizedNames)),
+                                onDelete: (item) async => await _investigationService.softDeleteInvestigation(item.id),
+                                onUpdate: (ids) => updateState(() => _investigationIds = ids),
+                                nameResolver: (ids) => _investigationService.fetchAllInvestigationMasterByIds(ids).then((l) => l.map((e) => e.enName).toList())
+                            ),
                             const SizedBox(height: 20),
-                            _buildMultiSelectWithChips<SupplimentMasterModel>(context, title: "Supplements", selectedIds: _supplementIds, stream: SupplimentMasterService().getSupplimentMaster(), getName: (s) => s.enName, getId: (s) => s.id, onAdd: (name) async => await SupplimentMasterService().addOrUpdateSupplimentMaster(SupplimentMasterModel(id: '', enName: name)), onEdit: (item, name) async => await SupplimentMasterService().addOrUpdateSupplimentMaster(item.copyWith(enName: name)), onDelete: (item) async => await SupplimentMasterService().softDeleteSupplimentMaster(item.id), onUpdate: (ids) => updateState(() => _supplementIds = ids), nameResolver: (ids) => SupplimentMasterService().fetchAllSupplimentMasterMasterByIds(ids).then((l) => l.map((e) => e.enName).toList())),
+                            // 🎯 FIX 5: Supplementation Master
+                            _buildMultiSelectWithChips<SupplimentMasterModel>(context,
+                                service: _supplementationService, title: "Supplements", selectedIds: _supplementIds, stream: _supplementationService.getSupplimentMaster(), getName: (s) => s.enName, getId: (s) => s.id,
+                                onAdd: (name, localizedNames) async => await _supplementationService.addOrUpdateSupplimentMaster(SupplimentMasterModel(id: '', enName: name, nameLocalized: localizedNames)),
+                                onEdit: (item, name, localizedNames) async => await _supplementationService.addOrUpdateSupplimentMaster(item.copyWith(enName: name, nameLocalized: localizedNames)),
+                                onDelete: (item) async => await _supplementationService.softDeleteSupplimentMaster(item.id),
+                                onUpdate: (ids) => updateState(() => _supplementIds = ids),
+                                nameResolver: (ids) => _supplementationService.fetchAllSupplimentMasterMasterByIds(ids).then((l) => l.map((e) => e.enName).toList())
+                            ),
                             const SizedBox(height: 20),
-                            _buildStringMultiSelectWithChips(context, title: "Client Instructions", selectedItems: _instructions, collection: ClinicalMasterService.colInstructions, onUpdate: (list) => updateState(() => _instructions = list)),
+                            // 🎯 FIX 6: Client Instructions Master
+                            _buildStringMultiSelectWithChips(context,
+                                service: _clinicalService, // Pass service
+                                title: "Client Instructions", selectedItems: _instructions, collection: ClinicalMasterService.colInstructions, onUpdate: (list) => updateState(() => _instructions = list)
+                            ),
                           ],
                         )
                     ),
@@ -293,7 +341,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
   }
 
   // 🎯 Habit Section
-  Widget _buildHabitSection(Function(VoidCallback) updateState) {
+  Widget _buildHabitSection(Function(VoidCallback) updateState, HabitMasterService habitService) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -326,7 +374,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
           const Text("No habits assigned.", style: TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic))
         else
           StreamBuilder<List<HabitMasterModel>>(
-            stream: HabitMasterService().streamAllHabits(),
+            stream: habitService.streamActiveHabits(),
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const SizedBox();
               // Filter locally for speed
@@ -350,9 +398,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
     );
   }
 
-  // ... (Other Helpers: _buildVitalsLinker, _buildMultiSelectWithChips, etc. same as previous)
-  // I will include them briefly to ensure the file is complete.
-
+  // 🎯 Vitals Linker
   Widget _buildVitalsLinker(Function(VoidCallback) updateState) {
     String dateStr = _linkedVitals != null ? DateFormat('dd MMM').format(_linkedVitals!.date) : "";
     String detailStr = _linkedVitals != null ? "${_linkedVitals!.weightKg}kg | BMI ${_linkedVitals!.bmi.toStringAsFixed(1)}" : "Select a record to link clinical data";
@@ -375,16 +421,19 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
     );
   }
 
+  // 🎯 Multi-Select (Generic Master Data)
   Widget _buildMultiSelectWithChips<T>(
       BuildContext context, {
+        required dynamic service, // Placeholder for service instance
         required String title,
         required List<String> selectedIds,
         required Stream<List<T>> stream,
         required String Function(T) getName,
         required String Function(T) getId,
-        required Future<void> Function(String) onAdd,
-        required Future<void> Function(T, String) onEdit,
-        required Future<void> Function(T) onDelete,
+        // 🎯 FIX: Updated signature to accept localized map
+        required Future<void> Function(String name, Map<String, String> localizedNames) onAdd,
+        required Future<void> Function(T item, String newName, Map<String, String> localizedNames) onEdit,
+        required Future<void> Function(T item) onDelete,
         required Function(List<String>) onUpdate,
         required Future<List<String>> Function(List<String>) nameResolver,
       }) {
@@ -439,7 +488,9 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
     );
   }
 
-  Widget _buildStringMultiSelectWithChips(BuildContext context, {required String title, required List<String> selectedItems, required String collection, required Function(List<String>) onUpdate}) {
+  // 🎯 String Multi-Select (Clinical Masters like Complaints/Notes)
+  Widget _buildStringMultiSelectWithChips(BuildContext context, {required ClinicalMasterService service, required String title, required List<String> selectedItems, required String collection, required Function(List<String>) onUpdate}) {
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -454,11 +505,14 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
                   builder: (ctx) => PremiumMasterSelectSheet<ClinicalItemModel>(
-                    title: "Select $title", itemLabel: title, stream: _clinicalService.streamActiveItems(collection),
+                    title: "Select $title", itemLabel: title, stream: service.streamActiveItems(collection),
                     getName: (c) => c.name, getId: (c) => c.name,
-                    onAdd: (name) async => await _clinicalService.addItem(collection, name),
-                    onEdit: (item, name) async => await _clinicalService.saveItem(collection, ClinicalItemModel(id: item.id, name: name)),
-                    onDelete: (item) async => await _clinicalService.deleteItem(collection, item.id),
+
+                    // 🎯 FIX ERROR 3 & 4: Correctly handle three arguments
+                    onAdd: (name, localizedNames) async => await service.addItem(collection, name, localizedNames),
+                    onEdit: (item, name, localizedNames) async => await service.saveItem(collection, item.copyWith(name: name, nameLocalized: localizedNames)),
+
+                    onDelete: (item) async => await service.deleteItem(collection, item.id),
                     selectedIds: selectedItems,
                   ),
                 );
@@ -486,6 +540,7 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
   }
 
   Future<void> _savePlan() async {
+
     if (_planName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please set a Plan Name in settings.")));
       _openSettingsSheet();
@@ -515,7 +570,8 @@ class _ClientDietPlanEntryPageState extends State<ClientDietPlanEntryPage> with 
     );
 
     try {
-      await ClientDietPlanService().savePlan(finalPlan);
+      final  _clientDietPlanService = ref.watch(clientDietPlanServiceProvider);
+      await _clientDietPlanService.savePlan(finalPlan);
       widget.onMealPlanSaved();
       if (mounted) {
         Navigator.pop(context, true);

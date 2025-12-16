@@ -29,8 +29,14 @@ class ClientModel {
   final String? whatsappNumber;
 
   // New Field: Client Type Classification
-  // Values: 'new', 'one_time', 'active', 'expired'
   final String clientType;
+
+  // 🎯 NEW FIELDS ADDED:
+  final String? source;
+  final String? occupation;
+  final String? emergencyContactName;
+  final String? emergencyContactPhone;
+
 
   ClientModel({
     required this.id,
@@ -42,7 +48,7 @@ class ClientModel {
     this.age,
     this.photoUrl,
     required this.loginId,
-    this.status = 'Inactive', // Default status
+    this.status = 'Inactive',
     this.isSoftDeleted = false,
     this.hasPasswordSet = false,
     this.packageAssignments = const {},
@@ -57,7 +63,12 @@ class ClientModel {
     this.lastModifiedBy,
     this.isArchived = false,
     this.whatsappNumber,
-    this.clientType = 'new', // Default type
+    this.clientType = 'new',
+    // 🎯 NEW FIELDS INITIALIZED:
+    this.source,
+    this.occupation,
+    this.emergencyContactName,
+    this.emergencyContactPhone,
   });
 
   factory ClientModel.fromFirestore(DocumentSnapshot doc) {
@@ -81,7 +92,7 @@ class ClientModel {
       photoUrl: data['photoUrl'],
       tag: data['tag'] as String?,
       loginId: data['loginId'] ?? data['mobile'] ?? '',
-      status: data['status'] ?? 'Inactive', // Load Status
+      status: data['status'] ?? 'Inactive',
       isSoftDeleted: data['isSoftDeleted'] ?? false,
       hasPasswordSet: data['hasPasswordSet'] ?? false,
       packageAssignments: packages,
@@ -96,6 +107,11 @@ class ClientModel {
       isArchived: data['isArchived'] ?? false,
       whatsappNumber: data['whatsappNumber'] ?? '',
       clientType: data['clientType'] ?? 'new',
+      // 🎯 NEW FIELDS LOADED:
+      source: data['source'] as String?,
+      occupation: data['occupation'] as String?,
+      emergencyContactName: data['emergencyContactName'] as String?,
+      emergencyContactPhone: data['emergencyContactPhone'] as String?,
     );
   }
 
@@ -110,7 +126,7 @@ class ClientModel {
       'photoUrl': photoUrl,
       'tag': tag,
       'loginId': loginId,
-      'status': status, // Save Status
+      'status': status,
       'isSoftDeleted': isSoftDeleted,
       'hasPasswordSet': hasPasswordSet,
       'activePackages': packageAssignments.map((key, value) => MapEntry(key, value.toMap())),
@@ -125,6 +141,11 @@ class ClientModel {
       'isArchived': isArchived,
       'whatsappNumber': whatsappNumber,
       'clientType': clientType,
+      // 🎯 NEW FIELDS SAVED:
+      'source': source,
+      'occupation': occupation,
+      'emergencyContactName': emergencyContactName,
+      'emergencyContactPhone': emergencyContactPhone,
     };
   }
 
@@ -135,7 +156,7 @@ class ClientModel {
     String? email,
     String? gender,
     String? loginId,
-    String? status, // 🎯 Added Status here
+    String? status,
     DateTime? dob,
     int? age,
     String? address,
@@ -147,6 +168,11 @@ class ClientModel {
     bool? isArchived,
     String? whatsappNumber,
     String? clientType,
+    // 🎯 NEW FIELDS COPIED:
+    String? source,
+    String? occupation,
+    String? emergencyContactName,
+    String? emergencyContactPhone,
   }) {
     return ClientModel(
       id: id ?? this.id,
@@ -155,7 +181,7 @@ class ClientModel {
       email: email ?? this.email,
       gender: gender ?? this.gender,
       loginId: loginId ?? this.loginId,
-      status: status ?? this.status, // 🎯 Copy Status
+      status: status ?? this.status,
       dob: dob ?? this.dob,
       age: age ?? this.age,
       address: address ?? this.address,
@@ -167,6 +193,11 @@ class ClientModel {
       isArchived: isArchived ?? this.isArchived,
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
       clientType: clientType ?? this.clientType,
+      // 🎯 NEW FIELDS COPIED:
+      source: source ?? this.source,
+      occupation: occupation ?? this.occupation,
+      emergencyContactName: emergencyContactName ?? this.emergencyContactName,
+      emergencyContactPhone: emergencyContactPhone ?? this.emergencyContactPhone,
     );
   }
 }

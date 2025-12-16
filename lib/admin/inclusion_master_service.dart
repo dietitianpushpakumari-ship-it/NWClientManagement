@@ -1,9 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/inclusion_master_model.dart';
 
+import 'database_provider.dart';
+
 class InclusionMasterService {
-  final CollectionReference _collection =
-  FirebaseFirestore.instance.collection('inclusion_master');
+  final Ref _ref; // Store Ref to access dynamic providers
+
+  InclusionMasterService(this._ref);
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _collection =>
+  _firestore.collection('inclusion_master');
 
   // Stream Active Inclusions
   Stream<List<InclusionMasterModel>> streamAllInclusions() {

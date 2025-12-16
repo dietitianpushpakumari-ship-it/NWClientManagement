@@ -1,184 +1,301 @@
 import 'dart:ui';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import 'admin/staff_management_service.dart';
+// 識 ADMIN SERVICES & MODELS
+import 'package:nutricare_client_management/admin/admin_auth_service.dart';
+import 'package:nutricare_client_management/admin/admin_dashboard_Screen.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/admin/tenant_model.dart';
+import 'package:nutricare_client_management/modules/client/services/client_service.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
-  final _staffService = StaffManagementService();
+class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProviderStateMixin {
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
 
-  // 🎯 RENAMED: Generic Controller
-  final _idController = TextEditingController();
-  final _passwordController = TextEditingController();
-
+  bool _isCheckingUser = false;
+  bool _emailVerified = false;
+  TenantModel? _detectedTenant;
   bool _isLoading = false;
-  bool _isPasswordVisible = false;
+  bool _showPassword = false;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _animController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
     _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
     _animController.forward();
   }
 
-  @override
-  void dispose() {
-    _idController.dispose();
-    _passwordController.dispose();
-    _animController.dispose();
-    super.dispose();
-  }
+  // --- LOGIC ---
 
-  Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+  Future<void> _handleContinue() async {
+    final email = _emailCtrl.text.trim();
+    if (!email.contains('@')) { _showSnack("Invalid Email Address", true); return; }
+
+    setState(() => _isCheckingUser = true);
 
     try {
-      // 🎯 CALL NEW SMART LOGIN
-      await _staffService.login(
-        _idController.text.trim(),
-        _passwordController.text,
-      );
+      final service = ref.read(adminAuthServiceProvider);
+      final tenant = await service.resolveTenant(email);
+
+      if (tenant != null) {
+        ref.read(currentTenantConfigProvider.notifier).state = tenant;
+        await ref.read(firebaseAppProvider.future);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_tenant_id', tenant.id);
+      } else {
+        ref.read(currentTenantConfigProvider.notifier).state = null;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('last_tenant_id');
+      }
+
+      setState(() {
+        _detectedTenant = tenant;
+        _emailVerified = true;
+        _isCheckingUser = false;
+      });
+
     } catch (e) {
-      _showSnack(e.toString().replaceAll("Exception: ", ""), isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      _showSnack("Connection Error: $e", true);
+      setState(() => _isCheckingUser = false);
     }
   }
 
-  void _showActivationSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _ActivationSheet(service: _staffService),
-    );
+// lib/login_screen.dart
+
+// ... (omitted imports and class definition)
+
+  Future<void> _handleLogin() async {
+    if (_passCtrl.text.isEmpty) { _showSnack("Enter Password", true); return; }
+
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(adminAuthServiceProvider);
+
+      // 🎯 DEBUG STEP: Print the currently configured Firebase App Project ID
+      final currentApp = ref.read(firebaseAppProvider).value; // Use .value to get the Future's result if available
+      final String projectId = currentApp?.options.projectId ?? 'DEFAULT_APP';
+      print("🎯 ATTEMPTING LOGIN ON PROJECT: $projectId");
+
+      // The actual login call
+      await service.signIn(_emailCtrl.text.trim(), _passCtrl.text.trim());
+
+      if(mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+      }
+    } catch (e) {
+      _showSnack("Login Failed. Check password. Error: ${e.toString()}", true);
+    } finally {
+      if(mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void _showSnack(String msg, {bool isError = false}) {
+// ... (rest of the file)
+  Future<void> _handleGuestDemo() async {
+    setState(() => _isLoading = true);
+    try {
+      final clientService = ref.read(clientServiceProvider);
+      final guestConfig = await clientService.fetchTenantConfig('guest');
+
+      ref.read(currentTenantConfigProvider.notifier).state = guestConfig;
+      await ref.read(firebaseAppProvider.future);
+
+      final auth = ref.read(authProvider);
+      await auth.signInWithEmailAndPassword(email: "guest@demo.com", password: "guestpassword");
+
+      if(mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+      }
+    } catch(e) {
+      _showSnack("Demo Access Failed: $e", true);
+    } finally {
+      if(mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _resetFlow() {
+    setState(() {
+      _emailVerified = false;
+      _passCtrl.clear();
+      _detectedTenant = null;
+      _showPassword = false;
+      ref.read(currentTenantConfigProvider.notifier).state = null;
+    });
+  }
+
+  void _showSnack(String msg, bool isError) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: isError ? Colors.red : Colors.green));
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
+          // 1. Background Gradient
           Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [primaryColor.withOpacity(0.1), Colors.white, Colors.blueGrey.shade50],
+                colors: [Color(0xFFE0F7FA), Color(0xFFF3E5F5), Colors.white],
               ),
             ),
           ),
 
+          // 2. Ambient Orbs (Fixed using ImageFiltered)
+          Positioned(
+            top: -100, right: -100,
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+              child: Container(
+                width: 400, height: 400,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: theme.colorScheme.primary.withOpacity(0.15),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -100, left: -100,
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+              child: Container(
+                width: 300, height: 300,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.purple.withOpacity(0.1),
+                ),
+              ),
+            ),
+          ),
+
+          // 3. Main Content
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              // 🎯 OPTIMIZATION: Reduced Horizontal Padding (24 -> 16)
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: FadeTransition(
                 opacity: _fadeAnim,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))]),
-                      child: Icon(Icons.local_hospital_rounded, size: 48, color: primaryColor),
-                    ),
-                    const SizedBox(height: 30),
-                    Text("Staff Portal", style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900, color: const Color(0xFF1A1A1A))),
-                    const SizedBox(height: 8),
-                    Text("Secure access for Dietitians & Admin", style: theme.textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600)),
-                    const SizedBox(height: 40),
+                child: SlideTransition(
+                  position: _slideAnim,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // --- Logo Section ---
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 30, offset: const Offset(0, 10))],
+                        ),
+                        child: Icon(_detectedTenant == null ? Icons.admin_panel_settings_rounded : Icons.business_rounded, size: 56, color: theme.colorScheme.primary),
+                      ),
+                      const SizedBox(height: 32),
 
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          padding: const EdgeInsets.all(32),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.7),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: Colors.white),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 30, offset: const Offset(0, 10))],
-                          ),
-                          child: Form(
-                            key: _formKey,
+                      // --- Headings ---
+                      Text(
+                        _detectedTenant?.name ?? "Admin Portal",
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.blueGrey.shade900, letterSpacing: -0.5),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _emailVerified ? _emailCtrl.text : "Secure Access for Staff",
+                        style: TextStyle(fontSize: 14, color: Colors.blueGrey.shade600, fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 40),
+
+                      // --- The Glass Card ---
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                          child: Container(
+                            width: double.infinity,
+                            // 🎯 OPTIMIZATION: Reduced Card Padding (32 -> 24)
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.5),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))],
+                            ),
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                // 🎯 UPDATED INPUT FIELD
-                                _buildTextField(
-                                  controller: _idController,
-                                  label: "Mobile Number or Email",
-                                  icon: Icons.account_circle_outlined,
-                                ),
-                                const SizedBox(height: 20),
-                                _buildTextField(
-                                    controller: _passwordController,
+                                if (!_emailVerified) ...[
+                                  // STEP 1: EMAIL
+                                  _buildPremiumInput(
+                                    controller: _emailCtrl,
+                                    label: "Email Address",
+                                    icon: Icons.email_outlined,
+                                    hint: "admin@clinic.com",
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildPremiumButton(
+                                    label: "CONTINUE",
+                                    isLoading: _isCheckingUser,
+                                    onTap: _handleContinue,
+                                  ),
+                                ] else ...[
+                                  // STEP 2: PASSWORD
+                                  _buildPremiumInput(
+                                    controller: _passCtrl,
                                     label: "Password",
                                     icon: Icons.lock_outline,
                                     isPassword: true,
-                                    isVisible: _isPasswordVisible,
-                                    onVisibilityToggle: () => setState(() => _isPasswordVisible = !_isPasswordVisible)
-                                ),
-                                const SizedBox(height: 16),
-
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: _showActivationSheet,
-                                    child: Text("Activate / Forgot Password?", style: TextStyle(fontWeight: FontWeight.w600, color: primaryColor, fontSize: 13)),
+                                    showPassword: _showPassword,
+                                    onTogglePassword: () => setState(() => _showPassword = !_showPassword),
                                   ),
-                                ),
-
-                                const SizedBox(height: 30),
-
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed: _isLoading ? null : _handleLogin,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: primaryColor,
-                                      foregroundColor: Colors.white,
-                                      elevation: 8,
-                                      shadowColor: primaryColor.withOpacity(0.4),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                    ),
-                                    child: _isLoading
-                                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                                        : const Text("LOGIN", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                                  const SizedBox(height: 24),
+                                  _buildPremiumButton(
+                                    label: "LOGIN",
+                                    isLoading: _isLoading,
+                                    onTap: _handleLogin,
                                   ),
-                                ),
+                                  const SizedBox(height: 16),
+                                  TextButton(
+                                    onPressed: _resetFlow,
+                                    child: Text("Switch Account", style: TextStyle(color: Colors.blueGrey.shade600, fontWeight: FontWeight.w600)),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
                         ),
                       ),
-                    ),
 
-                    const SizedBox(height: 30),
-                    Text("v1.0.0 • NutriCare Enterprise", style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
-                  ],
+                      if (!_emailVerified) ...[
+                        const SizedBox(height: 30),
+                        TextButton(
+                          onPressed: _handleGuestDemo,
+                          style: TextButton.styleFrom(foregroundColor: theme.colorScheme.primary),
+                          child: const Text("Try Guest Demo", style: TextStyle(fontWeight: FontWeight.bold)),
+                        )
+                      ]
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -188,234 +305,70 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, bool isPassword = false, bool isVisible = false, VoidCallback? onVisibilityToggle}) {
-    return TextFormField(
-      controller: controller,
-      obscureText: isPassword && !isVisible,
-      style: const TextStyle(fontWeight: FontWeight.w600),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: Colors.grey.shade600),
-        prefixIcon: Icon(icon, color: Colors.grey.shade500),
-        suffixIcon: isPassword
-            ? IconButton(icon: Icon(isVisible ? Icons.visibility : Icons.visibility_off, color: Colors.grey), onPressed: onVisibilityToggle)
-            : null,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      ),
-      validator: (v) => v!.isEmpty ? "Required" : null,
+  // 🎯 OPTIMIZED INPUT FIELD
+  Widget _buildPremiumInput({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? hint,
+    bool isPassword = false,
+    bool showPassword = false,
+    VoidCallback? onTogglePassword,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+          ),
+          child: TextField(
+            controller: controller,
+            obscureText: isPassword && !showPassword,
+            // 🎯 OPTIMIZATION: Reduced Font Size (16 -> 15) to fit more chars
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.normal),
+              prefixIcon: Icon(icon, color: Colors.blueGrey.shade300, size: 20),
+              suffixIcon: isPassword
+                  ? IconButton(
+                icon: Icon(showPassword ? Icons.visibility : Icons.visibility_off, color: Colors.blueGrey.shade300),
+                onPressed: onTogglePassword,
+              )
+                  : null,
+              border: InputBorder.none,
+              // 🎯 OPTIMIZATION: Reduced Content Padding (20 -> 16)
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            ),
+          ),
+        ),
+      ],
     );
   }
-}
 
-// --- ACTIVATION SHEET (Same as before, reused here for completeness) ---
-class _ActivationSheet extends StatefulWidget {
-  final StaffManagementService service;
-
-  const _ActivationSheet({required this.service});
-
-  @override
-  State<_ActivationSheet> createState() => _ActivationSheetState();
-}
-
-class _ActivationSheetState extends State<_ActivationSheet> {
-  final _empCtrl = TextEditingController();
-  final _mobileCtrl = TextEditingController();
-  final _lastCtrl = TextEditingController();
-  final _passCtrl = TextEditingController();
-  final _confirmCtrl = TextEditingController();
-  DateTime? _dob;
-  bool _isVerifying = false;
-  bool _isVerified = false;
-  String? _verifiedUid;
-
-  Future<void> _verify() async {
-    if (_empCtrl.text.isEmpty ||
-        _mobileCtrl.text.isEmpty ||
-        _lastCtrl.text.isEmpty ||
-        _dob == null)
-      return;
-    setState(() => _isVerifying = true);
-    try {
-      final uid = await widget.service.verifyStaffIdentity(
-        empId: _empCtrl.text.trim(),
-        mobile: _mobileCtrl.text.trim(),
-        lastName: _lastCtrl.text.trim(),
-        dob: _dob!,
-      );
-      if (uid != null) {
-        setState(() {
-          _isVerified = true;
-          _verifiedUid = uid;
-          _isVerifying = false;
-        });
-      } else {
-        _showError("Details do not match records.");
-        setState(() => _isVerifying = false);
-      }
-    } catch (e) {
-      _showError("Error: $e");
-      setState(() => _isVerifying = false);
-    }
-  }
-
-  Future<void> _setPassword() async {
-    if (_passCtrl.text.length < 6 || _passCtrl.text != _confirmCtrl.text) {
-      _showError("Check password.");
-      return;
-    }
-    setState(() => _isVerifying = true);
-    try {
-      await widget.service.activateStaffAccount(
-        uid: _verifiedUid!,
-        newPassword: _passCtrl.text.trim(),
-      );
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Account Activated! Login now."),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      _showError(e.toString().replaceAll("Exception: ", ""));
-    } finally {
-      if (mounted) setState(() => _isVerifying = false);
-    }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildPremiumButton({required String label, required bool isLoading, required VoidCallback onTap}) {
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        24,
-        24,
-        MediaQuery.of(context).viewInsets.bottom + 24,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _isVerified ? "Set New Password" : "Activate Account",
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            if (!_isVerified) ...[
-              TextField(
-                controller: _empCtrl,
-                decoration: const InputDecoration(
-                  labelText: "Employee ID",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _mobileCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: "Mobile Number",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _lastCtrl,
-                decoration: const InputDecoration(
-                  labelText: "Last Name",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime(1990),
-                    firstDate: DateTime(1950),
-                    lastDate: DateTime.now(),
-                  );
-                  if (d != null) setState(() => _dob = d);
-                },
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: "Date of Birth",
-                    border: OutlineInputBorder(),
-                  ),
-                  child: Text(
-                    _dob != null
-                        ? DateFormat('dd/MM/yyyy').format(_dob!)
-                        : "Select Date",
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isVerifying ? null : _verify,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: _isVerifying
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("VERIFY"),
-                ),
-              ),
-            ] else ...[
-              TextField(
-                controller: _passCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "New Password",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _confirmCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "Confirm Password",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isVerifying ? null : _setPassword,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: _isVerifying
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("ACTIVATE"),
-                ),
-              ),
-            ],
-          ],
+      child: ElevatedButton(
+        onPressed: isLoading ? null : onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 0,
         ),
+        child: isLoading
+            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+            : Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
       ),
     );
   }

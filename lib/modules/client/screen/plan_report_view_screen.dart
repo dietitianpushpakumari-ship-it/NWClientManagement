@@ -1,19 +1,25 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🎯 Import
+import 'package:nutricare_client_management/admin/admin_provider.dart'; // 🎯 Import
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
 import 'package:nutricare_client_management/helper/diet_plan_pdf_generator.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 
-class PlanReportViewScreen extends StatelessWidget {
+class PlanReportViewScreen extends ConsumerWidget { // 🎯 Changed to ConsumerWidget
   final ClientModel client;
   final ClientDietPlanModel plan;
 
   const PlanReportViewScreen({super.key, required this.client, required this.plan});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 🎯 WATCH THE ADMIN PROFILE PROVIDER
+    // This is already loaded by the dashboard, so it should be instant.
+    final adminAsync = ref.watch(currentAdminProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
       body: Stack(
@@ -24,12 +30,26 @@ class PlanReportViewScreen extends StatelessWidget {
               children: [
                 _buildHeader(context),
                 Expanded(
-                  child: PdfPreview(
-                    allowSharing: true,
-                    allowPrinting: true,
-                    canChangePageFormat: false,
-                    canDebug: false,
-                    build: (format) => DietPlanPdfGenerator.generatePlanPdf(clientPlan: plan, client: client),
+                  // 🎯 Handle Loading State
+                  child: adminAsync.when(
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (err, stack) => Center(child: Text("Error loading profile: $err")),
+                    data: (adminProfile) {
+                      if (adminProfile == null) return const Center(child: Text("Admin profile not found."));
+//return Container();
+                     return PdfPreview(
+                        allowSharing: true,
+                        allowPrinting: true,
+                        canChangePageFormat: false,
+                        canDebug: false,
+                        // 🎯 PASS PROFILE TO GENERATOR
+                        build: (format) => DietPlanPdfGenerator.generatePlanPdf(
+                            clientPlan: plan,
+                            client: client,
+                            dietitianProfile: adminProfile,ref: ref
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],

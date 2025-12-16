@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // For receivedBy
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/modules/package/service/package_payment_service.dart';
 
-class AppointmentSettlementScreen extends StatefulWidget {
+class AppointmentSettlementScreen extends ConsumerStatefulWidget {
   const AppointmentSettlementScreen({super.key});
 
   @override
-  State<AppointmentSettlementScreen> createState() => _AppointmentSettlementScreenState();
+  ConsumerState<AppointmentSettlementScreen> createState() => _AppointmentSettlementScreenState();
 }
 
-class _AppointmentSettlementScreenState extends State<AppointmentSettlementScreen> {
-  final PackagePaymentService _service = PackagePaymentService();
+class _AppointmentSettlementScreenState extends ConsumerState<AppointmentSettlementScreen> {
+
 
   @override
   Widget build(BuildContext context) {
+    final _service = ref.read(packagePaymentServiceProvider);
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
       appBar: AppBar(
@@ -141,6 +144,7 @@ class _AppointmentSettlementScreenState extends State<AppointmentSettlementScree
   }
 
   void _showVerificationDialog(AppointmentModel appt) {
+    final _service = ref.read(packagePaymentServiceProvider);
     final amountCtrl = TextEditingController(text: appt.amountPaid?.toString() ?? "0");
     final refCtrl = TextEditingController(text: appt.paymentReferenceId ?? "");
     final noteCtrl = TextEditingController();

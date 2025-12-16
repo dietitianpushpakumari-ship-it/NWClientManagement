@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:nutricare_client_management/modules/master/model/diet_plan_item_model.dart';
-import 'package:nutricare_client_management/modules/master/model/food_item.dart';
+import 'package:nutricare_client_management/master/model/diet_plan_item_model.dart';
+import 'package:nutricare_client_management/master/model/food_item.dart';
 
 class PremiumMealEntryList extends StatelessWidget {
   final DietPlanMealModel meal;
@@ -20,7 +20,7 @@ class PremiumMealEntryList extends StatelessWidget {
     final newItem = DietPlanItemModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       foodItemId: food.id,
-      foodItemName: food.enName,
+      foodItemName: food.name,
       quantity: food.standardServingSizeG, // Default to standard
       unit: "g", // TODO: Use unit from food item
       alternatives: [],
@@ -164,7 +164,7 @@ class _PremiumFoodCardState extends State<_PremiumFoodCard> {
     final alt = FoodItemAlternative(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       foodItemId: food.id,
-      foodItemName: food.enName,
+      foodItemName: food.name,
       quantity: food.standardServingSizeG, // Smart default
       unit: "g",
     );
@@ -344,7 +344,7 @@ class _QuickFoodSearchSheetState extends State<_QuickFoodSearchSheet> {
       if (q.isEmpty) {
         _filtered = widget.allFoods;
       } else {
-        _filtered = widget.allFoods.where((f) => f.enName.toLowerCase().contains(q.toLowerCase())).toList();
+        _filtered = widget.allFoods.where((f) => f.name.toLowerCase().contains(q.toLowerCase())).toList();
       }
     });
   }
@@ -387,7 +387,7 @@ class _QuickFoodSearchSheetState extends State<_QuickFoodSearchSheet> {
               itemBuilder: (context, index) {
                 final food = _filtered[index];
                 return ListTile(
-                  title: Text(food.enName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text(food.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text("${food.caloriesPerStandardServing.toInt()} cal / ${food.standardServingSizeG}g", style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   trailing: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
                   onTap: () => widget.onSelect(food),

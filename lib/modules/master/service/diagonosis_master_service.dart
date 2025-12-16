@@ -1,13 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../model/diagonosis_master.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import '../../../master/model/diagonosis_master.dart';
 
 class DiagnosisMasterService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final String _collectionName = 'diagnoses';
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  DiagnosisMasterService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _collection => _firestore.collection('diagnoses');
 
   // 1. Check for Duplicates
   Future<bool> checkDuplicate(String enName) async {
-    final snapshot = await _db.collection(_collectionName)
+    final snapshot = await _collection
         .where('enName', isEqualTo: enName)
         .where('isDeleted', isEqualTo: false)
         .limit(1)
@@ -18,7 +26,7 @@ class DiagnosisMasterService {
   // 2. Fetch All (For Dropdown)
   Future<List<DiagnosisMasterModel>> fetchAllDiagnosisMaster() async {
     try {
-      final snapshot = await _db.collection(_collectionName)
+      final snapshot = await _collection
           .where('isDeleted', isEqualTo: false)
           .orderBy('enName')
           .get();
@@ -36,14 +44,13 @@ class DiagnosisMasterService {
       if (exists) throw Exception("Diagnosis '${diagnosis.enName}' already exists.");
     }
 
-    final docRef = _db.collection(_collectionName).doc(diagnosis.id.isEmpty ? null : diagnosis.id);
+    final docRef = _collection.doc(diagnosis.id.isEmpty ? null : diagnosis.id);
     await docRef.set(diagnosis.toMap(), SetOptions(merge: true));
   }
 
   // ... (Keep existing getDiagnoses, softDeleteDiagnosis methods)
   Stream<List<DiagnosisMasterModel>> getDiagnoses() {
-    return _db
-        .collection(_collectionName)
+    return _collection
         .where('isDeleted', isEqualTo: false)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -52,7 +59,7 @@ class DiagnosisMasterService {
   }
 
   Future<void> softDeleteDiagnosis(String diagnosisId) async {
-    await _db.collection(_collectionName).doc(diagnosisId).update({
+    await _collection.doc(diagnosisId).update({
       'isDeleted': true,
     });
   }
@@ -60,7 +67,7 @@ class DiagnosisMasterService {
     if (ids.isEmpty) return [];
     // Firestore 'whereIn' limitation: max 10 IDs. You may need to batch this.
     // For simplicity, assuming less than 10 for now.
-    final snapshot = await _db.collection(_collectionName)
+    final snapshot = await _collection
         .where(FieldPath.documentId, whereIn: ids.take(10).toList())
         .get();
 

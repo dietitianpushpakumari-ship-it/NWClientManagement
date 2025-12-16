@@ -1,20 +1,21 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/scheduler/content_service.dart';
 import 'package:nutricare_client_management/scheduler/dieititan_content_model.dart';
 import 'package:nutricare_client_management/scheduler/disease_tag.dart';
 import 'content_management_screen.dart';
 import 'content_detail_screen.dart';
 
-class ContentLibraryScreen extends StatefulWidget {
+class ContentLibraryScreen extends ConsumerStatefulWidget {
   const ContentLibraryScreen({super.key});
   @override
-  State<ContentLibraryScreen> createState() => _ContentLibraryScreenState();
+  ConsumerState<ContentLibraryScreen> createState() => _ContentLibraryScreenState();
 }
 
-class _ContentLibraryScreenState extends State<ContentLibraryScreen> {
-  final ContentService _contentService = ContentService();
+class _ContentLibraryScreenState extends ConsumerState<ContentLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +36,7 @@ class _ContentLibraryScreenState extends State<ContentLibraryScreen> {
                 _buildHeader(context),
                 Expanded(
                   child: StreamBuilder<List<DietitianContentModel>>(
-                    stream: _contentService.streamAllContent(),
+                    stream: ref.watch(contentServiceProvider).streamAllContent(),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                       final list = snapshot.data!;

@@ -1,258 +1,229 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:nutricare_client_management/admin/labvital/body_vitals_section.dart';
-import 'package:nutricare_client_management/admin/labvital/clinical_model.dart';
-import 'package:nutricare_client_management/admin/labvital/clinical_profile_section.dart';
-import 'package:nutricare_client_management/helper/lab_vitals_data.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
+
+
+// --- Project Imports ---
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
+import 'package:nutricare_client_management/helper/lab_vitals_data.dart'; // LabTestConfig definitions
+import 'package:nutricare_client_management/modules/master/service/diagonosis_master_service.dart'; // Diagnosis service
 
-class VitalsEntryPage extends StatefulWidget {
+
+class VitalsEntryScreen extends ConsumerStatefulWidget {
   final String clientId;
   final String clientName;
+  final VitalsModel? vitalToEdit;
   final VoidCallback onVitalsSaved;
   final bool isFirstConsultation;
-  final VitalsModel? vitalsToEdit;
 
-  const VitalsEntryPage({
+  const VitalsEntryScreen({
     super.key,
     required this.clientId,
     required this.clientName,
     required this.onVitalsSaved,
-    required this.isFirstConsultation,
-    this.vitalsToEdit,
+    this.vitalToEdit,
+    this.isFirstConsultation = false,
   });
 
   @override
-  State<VitalsEntryPage> createState() => _VitalsEntryPageState();
+  ConsumerState<VitalsEntryScreen> createState() => _VitalsEntryScreenState();
 }
 
-class _VitalsEntryPageState extends State<VitalsEntryPage> with SingleTickerProviderStateMixin {
+class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TabController _tabController;
-  bool _isSaving = false;
-  DateTime _selectedDate = DateTime.now();
 
-  // --- STATE ---
-  List<String> _selectedDiagnosisIds = [];
-  Map<String, String> _medicalHistory = {};
-  List<String> _selectedComplaints = [];
-  List<String> _selectedAllergies = [];
-  List<PrescribedMedication> _prescribedMedications = [];
-  final _medicationController = TextEditingController();
-
+  // --- Controllers for Anthro/Vitals ---
+  final _dateController = TextEditingController();
   final _weightController = TextEditingController();
   final _heightController = TextEditingController();
-  final _waistController = TextEditingController();
-  final _hipController = TextEditingController();
-  final _fatController = TextEditingController();
-  final _bpSysController = TextEditingController();
-  final _bpDiaController = TextEditingController();
-  final _hrController = TextEditingController();
-  final _spo2Controller = TextEditingController();
+  final _systolicController = TextEditingController();
+  final _diastolicController = TextEditingController();
+  final _notesController = TextEditingController();
 
+  // --- Dynamic Lab Controllers (Map<lab_key, controller>) ---
   final Map<String, TextEditingController> _labControllers = {};
 
-  String? _foodHabit;
-  String? _activityLevel;
-  bool _smoking = false;
-  final _smokingCtrl = TextEditingController();
-  bool _alcohol = false;
-  final _alcoholCtrl = TextEditingController();
+  // --- State Variables ---
+  DateTime _selectedDate = DateTime.now();
+ // List<String> _selectedDiagnosisIds = [];
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    for(var key in LabVitalsData.allLabTests.keys) _labControllers[key] = TextEditingController();
+    // Initialize ALL possible lab controllers
+    LabVitalsData.allLabTests.keys.forEach((key) {
+      _labControllers[key] = TextEditingController();
+    });
 
-    if (widget.vitalsToEdit != null) {
-      _populateData(widget.vitalsToEdit!);
-    }
+    _prefillForm(widget.vitalToEdit);
   }
 
-  void _populateData(VitalsModel data) {
-    _selectedDate = data.date;
-    _selectedDiagnosisIds = List.from(data.diagnosis);
+  void _prefillForm(VitalsModel? vital) {
+    if (vital != null) {
+      _selectedDate = vital.date;
+      _dateController.text = DateFormat('dd MMM yyyy').format(vital.date);
+      _weightController.text = vital.weightKg.toString();
+      _heightController.text = vital.heightCm.toString();
+      _systolicController.text = vital.bloodPressureSystolic?.toString() ?? '';
+      _diastolicController.text = vital.bloodPressureDiastolic?.toString() ?? '';
+      //_notesController.text = vital.notes ?? '';
+  //    _selectedDiagnosisIds = List.from(vital.diagnosis);
 
-    if (data.medicalHistoryDurations != null && data.medicalHistoryDurations!.isNotEmpty) {
-      final entries = data.medicalHistoryDurations!.split(', ');
-      for(var e in entries) {
-        final parts = e.split(':');
-        if(parts.length > 1) _medicalHistory[parts[0].trim()] = parts[1].trim();
-        else _medicalHistory[e.trim()] = "";
-      }
+      // Pre-fill lab values
+      vital.labResults.forEach((key, value) {
+        if (_labControllers.containsKey(key)) {
+          // Use the value's string representation for the controller text
+          _labControllers[key]!.text = value.toString();
+        }
+      });
     } else {
-      for(var h in data.medicalHistory) _medicalHistory[h] = "";
-    }
-
-    _selectedComplaints = (data.complaints?.split(',') ?? []).where((s) => s.isNotEmpty).map((e) => e.trim()).toList();
-    _selectedAllergies = (data.foodAllergies?.split(',') ?? []).where((s) => s.isNotEmpty).map((e) => e.trim()).toList();
-    _prescribedMedications = List.from(data.prescribedMedications);
-    if (_prescribedMedications.isEmpty && data.existingMedication != null) _medicationController.text = data.existingMedication!;
-
-    if(data.weightKg > 0) _weightController.text = data.weightKg.toString();
-    if(data.heightCm > 0) _heightController.text = data.heightCm.toString();
-    if(data.waistCm != null) _waistController.text = data.waistCm.toString();
-    if(data.hipCm != null) _hipController.text = data.hipCm.toString();
-    if(data.bodyFatPercentage > 0) _fatController.text = data.bodyFatPercentage.toString();
-
-    if(data.bloodPressureSystolic != null) _bpSysController.text = data.bloodPressureSystolic.toString();
-    if(data.bloodPressureDiastolic != null) _bpDiaController.text = data.bloodPressureDiastolic.toString();
-    if(data.heartRate != null) _hrController.text = data.heartRate.toString();
-    if(data.spO2Percentage != null) _spo2Controller.text = data.spO2Percentage.toString();
-
-    data.labResults.forEach((k, v) { if(_labControllers.containsKey(k)) _labControllers[k]!.text = v; });
-
-    _foodHabit = data.foodHabit;
-    _activityLevel = data.activityType;
-    if(data.otherLifestyleHabits?.containsKey('Smoking') ?? false) {
-      _smoking = true; _smokingCtrl.text = data.otherLifestyleHabits!['Smoking']!;
-    }
-    if(data.otherLifestyleHabits?.containsKey('Alcohol') ?? false) {
-      _alcohol = true; _alcoholCtrl.text = data.otherLifestyleHabits!['Alcohol']!;
+      // Default for new entry
+      _dateController.text = DateFormat('dd MMM yyyy').format(_selectedDate);
     }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
-    _medicationController.dispose();
+    _dateController.dispose();
     _weightController.dispose();
     _heightController.dispose();
-    _waistController.dispose();
-    _hipController.dispose();
-    _fatController.dispose();
-    _bpSysController.dispose();
-    _bpDiaController.dispose();
-    _hrController.dispose();
-    _spo2Controller.dispose();
-    _smokingCtrl.dispose();
-    _alcoholCtrl.dispose();
-    for(var c in _labControllers.values) c.dispose();
+    _systolicController.dispose();
+    _diastolicController.dispose();
+    //_notesController.dispose();
+    _labControllers.values.forEach((c) => c.dispose());
     super.dispose();
   }
 
-  Future<void> _save() async {
+  // --- SAVE LOGIC ---
+
+  Future<void> _saveVitals() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isSaving = true);
+    setState(() => _isLoading = true);
 
-    try {
-      double h = double.tryParse(_heightController.text) ?? 0;
-      double w = double.tryParse(_weightController.text) ?? 0;
-      double bmi = (h > 0 && w > 0) ? w / ((h/100)*(h/100)) : 0;
-      double ibw = (h > 0) ? 22 * ((h/100)*(h/100)) : 0;
+    // Access VitalsService via Riverpod
+    final vitalsService = ref.read(vitalsServiceProvider);
 
-      String historyStr = _medicalHistory.entries.map((e) => "${e.key}:${e.value}").join(", ");
-      Map<String, String> labs = {};
-      _labControllers.forEach((k, v) { if(v.text.isNotEmpty) labs[k] = v.text; });
-
-      Map<String, String> habits = {};
-      if(_smoking) habits['Smoking'] = _smokingCtrl.text;
-      if(_alcohol) habits['Alcohol'] = _alcoholCtrl.text;
-
-      final model = VitalsModel(
-        id: widget.vitalsToEdit?.id ?? '',
-        clientId: widget.clientId,
-        date: _selectedDate,
-        isFirstConsultation: widget.isFirstConsultation,
-        heightCm: h,
-        weightKg: w,
-        bmi: bmi,
-        idealBodyWeightKg: ibw,
-        bodyFatPercentage: double.tryParse(_fatController.text) ?? 0,
-        waistCm: double.tryParse(_waistController.text),
-        hipCm: double.tryParse(_hipController.text),
-        measurements: {},
-        bloodPressureSystolic: int.tryParse(_bpSysController.text),
-        bloodPressureDiastolic: int.tryParse(_bpDiaController.text),
-        heartRate: int.tryParse(_hrController.text),
-        spO2Percentage: double.tryParse(_spo2Controller.text),
-        diagnosis: _selectedDiagnosisIds,
-        medicalHistory: _medicalHistory.keys.toList(),
-        medicalHistoryDurations: historyStr,
-        complaints: _selectedComplaints.join(", "),
-        foodAllergies: _selectedAllergies.join(", "),
-        prescribedMedications: _prescribedMedications,
-        existingMedication: _medicationController.text,
-        labResults: labs,
-        foodHabit: _foodHabit,
-        activityType: _activityLevel,
-        otherLifestyleHabits: habits,
-      );
-
-      await VitalsService().saveVitals(model);
-      widget.onVitalsSaved();
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vitals saved!")));
-        Navigator.pop(context);
+    // 1. Gather Lab Results (Map<String, double>)
+    final Map<String, double> labResults = {};
+    _labControllers.forEach((key, controller) {
+      final value = double.tryParse(controller.text.trim());
+      if (value != null) {
+        labResults[key] = value;
       }
+    });
+
+    // 2. Build Model
+    // 💡 Note: BMI and idealBodyWeightKg should ideally be calculated here,
+    // but are set to 0.0 as placeholders based on the provided model structure.
+    final vitalToSave = VitalsModel(
+      id: widget.vitalToEdit?.id ?? '',
+      clientId: widget.clientId,
+      date: _selectedDate,
+
+      // Anthro/Vitals Metrics (Safely parse and default to 0/null)
+      weightKg: double.tryParse(_weightController.text.trim()) ?? 0.0,
+      heightCm: double.tryParse(_heightController.text.trim()) ?? 0.0,
+      bmi: 0.0,
+      idealBodyWeightKg: 0.0,
+
+      bloodPressureSystolic: int.tryParse(_systolicController.text.trim()),
+      bloodPressureDiastolic: int.tryParse(_diastolicController.text.trim()),
+
+      // Mandatory Fields (set to defaults or ensure parsing)
+      bodyFatPercentage: 0.0,
+      measurements: const {},
+      isFirstConsultation: widget.isFirstConsultation,
+
+      // Clinical Data
+      //diagnosis: _selectedDiagnosisIds,
+      labResults: labResults, // 🎯 Dynamic Lab Results
+     // notes: _notesController.text.trim(),
+
+      // Placeholder safety fields
+      complaints: null, heartRate: null, spO2Percentage: null, waistCm: null, hipCm: null,
+      labReportUrls: const [], medicalHistory: {}, prescribedMedications: const [],
+      existingMedication: null, foodAllergies: [],
+      restrictedDiet: null, foodHabit: null, activityType: null, otherLifestyleHabits: const {},
+      assignedDietPlanIds: const [],
+    );
+
+    // 3. Save
+    try {
+      await vitalsService.saveVitals(vitalToSave);
+      widget.onVitalsSaved(); // Execute callback
+      if (mounted) Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
     } finally {
-      if(mounted) setState(() => _isSaving = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // --- UI BUILDERS ---
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      body: Stack(
+      // ❌ NO APPBARR - Custom header used to maintain premium layout
+
+      body: Column(
         children: [
-          Positioned(top: -100, right: -80, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
-          SafeArea(
+          // 1. 🎯 Custom Header (Replaces AppBar functionality)
+          Padding(
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + 10,
+              left: 16,
+              right: 16,
+              bottom: 8,
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  widget.vitalToEdit == null ? 'New Vitals Record' : 'Edit Vitals Record',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                ),
+              ],
+            ),
+          ),
+
+          // 2. Form Body (Expanded and Scrollable)
+          Expanded(
             child: Form(
               key: _formKey,
-              child: Column(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
                 children: [
-                  // 1. Custom Header
-                  _buildHeader(),
+                  _buildDateSection(),
+                  _buildAnthroSection(),
+                  _buildVitalsSection(),
+                  _buildLabVitalsSection(ref), // Dynamic Lab Inputs
+              //    _buildDiagnosisSection(ref),
+                 // _buildNotesSection(),
 
-                  // 2. Tabs
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicatorColor: Theme.of(context).colorScheme.primary,
-                      labelColor: Theme.of(context).colorScheme.primary,
-                      unselectedLabelColor: Colors.grey,
-                      tabs: const [
-                        Tab(text: "Body & Labs", icon: Icon(Icons.monitor_weight_outlined)),
-                        Tab(text: "Clinical Profile", icon: Icon(Icons.medical_services_outlined)),
-                      ],
+                  // --- Save Button (Inside ListView) ---
+                  const SizedBox(height: 30),
+                  ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _saveVitals,
+                    icon: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check_circle_outline),
+                    label: Text(widget.vitalToEdit == null ? "SAVE NEW RECORD" : "UPDATE RECORD"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
-
-                  // 3. Content
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        BodyVitalsSection(
-                          weightController: _weightController, heightController: _heightController, waistController: _waistController, hipController: _hipController, fatController: _fatController, bpSysController: _bpSysController, bpDiaController: _bpDiaController, hrController: _hrController, spo2Controller: _spo2Controller, labControllers: _labControllers, foodHabit: _foodHabit, onFoodHabitChanged: (v) => setState(() => _foodHabit = v), activityLevel: _activityLevel, onActivityLevelChanged: (v) => setState(() => _activityLevel = v), smoking: _smoking, onSmokingChanged: (v) => setState(() => _smoking = v), smokingFreqController: _smokingCtrl, alcohol: _alcohol, onAlcoholChanged: (v) => setState(() => _alcohol = v), alcoholFreqController: _alcoholCtrl,
-                        ),
-                        ClinicalProfileSection(
-                          selectedDiagnosisIds: _selectedDiagnosisIds,
-                          medicalHistoryWithDuration: _medicalHistory,
-                          selectedComplaints: _selectedComplaints,
-                          selectedAllergies: _selectedAllergies,
-                          prescribedMedications: _prescribedMedications,
-                          medicationController: _medicationController,
-                          onMedicationsChanged: (l) => setState(() => _prescribedMedications = l),
-                          onDiagnosesChanged: (l) => setState(() => _selectedDiagnosisIds = l),
-                          onHistoryChanged: (m) => setState(() => _medicalHistory = m),
-                          onAddComplaint: (v) => setState(() => _selectedComplaints.add(v)),
-                          onRemoveComplaint: (v) => setState(() => _selectedComplaints.remove(v)),
-                          onAddAllergy: (v) => setState(() => _selectedAllergies.add(v)),
-                          onRemoveAllergy: (v) => setState(() => _selectedAllergies.remove(v)),
-                          onComplaintsListChanged: (l) => setState(() => _selectedComplaints = l),
-                          onAllergiesListChanged: (l) => setState(() => _selectedAllergies = l),
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 50),
                 ],
               ),
             ),
@@ -262,43 +233,234 @@ class _VitalsEntryPageState extends State<VitalsEntryPage> with SingleTickerProv
     );
   }
 
-  Widget _buildHeader() {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.8), border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.1)))),
-          child: Column(
+  // 🎯 DYNAMIC LAB INPUT SECTION (FIXED Logic for MapEntry)
+  Widget _buildLabVitalsSection(WidgetRef ref) {
+    // Group tests by category, storing MapEntry (key and value)
+    final Map<String, List<MapEntry<String, LabTestConfig>>> categorizedTests = {};
+
+    // Iterate over entries to keep both the key (ID) and the config (display data)
+    LabVitalsData.allLabTests.entries.forEach((entry) {
+      final category = entry.value.category;
+      if (!categorizedTests.containsKey(category)) {
+        categorizedTests[category] = [];
+      }
+      categorizedTests[category]!.add(entry);
+    });
+
+    return _buildCard(
+      title: "Lab Test Results",
+      icon: Icons.science,
+      color: Colors.indigo,
+      child: Column(
+        children: LabVitalsData.labCategories.where((cat) => categorizedTests.containsKey(cat)).map((category) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(onTap: () => Navigator.pop(context), child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: const Icon(Icons.arrow_back, size: 20))),
-                  const Text("Client Intake Form", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  IconButton(onPressed: _isSaving ? null : _save, icon: _isSaving ? const CircularProgressIndicator() : Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary, size: 28))
-                ],
+              Padding(
+                padding: const EdgeInsets.only(top: 15, bottom: 8),
+                child: Text(category, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               ),
-              const SizedBox(height: 10),
-              InkWell(
-                onTap: () async {
-                  final d = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2020), lastDate: DateTime.now());
-                  if(d != null) setState(() => _selectedDate = d);
+              Wrap(
+                spacing: 10, runSpacing: 10,
+                children: categorizedTests[category]!.map((entry) {
+                  final String key = entry.key; // The string ID (e.g., 'fbs')
+                  final LabTestConfig config = entry.value;
+
+                  final controller = _labControllers[key];
+                  if (controller == null) return const SizedBox.shrink();
+
+                  return SizedBox(
+                    width: 180,
+                    child: _buildField(
+                      controller,
+                      "${config.displayName} (${config.unit})",
+                      Icons.numbers,
+                      isNumber: true,
+                      helperText: config.referenceRangeDisplay,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+ /* Widget _buildDiagnosisSection(WidgetRef ref) {
+    // 🎯 FIX: Access DiagnosisMasterService via Riverpod
+    final diagnosisService = ref.read(diagnosisMasterServiceProvider);
+
+    // Fetch all diagnoses for the dropdown/chip list
+    final diagnosisAsync = ref.read(
+        FutureProvider.autoDispose((ref) => diagnosisService.fetchAllDiagnosisMaster())
+    );
+
+    return _buildCard(
+      title: "Diagnosis",
+      icon: Icons.local_hospital,
+      color: Colors.purple,
+      child: diagnosisAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        error: (err, stack) => Text('Error loading diagnosis: $err'),
+        data: (list) {
+          return Wrap(
+            spacing: 8.0,
+            children: list.map((diag) {
+              final isSelected = _selectedDiagnosisIds.contains(diag.id);
+              return FilterChip(
+                label: Text(diag.enName),
+                selected: isSelected,
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedDiagnosisIds.add(diag.id);
+                    } else {
+                      _selectedDiagnosisIds.remove(diag.id);
+                    }
+                  });
                 },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.1), borderRadius: BorderRadius.circular(8)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.calendar_today, size: 16, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text(DateFormat('dd MMM yyyy').format(_selectedDate), style:  TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary))
-                  ]),
-                ),
-              )
+                selectedColor: Colors.purple.shade100,
+                checkmarkColor: Colors.purple.shade900,
+                labelStyle: TextStyle(color: isSelected ? Colors.purple.shade900 : Colors.black87),
+              );
+            }).toList(),
+          );
+        },
+      ),
+    );
+  }*/
+
+  /*Widget _buildNotesSection() {
+    return _buildCard(
+      title: "Consultation Notes",
+      icon: Icons.notes,
+      color: Colors.teal,
+      child: _buildMultiLineField(_notesController, "Notes on current vitals/status"),
+    );
+  }*/
+
+  // -----------------------------------------------------------------
+  // --- COMMON HELPERS ---
+  // -----------------------------------------------------------------
+
+  Widget _buildDateSection() {
+    return _buildCard(
+      title: "Record Date",
+      icon: Icons.calendar_today,
+      color: Colors.blue,
+      child: TextFormField(
+        controller: _dateController,
+        readOnly: true,
+        decoration: _inputDec("Date", Icons.calendar_today),
+        onTap: () async {
+          final DateTime? picked = await showDatePicker(
+            context: context,
+            initialDate: _selectedDate,
+            firstDate: DateTime(2000),
+            lastDate: DateTime.now(),
+          );
+          if (picked != null && picked != _selectedDate) {
+            setState(() {
+              _selectedDate = picked;
+              _dateController.text = DateFormat('dd MMM yyyy').format(picked);
+            });
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildAnthroSection() {
+    return _buildCard(
+      title: "Anthropometry",
+      icon: Icons.scale,
+      color: Colors.red,
+      child: Row(
+        children: [
+          Expanded(child: _buildField(_weightController, "Weight (kg)", Icons.line_weight)),
+          const SizedBox(width: 10),
+          Expanded(child: _buildField(_heightController, "Height (cm)", Icons.height)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVitalsSection() {
+    return _buildCard(
+      title: "Cardio Metrics",
+      icon: Icons.monitor_heart,
+      color: Colors.pink,
+      child: Row(
+        children: [
+          Expanded(child: _buildField(_systolicController, "BP Sys", Icons.arrow_upward, isNumber: true)),
+          const SizedBox(width: 10),
+          Expanded(child: _buildField(_diastolicController, "BP Dias", Icons.arrow_downward, isNumber: true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard({required String title, required IconData icon, required Color color, required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 10),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
-        ),
+          const Divider(height: 25),
+          child,
+        ],
       ),
+    );
+  }
+
+  Widget _buildField(TextEditingController ctrl, String label, IconData icon, {bool isNumber = false, String? helperText}) {
+    return TextFormField(
+      controller: ctrl,
+      keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+      decoration: _inputDec(label, icon).copyWith(
+        helperText: helperText,
+        helperStyle: const TextStyle(color: Colors.grey, fontSize: 11),
+      ),
+      validator: (v) {
+        if (v!.isNotEmpty && isNumber && double.tryParse(v) == null) {
+          return 'Enter a valid number.';
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildMultiLineField(TextEditingController ctrl, String label) {
+    return TextFormField(
+      controller: ctrl,
+      decoration: _inputDec(label, Icons.edit),
+      maxLines: 4,
+    );
+  }
+
+  InputDecoration _inputDec(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon, size: 20),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+      fillColor: Colors.grey.shade50,
+      filled: true,
     );
   }
 }

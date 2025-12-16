@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
@@ -13,18 +16,18 @@ import 'package:nutricare_client_management/screens/dash/client_dashboard_screen
 import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart'; // Ensure this import exists
 
-class AdminAppointmentDetailsScreen extends StatefulWidget {
+class AdminAppointmentDetailsScreen extends ConsumerStatefulWidget {
   final AppointmentModel appointment;
 
   const AdminAppointmentDetailsScreen({super.key, required this.appointment});
 
   @override
-  State<AdminAppointmentDetailsScreen> createState() => _AdminAppointmentDetailsScreenState();
+  ConsumerState<AdminAppointmentDetailsScreen> createState() => _AdminAppointmentDetailsScreenState();
 }
 
-class _AdminAppointmentDetailsScreenState extends State<AdminAppointmentDetailsScreen> {
-  final MeetingService _service = MeetingService();
-  final ClientService _clientService = ClientService();
+class _AdminAppointmentDetailsScreenState extends ConsumerState<AdminAppointmentDetailsScreen> {
+                                                                                                                                                                                        
+
 
   final TextEditingController _noteCtrl = TextEditingController();
   late AppointmentModel _appt;
@@ -42,14 +45,15 @@ class _AdminAppointmentDetailsScreenState extends State<AdminAppointmentDetailsS
   Future<void> _fetchClientDetails() async {
     if (_appt.clientId != null) {
       try {
-        final client = await _clientService.getClientById(_appt.clientId!);
+        final clientService = ref.read(clientServiceProvider);
+        final client = await clientService.getClientById(_appt.clientId!);
         if (mounted) setState(() => _clientData = client);
       } catch (_) {}
     }
   }
 
   Future<void> _refresh() async {
-    final doc = await FirebaseFirestore.instance.collection('appointments').doc(_appt.id).get();
+    final doc = await ref.watch(firestoreProvider).collection('appointments').doc(_appt.id).get();
     if (doc.exists && mounted) {
       setState(() {
         _appt = AppointmentModel.fromFirestore(doc);
@@ -88,7 +92,7 @@ class _AdminAppointmentDetailsScreenState extends State<AdminAppointmentDetailsS
 
       Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(initialProfile: clientToPass))
+          MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(client: clientToPass))
       );
     }
   }
@@ -116,7 +120,7 @@ class _AdminAppointmentDetailsScreenState extends State<AdminAppointmentDetailsS
     if (confirm == true) {
       setState(() => _isLoading = true);
       try {
-        await _service.updateAppointmentStatus(_appt.id, status);
+        await ref.read(meetingServiceProvider).updateAppointmentStatus(_appt.id, status);
         await _refresh();
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Status updated to $actionLabel")));
       } catch (e) {
@@ -167,7 +171,7 @@ class _AdminAppointmentDetailsScreenState extends State<AdminAppointmentDetailsS
                 'paymentDate': FieldValue.serverTimestamp(),
               };
 
-              await FirebaseFirestore.instance.collection('appointments').doc(_appt.id).update(updates);
+              await ref.read(firestoreProvider).collection('appointments').doc(_appt.id).update(updates);
               _refresh();
               if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Payment recorded.")));
             },
@@ -179,7 +183,7 @@ class _AdminAppointmentDetailsScreenState extends State<AdminAppointmentDetailsS
   }
 
   Future<void> _saveNote() async {
-    await _service.updateAppointmentNote(_appt.id, _noteCtrl.text);
+    await ref.read(meetingServiceProvider).updateAppointmentNote(_appt.id, _noteCtrl.text);
     if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Clinical note saved.")));
   }
 
@@ -195,11 +199,11 @@ class _AdminAppointmentDetailsScreenState extends State<AdminAppointmentDetailsS
     if (image != null) {
       setState(() => _isLoading = true);
       try {
-        final ref = FirebaseStorage.instance.ref().child('appointment_photos/${_appt.id}/${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await ref.putFile(File(image.path));
-        final url = await ref.getDownloadURL();
+        final refPath = FirebaseStorage.instance.ref().child('appointment_photos/${_appt.id}/${DateTime.now().millisecondsSinceEpoch}.jpg');
+        await refPath.putFile(File(image.path));
+        final url = await refPath.getDownloadURL();
 
-        await FirebaseFirestore.instance.collection('appointments').doc(_appt.id).update({
+        await ref.read(firestoreProvider).collection('appointments').doc(_appt.id).update({
           'sessionPhotos': FieldValue.arrayUnion([url])
         });
         _refresh();

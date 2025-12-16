@@ -5,6 +5,8 @@ import 'package:nutricare_client_management/admin/admin_provider.dart';
 import 'package:nutricare_client_management/admin/scheduler/scheduler_list_view.dart';
 import 'package:nutricare_client_management/admin/scheduler/scheduler_timeline_view.dart';
 
+import '../labvital/global_service_provider.dart';
+
 
 class AdminSchedulerScreen extends ConsumerStatefulWidget {
   const AdminSchedulerScreen({super.key});

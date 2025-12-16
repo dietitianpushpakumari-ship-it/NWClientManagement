@@ -1,60 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/admin_dashboard_Screen.dart';
 import 'package:nutricare_client_management/login_screen.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 
-class AuthWrapper extends StatefulWidget {
+// 🎯 Provider that exposes the current User state dynamically
+// It watches the authProvider, so when the tenant app changes, the stream automatically switches.
+final userStreamProvider = StreamProvider<User?>((ref) {
+  final auth = ref.watch(authProvider);
+  return auth.authStateChanges();
+});
+
+
+class AuthWrapper extends ConsumerWidget {
   const AuthWrapper({super.key});
 
   @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the dynamic user stream
+    final userAsync = ref.watch(userStreamProvider);
 
-class _AuthWrapperState extends State<AuthWrapper> {
-  bool _isChecking = true;
-  User? _user;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAuthState();
-  }
-
-  void _checkAuthState() {
-    // Listen to auth changes but manage state manually to prevent flickering
-    FirebaseAuth.instance.authStateChanges().listen((User? user) {
-      if (mounted) {
-        setState(() {
-          _user = user;
-          _isChecking = false;
-        });
-      }
-    }, onError: (e) {
-      // Handle stream errors gracefully
-      if (mounted) {
-        setState(() => _isChecking = false);
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 1. Show Loader ONLY during initial check
-    if (_isChecking) {
-      return const Scaffold(
+    return userAsync.when(
+      loading: () => const Scaffold(
         backgroundColor: Colors.white,
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.indigo),
-        ),
-      );
-    }
+        body: Center(child: CircularProgressIndicator(color: Colors.indigo)),
+      ),
+      error: (err, stack) {
+        // If the auth stream throws an error (e.g., token invalid), reset and show login
+        print("Auth Stream Error: $err");
+        return const LoginScreen();
+      },
+      data: (user) {
+        if (user == null) {
+          return const LoginScreen();
+        }
 
-    // 2. If User Exists -> Go to Dashboard
-    if (_user != null) {
-      return const AdminDashboardScreen();
-    }
-
-    // 3. No User -> Go to Login
-    return const LoginScreen();
+        return const AdminDashboardScreen();
+      },
+    );
   }
 }

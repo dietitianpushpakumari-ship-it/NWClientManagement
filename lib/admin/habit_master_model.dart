@@ -10,6 +10,8 @@ class HabitMasterModel {
   final String iconCode; // Store IconData as codePoint or string key
   final HabitCategory category;
   final bool isActive;
+  final Map<String, String> titleLocalized;
+  final Map<String, String> descriptionLocalized;
 
   const HabitMasterModel({
     required this.id,
@@ -18,6 +20,8 @@ class HabitMasterModel {
     required this.iconCode, // We'll store string keys like 'sunny', 'water'
     required this.category,
     this.isActive = true,
+    this.titleLocalized = const {},
+    this.descriptionLocalized = const {},
   });
 
   // Convert String key to IconData for UI
@@ -37,6 +41,15 @@ class HabitMasterModel {
 
   factory HabitMasterModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
+    Map<String, String> localizedNames = {};
+    if (data['nameLocalized'] is Map) {
+      localizedNames = Map<String, String>.from(data['nameLocalized']);
+    }
+
+    Map<String, String> descriptionLocalized = {};
+    if (data['descriptionLocalized'] is Map) {
+      descriptionLocalized = Map<String, String>.from(data['descriptionLocalized']);
+    }
 
     return HabitMasterModel(
       id: doc.id,
@@ -48,6 +61,8 @@ class HabitMasterModel {
           orElse: () => HabitCategory.other
       ),
       isActive: data['isActive'] ?? true,
+      titleLocalized: localizedNames,
+      descriptionLocalized: descriptionLocalized
     );
   }
 
@@ -59,6 +74,8 @@ class HabitMasterModel {
       'category': category.name,
       'isActive': isActive,
       'updatedAt': FieldValue.serverTimestamp(),
+      'nameLocalized': titleLocalized,
+      'descriptionLocalized' : descriptionLocalized
     };
   }
 }

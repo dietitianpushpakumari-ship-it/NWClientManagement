@@ -1,16 +1,23 @@
 // lib/services/serving_unit_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 
-import '../model/ServingUnit.dart';
+import '../../../master/model/ServingUnit.dart';
 
 
 /// A service class to manage CRUD operations for the ServingUnit master data.
 class ServingUnitService {
-  // 1. Collection Reference
-  // Assuming the master collection is named 'servingUnits'
-  final CollectionReference _unitsCollection =
-  FirebaseFirestore.instance.collection('servingUnits');
+
+  final Ref _ref; // Store Ref to access dynamic providers
+  ServingUnitService(this._ref);
+
+  // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
+  // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
+  FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  CollectionReference get _unitsCollection => _firestore.collection(MasterCollectionMapper.getPath(MasterEntity.entity_ServingUnits));
 
   // --- READ Operations ---
 
@@ -20,7 +27,7 @@ class ServingUnitService {
     return _unitsCollection
     // Only fetch units that have not been soft-deleted
         .where('isDeleted', isEqualTo: false)
-        .orderBy('enName')
+        .orderBy('name')
         .snapshots()
         .map((snapshot) => snapshot.docs
         .map((doc) => ServingUnit.fromFirestore(doc))

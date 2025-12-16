@@ -1,22 +1,24 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/modules/package/model/package_model.dart';
 import 'package:nutricare_client_management/modules/package/service/package_Service.dart';
 import 'package:nutricare_client_management/screens/package_entry_page.dart';
 
-class PackageListPage extends StatefulWidget {
+class PackageListPage extends ConsumerStatefulWidget {
   const PackageListPage({super.key});
 
   @override
-  State<PackageListPage> createState() => _PackageListPageState();
+  ConsumerState<PackageListPage> createState() => _PackageListPageState();
 }
 
-class _PackageListPageState extends State<PackageListPage> {
-  final PackageService _service = PackageService();
+class _PackageListPageState extends ConsumerState<PackageListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final _service = ref.watch(packageServiceProvider);
     final currency = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
 
     return Scaffold(
