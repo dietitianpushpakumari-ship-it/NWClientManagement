@@ -1,3 +1,4 @@
+//import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutricare_client_management/admin/labvital/clinical_model.dart';
 
@@ -5,6 +6,7 @@ class VitalsModel {
   final String id;
   final String clientId;
   final DateTime date;
+  final String? sessionId;
 
   // --- Anthropometrics ---
   final double heightCm;
@@ -31,7 +33,7 @@ class VitalsModel {
   final Map<String, String> medicalHistory;
   final List<String> diagnosis;
   final String? complaints;
-  final List<PrescribedMedication> prescribedMedications;
+  final Map<String, String> prescribedMedications;
   final List<String> foodAllergies;
   final String? restrictedDiet;
   final String? existingMedication;
@@ -76,12 +78,12 @@ class VitalsModel {
     this.waistCm,
     this.hipCm,
     this.measurements = const {},
-
+    this.sessionId,
     this.bloodPressureSystolic,
     this.bloodPressureDiastolic,
     this.heartRate,
     this.spO2Percentage,
-    this.prescribedMedications = const [],
+    this.prescribedMedications = const {},
 
     this.labResults = const {},
     this.notes,
@@ -122,9 +124,18 @@ class VitalsModel {
   }
 
   factory VitalsModel.fromMap(String id, Map<String, dynamic> map) {
-    List<PrescribedMedication> meds = [];
-    if (map['prescribedMedications'] != null) {
-      meds = (map['prescribedMedications'] as List).map((m) => PrescribedMedication.fromMap(m)).toList();
+
+
+    Map<String, String> castToMap(dynamic data) {
+      if (data == null) return {};
+      if (data is Map) {
+        return data.map((k, v) => MapEntry(k.toString(), v.toString()));
+      }
+      if (data is List) {
+        // Convert old List ['A', 'B'] to New Map {'A': 'Not specified', 'B': 'Not specified'}
+        return { for (var item in data) item.toString() : "Not specified" };
+      }
+      return {};
     }
     return VitalsModel(
       id: id,
@@ -140,7 +151,6 @@ class VitalsModel {
       waistCm: (map['waistCm'] as num?)?.toDouble(),
       hipCm: (map['hipCm'] as num?)?.toDouble(),
       measurements: Map<String, double>.from(map['measurements'] ?? {}),
-
       // Cardio
       bloodPressureSystolic: (map['bloodPressureSystolic'] as num?)?.toInt(),
       bloodPressureDiastolic: (map['bloodPressureDiastolic'] as num?)?.toInt(),
@@ -154,20 +164,13 @@ class VitalsModel {
       ),
       notes: map['notes'] as String?,
       labReportUrls: List<String>.from(map['labReportUrls'] ?? []),
+      sessionId: map['sessionId'],
 
-      // History & Profile Fields
-      medicalHistory: Map<String, String>.from(map['medicalHistory'] ?? {}),
       diagnosis: List<String>.from(map['diagnosis'] ?? []),
       complaints: map['complaints'],
-      prescribedMedications: meds,
       existingMedication: map['existingMedication'],
       foodAllergies: List<String>.from(map['foodAllergies'] ?? []),
       restrictedDiet: map['restrictedDiet'],
-
-      // 🎯 UPDATED FROM MAP
-      giDetails: Map<String, String>.from(map['giDetails'] ?? {}),
-      waterIntake: Map<String, String>.from(map['waterIntake'] ?? {}),
-      caffeineIntake: Map<String, String>.from(map['caffeineIntake'] ?? {}),
 
       // Behavioral
       stressLevel: (map['stressLevel'] as num?)?.toInt(),
@@ -177,18 +180,27 @@ class VitalsModel {
       // Lifestyle
       foodHabit: map['foodHabit'],
       activityType: map['activityType'],
-      otherLifestyleHabits: Map<String, String>.from(map['otherLifestyleHabits'] ?? {}),
 
       // Metadata
       assignedDietPlanIds: List<String>.from(map['assignedDietPlanIds'] ?? []),
       isFirstConsultation: map['isFirstConsultation'] ?? false,
       // 🎯 NEW JSON MAPPING (Casting to Map<String, String>)
-      clinicalComplaints: (map['clinicalComplaints'] as Map<String, dynamic>?)
-          ?.map((k, v) => MapEntry(k, v.toString())),
-      nutritionDiagnoses: (map['nutritionDiagnoses'] as Map<String, dynamic>?)
-          ?.map((k, v) => MapEntry(k, v.toString())),
-      clinicalNotes: (map['clinicalNotes'] as Map<String, dynamic>?)
-          ?.map((k, v) => MapEntry(k, v.toString())),
+
+
+
+      medicalHistory: castToMap(map['medicalHistory']), // Fixes the mismatch
+      clinicalComplaints: castToMap(map['clinicalComplaints']),
+      nutritionDiagnoses: castToMap(map['nutritionDiagnoses']),
+      clinicalNotes: castToMap(map['clinicalNotes']),
+
+
+      // 🎯 FIX: Cast all history components explicitly as Map<String, String>
+  //    medicalHistory: Map<String, String>.from(map['medicalHistory'] ?? {}),
+      prescribedMedications: Map<String, String>.from(map['prescribedMedications'] ?? {}),
+      giDetails: Map<String, String>.from(map['giDetails'] ?? {}),
+      caffeineIntake: Map<String, String>.from(map['caffeineIntake'] ?? {}),
+      otherLifestyleHabits: Map<String, String>.from(map['otherLifestyleHabits'] ?? {}),
+      waterIntake: Map<String, String>.from(map['waterIntake'] ?? {}),
     );
   }
 
@@ -225,7 +237,7 @@ class VitalsModel {
       'existingMedication': existingMedication,
       'foodAllergies': foodAllergies,
       'restrictedDiet': restrictedDiet,
-      'prescribedMedications': prescribedMedications.map((m) => m.toMap()).toList(),
+      'prescribedMedications': prescribedMedications,
 
       // 🎯 UPDATED TO MAP
       'giDetails': giDetails,
@@ -241,6 +253,7 @@ class VitalsModel {
       'foodHabit': foodHabit,
       'activityType': activityType,
       'otherLifestyleHabits': otherLifestyleHabits,
+      'sessionId': sessionId,
 
       // Metadata
       'assignedDietPlanIds': assignedDietPlanIds,

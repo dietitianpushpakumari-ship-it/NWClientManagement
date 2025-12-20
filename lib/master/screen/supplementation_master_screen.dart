@@ -54,7 +54,7 @@ class _SupplementationMasterScreenState extends ConsumerState<SupplementationMas
                   final filteredList = _searchQuery.isEmpty
                       ? allList
                       : allList.where((item) =>
-                      item.enName.toLowerCase().contains(_searchQuery)
+                      item.name.toLowerCase().contains(_searchQuery)
                   ).toList();
 
                   if(filteredList.isEmpty) return const Center(child: Text("No supplements found."));
@@ -113,7 +113,7 @@ class _SupplementationMasterScreenState extends ConsumerState<SupplementationMas
       ),
       child: ListTile(
         leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.medication, color: Colors.green)),
-        title: Text(item.enName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         subtitle: item.nameLocalized.isNotEmpty ? Text("Translated: ${item.nameLocalized.values.join(', ')}", style: TextStyle(color: Colors.grey.shade600, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis) : null,
         trailing: IconButton(icon: Icon(Icons.edit_outlined, color: Theme.of(context).colorScheme.primary), onPressed: () => showDialog(context: context, builder: (_) => SupplementationMasterEntryDialog(supplementation: item))),
       ),

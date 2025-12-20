@@ -313,7 +313,7 @@ class DietPlanPdfGenerator  {
     return pw.Container(
         padding: const pw.EdgeInsets.all(10),
         decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.blueGrey300, width: 0.5), borderRadius: pw.BorderRadius.circular(5)),
-        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [_buildSectionTitle('Investigations Required', boldFont, color: PdfColors.indigo700, size: 13), ...items.map((i) => _buildListItem(i.enName, font)).toList()])
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [_buildSectionTitle('Investigations Required', boldFont, color: PdfColors.indigo700, size: 13), ...items.map((i) => _buildListItem(i.name, font)).toList()])
     );
   }
 
@@ -334,7 +334,7 @@ class DietPlanPdfGenerator  {
 
     return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
       _buildSectionTitle('General Guidelines', boldFont),
-      ...guidelines.map((g) => _buildListItem(g.enTitle, font)).toList(),
+      ...guidelines.map((g) => _buildListItem(g.name, font)).toList(),
       pw.SizedBox(height: 15),
       pw.Divider(color: PdfColors.grey400),
       pw.Container(padding: const pw.EdgeInsets.all(10), decoration: pw.BoxDecoration(borderRadius: pw.BorderRadius.circular(6), color: PdfColor.fromHex('FFF5F5')), child: pw.Text(_declarationText.replaceAll('[CompanyName]', info.companyName), style: pw.TextStyle(fontSize: 10, font: font, color: PdfColors.grey800))),

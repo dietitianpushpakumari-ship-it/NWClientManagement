@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/master/model/diet_plan_item_model.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
 
 class ClientDietPlanService {
@@ -10,14 +11,14 @@ class ClientDietPlanService {
   ClientDietPlanService(this._ref);
 
   FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
-  CollectionReference<ClientDietPlanModel> get _clientPlansCollection => _firestore.collection('clientDietPlans')
+  CollectionReference<ClientDietPlanModel> get _clientPlansCollection => _firestore.collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientMealPlan))
       .withConverter<ClientDietPlanModel>(
-  fromFirestore: (snapshot, _) =>
-  ClientDietPlanModel.fromFirestore(snapshot),
-  toFirestore: (plan, _) => plan.toFirestore(),
+    fromFirestore: (snapshot, _) =>
+        ClientDietPlanModel.fromFirestore(snapshot),
+    toFirestore: (plan, _) => plan.toFirestore(),
   );
 
-  CollectionReference<MasterDietPlanModel> get _collection => _firestore.collection('masterDietPlan').
+  CollectionReference<MasterDietPlanModel> get _collection => _firestore.collection(MasterCollectionMapper.getPath(MasterEntity.entity_mealTemplates)).
   withConverter<MasterDietPlanModel>(
     // Use the factory constructor to convert DocumentSnapshot to Model
     fromFirestore: (snapshot, _) => MasterDietPlanModel.fromFirestore(snapshot),
@@ -25,10 +26,37 @@ class ClientDietPlanService {
     toFirestore: (plan, _) => plan.toFirestore(),
   );
 
-  CollectionReference get _assignedPlansSubCollection => _firestore.collection('clientDietPlans');
+  CollectionReference get _assignedPlansSubCollection => _firestore.collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientMealPlan));
 
   final Logger logger = Logger();
 
+  // lib/modules/client/services/diet_plan_service.dart
+
+  Future<void> duplicatePlan(ClientDietPlanModel oldPlan) async {
+    try {
+      // 1. Create a copy with reset IDs and metadata
+      final newPlan = oldPlan.copyWith(
+        id: '', // Resetting ID tells Firestore to create a new document
+        name: "${oldPlan.name} (Copy)",
+        isProvisional: true, // Mark as draft/provisional by default
+      );
+
+      // 2. Prepare the map for Firestore
+      final planData = newPlan.toMap();
+
+      // 3. Add fresh timestamps
+      planData['createdAt'] = FieldValue.serverTimestamp();
+      planData['updatedAt'] = FieldValue.serverTimestamp();
+
+      // 4. Save to the 'diet_plans' collection
+      await _firestore
+          .collection('diet_plans')
+          .add(planData);
+
+    } catch (e) {
+      throw Exception("Failed to duplicate diet plan: $e");
+    }
+  }
 
   // 🎯 CORE: Set as Primary (Exclusive Active Status)
   Future<void> setAsPrimary(String clientId, String planId) async {
@@ -82,8 +110,50 @@ class ClientDietPlanService {
     }
   }
 
-  // 🎯 NEW METHOD: Handles the assignment of a master plan to a client
-  Future<void> assignMasterPlan(Map<String, dynamic> assignmentData) async {
+  // 🎯 NEW METHOD: Assigns the plan as a DRAFT and returns the ID for immediate editing
+  Future<String> assignPlanToClientAndReturnId({
+    required String clientId,
+    required MasterDietPlanModel masterPlan,
+  }) async {
+    // Auto-archive existing active plans before assigning new one
+    final activeSnapshot = await _clientPlansCollection
+        .where('clientId', isEqualTo: clientId)
+        .where('isActive', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    for (var doc in activeSnapshot.docs) {
+      await archivePlan(doc.id);
+    }
+
+    // Create new plan as a DRAFT (not ready to deliver)
+    final newClientPlan = ClientDietPlanModel.fromMaster(
+      masterPlan,
+      clientId,
+      [], // Guidelines are empty by default, filled later in the edit screen
+    ).copyWith(
+      // 🎯 MODIFIED STATUS FOR DRAFT WORKFLOW
+      isReadyToDeliver: false, // Must be edited first
+      isProvisional: true , // Starts as provisional
+     // status: 'Draft',
+      // Ensure all intervention fields are explicitly reset/defaulted
+      guidelineIds: [],
+      investigationIds: [],
+      followUpDays: 0,
+     // assignedHabitIds: {},
+
+    );
+
+    // Save and return the new ID
+    final docRef = _clientPlansCollection.doc();
+    await docRef.set(newClientPlan.copyWith(id: docRef.id));
+
+    return docRef.id;
+  }
+
+
+  // 🎯 RENAMED the old assignMasterPlan to clarify its usage and avoid conflict
+  Future<void> _legacyAssignMasterPlan(Map<String, dynamic> assignmentData) async {
     final String masterPlanId = assignmentData['masterPlanId'];
     final String clientId = assignmentData['clientId'];
 
@@ -93,10 +163,10 @@ class ClientDietPlanService {
       throw Exception('Master Plan template not found.');
     }
 
-    final masterPlanData = masterPlanDoc.data() as Map<String, dynamic>;
+    final MasterDietPlanModel masterPlan = masterPlanDoc.data()!;
+    final masterPlanData = masterPlan.toFirestore(); // Use typed model's serialization
 
     // 2. Create the Client's Assigned Plan Document (Copy the master plan)
-    // We only copy the core structure (e.g., meals, recipes, cycles) and merge intervention data.
     final clientPlanData = {
       ...masterPlanData, // Copy the entire structure from the master plan
 
@@ -119,7 +189,6 @@ class ClientDietPlanService {
     };
 
     // 3. Save the new client-specific plan instance
-    // You may want to check for existing active plans and deactivate them first.
     await _assignedPlansSubCollection.add(clientPlanData);
   }
 
@@ -147,7 +216,7 @@ class ClientDietPlanService {
       clientId,
       guidelineIds ?? [],
     ).copyWith(
-      isReadyToDeliver: true,
+      isReadyToDeliver: true, // This method implies readiness for delivery
       isProvisional: true , // Default to provisional
     );
 
@@ -157,6 +226,7 @@ class ClientDietPlanService {
   Future<void> updatePlan(ClientDietPlanModel plan) async {
     await _clientPlansCollection.doc(plan.id).set(plan, SetOptions(merge: true));
   }
+  // ... (rest of the file is unchanged)
 
   Future<void> archivePlan(String planId) async {
     await _clientPlansCollection.doc(planId).update({

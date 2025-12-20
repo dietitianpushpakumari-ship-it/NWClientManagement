@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 
 enum HabitCategory { morning, evening, nutrition, mindfulness, movement, other }
 
-class HabitMasterModel {
+class                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         HabitMasterModel {
   final String id;
-  final String title; // e.g., "Morning Sunlight"
+  final String name; // e.g., "Morning Sunlight"
   final String description; // e.g., "Stand in direct sun for 15 mins"
   final String iconCode; // Store IconData as codePoint or string key
   final HabitCategory category;
@@ -15,7 +15,7 @@ class HabitMasterModel {
 
   const HabitMasterModel({
     required this.id,
-    required this.title,
+    required this.name,
     required this.description,
     required this.iconCode, // We'll store string keys like 'sunny', 'water'
     required this.category,
@@ -53,7 +53,7 @@ class HabitMasterModel {
 
     return HabitMasterModel(
       id: doc.id,
-      title: data['title'] ?? '',
+      name: data['name'] ?? '',
       description: data['description'] ?? '',
       iconCode: data['iconCode'] ?? 'check',
       category: HabitCategory.values.firstWhere(
@@ -68,7 +68,7 @@ class HabitMasterModel {
 
   Map<String, dynamic> toMap() {
     return {
-      'title': title,
+      'name':name,
       'description': description,
       'iconCode': iconCode,
       'category': category.name,

@@ -9,7 +9,7 @@ class LabVitalsMigrator {
 
   // 1. Core Logic: Maps hardcoded data to Firestore model
   static Map<String, LabTestConfigModel> _mapHardcodedData() {
-    return LabVitalsData.allLabTests.map((key, config) {
+    return LabVitalsData.allLabTests1.map((key, config) {
       return MapEntry(
         key,
         LabTestConfigModel(

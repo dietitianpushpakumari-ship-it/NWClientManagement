@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/master/model/guidelines.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 
 /// Service class for managing Guideline master data in Firestore.
 class GuidelineService {
@@ -14,14 +15,14 @@ class GuidelineService {
   // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
   // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
   FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
-  CollectionReference get _collection => _firestore.collection('guidelines');
+  CollectionReference get _collection => _firestore.collection(MasterCollectionMapper.getPath(MasterEntity.entity_Guidelines));
 
   // --- READ ---
   /// Provides a stream of all *active* guidelines, ordered by title.
   Stream<List<Guideline>> streamAllActive() {
     return _collection
         .where('isDeleted', isEqualTo: false)
-        .orderBy('enTitle')
+        .orderBy('name')
         .snapshots()
         .map((snapshot) => snapshot.docs
         .map((doc) => Guideline.fromFirestore(doc))
@@ -51,7 +52,7 @@ class GuidelineService {
   Stream<List<Guideline>> streamAllGuidelines() {
     return _collection
         .where('isDeleted', isEqualTo: false)
-        .orderBy('enTitle')
+        .orderBy('name')
         .snapshots()
         .map((snapshot) =>
         snapshot.docs.map((doc) => Guideline.fromFirestore(doc)).toList());

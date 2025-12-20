@@ -151,7 +151,7 @@ class _GuidelineListPageState extends ConsumerState<GuidelineListPage> {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: BorderRadius.circular(12)),
             child: const Icon(Icons.rule, color: Colors.blueGrey, size: 20)),
-        title: Text(item.enTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         subtitle: Text(
             "Applies to: ${item.dietPlanCategoryIds.isEmpty ? 'General' : item.dietPlanCategoryIds.join(', ')}",
             style: TextStyle(color: Colors.grey.shade600, fontSize: 12)

@@ -25,7 +25,7 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
 
   void _showAddEditDialog({HabitMasterModel? habit}) {
     final _service = ref.read(habitMasterServiceProvider);
-    final titleCtrl = TextEditingController(text: habit?.title ?? '');
+    final titleCtrl = TextEditingController(text: habit?.name ?? '');
     final descCtrl = TextEditingController(text: habit?.description ?? '');
     String selectedIcon = habit?.iconCode ?? 'check';
     HabitCategory selectedCat = habit?.category ?? HabitCategory.morning;
@@ -84,7 +84,7 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
                 if (titleCtrl.text.isNotEmpty) {
                   _service.save(HabitMasterModel(
                     id: habit?.id ?? '',
-                    title: titleCtrl.text.trim(),
+                    name: titleCtrl.text.trim(),
                     description: descCtrl.text.trim(),
                     iconCode: selectedIcon,
                     category: selectedCat,
@@ -162,8 +162,8 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
                         decoration: BoxDecoration(color: isSelected ? Colors.green.shade50 : Colors.grey.shade100, shape: BoxShape.circle),
                         child: Icon(habit.iconData, color: isSelected ? Colors.green : Colors.grey),
                       ),
-                      title: Text(habit.title, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.black : Colors.grey.shade700)),
-                      subtitle: Text(habit.category.name.toUpperCase(), style:  TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary)),
+                      title: Text(habit.name, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.black : Colors.grey.shade700)),
+                     // subtitle: Text(habit.category.name.toUpperCase(), style:  TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary)),
                       trailing: PopupMenuButton(
                         icon: const Icon(Icons.more_vert, size: 18),
                         onSelected: (v) => v == 'edit' ? _showAddEditDialog(habit: habit) : _confirmDelete(habit),

@@ -5,8 +5,13 @@ import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/master_diet_planner/generic_multi_select_dialogg.dart';
 import 'package:nutricare_client_management/admin/generic_clinical_master_entry_screen.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
+// 🎯 ADDED REQUIRED IMPORTS
+import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
+import 'package:nutricare_client_management/modules/client/screen/plan_report_view_screen.dart';
+// Note: MasterDietPlanModel is assumed to be imported via global_service_provider.dart or similar.
 
-// --- Master Data Service and Mapper Setup ---
+
+// --- Master Data Service and Providers ---
 final masterServiceProvider = masterDataServiceProvider;
 final mapper = MasterCollectionMapper.getPath;
 
@@ -16,77 +21,62 @@ final masterDietPlansProvider = FutureProvider.autoDispose<Map<String, String>>(
   return ref.watch(masterDietPlanServiceProvider).fetchMasterPlanNamesMap();
 });
 
-final guidelineMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  return ref.watch(masterServiceProvider).fetchMasterList(mapper(MasterEntity.entity_Guidelines));
-});
 
-final investigationMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  return ref.watch(masterServiceProvider).fetchMasterList(mapper(MasterEntity.entity_Investigation));
-});
-
-// NEW PROVIDER: Lifestyle Habit Master Data
-final lifeStyleHabitMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  return ref.watch(masterServiceProvider).fetchMasterList(mapper(MasterEntity.entity_LifestyleHabit));
-});
-
-
-class MasterPlanAssignmentPage extends ConsumerStatefulWidget {
+class MasterPlanAssignmentSheet extends ConsumerStatefulWidget {
   final ClientModel client;
 
-  const MasterPlanAssignmentPage({super.key, required this.client});
+  const MasterPlanAssignmentSheet({super.key, required this.client});
+
+  // 🎯 FIX: Correctly define the static method for external calling
+  static Future<bool?> showAssignmentSheet(BuildContext context, ClientModel client) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => MasterPlanAssignmentSheet(client: client),
+    );
+  }
 
   @override
-  ConsumerState<MasterPlanAssignmentPage> createState() => _MasterPlanAssignmentPageState();
+  ConsumerState<MasterPlanAssignmentSheet> createState() => _MasterPlanAssignmentSheetState();
 }
 
-class _MasterPlanAssignmentPageState extends ConsumerState<MasterPlanAssignmentPage> {
+class _MasterPlanAssignmentSheetState extends ConsumerState<MasterPlanAssignmentSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _followUpController = TextEditingController();
 
   String? _selectedPlanId;
   String? _selectedPlanName;
-
-  List<String> _selectedGuidelines = [];
-  List<String> _selectedInvestigations = [];
-
-  // NEW STATE: Lifestyle Goals (selected from multi-select dialog)
-  List<String> _selectedLifestyleGoals = [];
 
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    // Pre-fill fields if a previous draft exists (not implemented here for brevity)
   }
 
   @override
   void dispose() {
-    _followUpController.dispose();
     super.dispose();
   }
 
-  // --- Custom Header Widget (Replaces AppBar) ---
-  Widget _buildCustomHeader(BuildContext context) {
+  // --- Custom Header Widget (Simplified for Sheet/Dialog) ---
+  Widget _buildSheetHeader(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 10, 16, 16),
+      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 16),
       decoration: const BoxDecoration(
         color: Color(0xFFF8F9FE),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         border: Border(bottom: BorderSide(color: Color(0xFFE0E0E0), width: 0.5)),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black87),
-            onPressed: () => Navigator.pop(context),
+          Text(
+            "Assign Master Plan Template",
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              "Plan & Intervention for ${widget.client.name}",
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-              overflow: TextOverflow.ellipsis,
-            ),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.black87),
+            onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
@@ -95,14 +85,15 @@ class _MasterPlanAssignmentPageState extends ConsumerState<MasterPlanAssignmentP
 
   // --- Master Data Handlers ---
 
-  // Opens the multi-select dialog for simple masters (Guidelines/Investigations/Goals)
   void _openMultiSelectDialog({
     required Map<String, String> masterDataMap,
     required List<String> currentKeys,
     required String title,
     required Function(List<String>) onResult,
     required String entityName,
+    bool singleSelect = false,
   }) async {
+    // 🎯 Use showModalBottomSheet for consistent UI/UX for selection
     final result = await showModalBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
@@ -111,17 +102,14 @@ class _MasterPlanAssignmentPageState extends ConsumerState<MasterPlanAssignmentP
         items: masterDataMap.keys.toList(),
         itemNameIdMap: masterDataMap,
         initialSelectedItems: currentKeys,
-        // Navigation to add a new master item from the dialog
+        singleSelect: singleSelect,
         onAddMaster: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => GenericClinicalMasterEntryScreen(
               entityName: entityName,
             ),
           )).then((_) {
-            // Invalidate the relevant provider to refresh the list
-            if (entityName == MasterEntity.entity_Guidelines) ref.invalidate(guidelineMasterProvider);
-            if (entityName == MasterEntity.entity_Investigation) ref.invalidate(investigationMasterProvider);
-            if (entityName == MasterEntity.entity_LifestyleHabit) ref.invalidate(lifeStyleHabitMasterProvider);
+            if (entityName == MasterEntity.entity_mealTemplates) ref.invalidate(masterDietPlansProvider);
           });
         },
       ),
@@ -129,37 +117,78 @@ class _MasterPlanAssignmentPageState extends ConsumerState<MasterPlanAssignmentP
     if (result != null) onResult(result);
   }
 
-  void _openGuidelinesDialog(Map<String, String> allGuidelines) {
+  void _openMasterPlanSelectorDialog(Map<String, String> allMasterPlans) {
     _openMultiSelectDialog(
-      masterDataMap: allGuidelines,
-      currentKeys: _selectedGuidelines,
-      title: "Select Guidelines",
-      onResult: (r) => setState(() => _selectedGuidelines = r),
-      entityName: MasterEntity.entity_Guidelines,
+      masterDataMap: allMasterPlans,
+      currentKeys: _selectedPlanName != null ? [_selectedPlanName!] : [],
+      title: "Select Master Diet Plan",
+      singleSelect: true,
+      onResult: (r) {
+        if (r.isNotEmpty) {
+          final selectedName = r.first;
+          setState(() {
+            _selectedPlanName = selectedName;
+            _selectedPlanId = allMasterPlans[selectedName];
+          });
+        } else {
+          setState(() {
+            _selectedPlanName = null;
+            _selectedPlanId = null;
+          });
+        }
+      },
+      entityName: MasterEntity.entity_mealTemplates,
     );
   }
 
-  void _openInvestigationDialog(Map<String, String> allInvestigations) {
-    _openMultiSelectDialog(
-      masterDataMap: allInvestigations,
-      currentKeys: _selectedInvestigations,
-      title: "Order Investigations",
-      onResult: (r) => setState(() => _selectedInvestigations = r),
-      entityName: MasterEntity.entity_Investigation,
-    );
+  // Retained preview logic (using currently selected master plan and temporary defaults)
+  Future<void> _previewSelectedPlan() async {
+    if (_selectedPlanId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a Master Diet Plan to preview.")));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final masterPlanService = ref.read(masterDietPlanServiceProvider);
+
+      // Fetch the full MasterDietPlanModel
+      final masterPlan = await masterPlanService.fetchPlanById(_selectedPlanId!);
+
+      // Convert MasterDietPlanModel to ClientDietPlanModel for the PlanReportViewScreen
+      final clientPlanForPreview = ClientDietPlanModel.fromMaster(
+        masterPlan,
+        widget.client.id,
+        const [],
+      );
+
+      // The sheet must be closed before opening a full page preview
+      if (mounted) {
+        Navigator.pop(context);
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PlanReportViewScreen(
+              plan: clientPlanForPreview,
+              client: widget.client,
+              isMasterPreview: true,
+            ),
+          ),
+        ).then((_) {
+          // Re-open the selector sheet when preview is dismissed
+          MasterPlanAssignmentSheet.showAssignmentSheet(context, widget.client);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to load plan details for preview: $e")));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void _openLifestyleGoalsDialog(Map<String, String> allHabits) {
-    _openMultiSelectDialog(
-      masterDataMap: allHabits,
-      currentKeys: _selectedLifestyleGoals,
-      title: "Select Lifestyle Goals",
-      onResult: (r) => setState(() => _selectedLifestyleGoals = r),
-      entityName: MasterEntity.entity_LifestyleHabit,
-    );
-  }
-
-  // --- Plan Assignment Logic ---
+  // --- Plan Assignment Logic (FINALIZED) ---
 
   Future<void> _assignPlanAndInterventions() async {
     if (!_formKey.currentState!.validate()) return;
@@ -172,29 +201,24 @@ class _MasterPlanAssignmentPageState extends ConsumerState<MasterPlanAssignmentP
 
     try {
       final clientPlanService = ref.read(clientDietPlanServiceProvider);
+      final masterPlanService = ref.read(masterDietPlanServiceProvider);
 
-      // Create a simple map for lifestyle goals (GoalName: 'Selected')
-      final Map<String, String> finalLifestyleGoals = _selectedLifestyleGoals.asMap().map((_, key) => MapEntry(key, 'Selected'));
+      // 1. Fetch the Master Plan Model (required by the new service method)
+      final masterPlan = await masterPlanService.fetchPlanById(_selectedPlanId!);
 
 
-      // 1. Assign the Master Plan to the client
-      final assignmentData = {
-        'masterPlanId': _selectedPlanId!,
-        'masterPlanName': _selectedPlanName!,
-        'clientId': widget.client.id,
-        'assignedGuidelines': _selectedGuidelines,
-        'assignedInvestigations': _selectedInvestigations,
-        'followUpDays': int.tryParse(_followUpController.text.trim()),
-        'lifestyleGoals': finalLifestyleGoals,
-        'assignedDate': DateTime.now(),
-      };
-
-      // Assuming a service method handles copying the master plan and updating client records
-      await clientPlanService.assignMasterPlan(assignmentData);
+      // 2. Call the new typed service method which handles DRAFT status and ID return
+      // We don't need the ID here, just the successful creation signal
+      await clientPlanService.assignPlanToClientAndReturnId(
+        clientId: widget.client.id,
+        masterPlan: masterPlan,
+      );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Plan and Interventions assigned successfully to ${widget.client.name}!")));
-        Navigator.pop(context, true); // Close the sheet/screen
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Plan copied to client file. Now finalizing...")));
+
+        // Pop the assignment sheet/dialog, returning 'true' to signal success to the list screen
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -205,193 +229,110 @@ class _MasterPlanAssignmentPageState extends ConsumerState<MasterPlanAssignmentP
     }
   }
 
+  // --- UI Widgets ---
+
+  Widget _buildPlanSelectorField(Map<String, String> allMasterPlans) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                _selectedPlanName ?? "No Plan Selected",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: _selectedPlanName != null ? FontWeight.w600 : FontWeight.normal,
+                  color: _selectedPlanName != null ? Colors.black87 : Colors.grey.shade600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (_selectedPlanName != null)
+              TextButton.icon(
+                onPressed: _isLoading ? null : _previewSelectedPlan,
+                icon: Icon(Icons.visibility, size: 20, color: Colors.blue.shade700),
+                label: Text("Preview", style: TextStyle(color: Colors.blue.shade700)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton.icon(
+          onPressed: _isLoading ? null : () => _openMasterPlanSelectorDialog(allMasterPlans),
+          icon: const Icon(Icons.search),
+          label: Text(_selectedPlanName == null ? "SELECT MASTER PLAN" : "CHANGE MASTER PLAN"),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 40),
+            backgroundColor: Colors.indigo.shade100,
+            foregroundColor: Colors.indigo,
+          ),
+        ),
+        if (_selectedPlanName == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(
+              'Master plan selection is required.',
+              style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
-    // Watch all necessary providers
     final plansAsync = ref.watch(masterDietPlansProvider);
-    final guidelinesAsync = ref.watch(guidelineMasterProvider);
-    final investigationsAsync = ref.watch(investigationMasterProvider);
-    final habitsAsync = ref.watch(lifeStyleHabitMasterProvider);
 
-    // Consolidated Loading and Error Check
-    if (plansAsync.isLoading || guidelinesAsync.isLoading || investigationsAsync.isLoading || habitsAsync.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (plansAsync.hasError || guidelinesAsync.hasError || investigationsAsync.hasError || habitsAsync.hasError) {
-      return Scaffold(body: Center(child: Text('Error loading masters: ${plansAsync.error ?? guidelinesAsync.error ?? investigationsAsync.error ?? habitsAsync.error}')));
-    }
-
-    // Extract Map values
-    final allMasterPlans = plansAsync.value!;
-    final allGuidelines = guidelinesAsync.value!;
-    final allInvestigations = investigationsAsync.value!;
-    final allHabits = habitsAsync.value!;
-    final masterPlanNames = allMasterPlans.keys.toList();
-
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      body: Column( // Use Column to stack custom header and scrollable content
+    return Container( // Use Container to manage sheet height and styling
+      height: MediaQuery.of(context).size.height * 0.75,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: Column(
         children: [
-          _buildCustomHeader(context), // 🎯 Custom Header replacing AppBar
+          _buildSheetHeader(context),
           Expanded(
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  // --- 1. Master Plan Selection ---
-                  Card(
-                    elevation: 4,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('1. Diet Plan Selection', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)),
-                          const Divider(),
-                          DropdownButtonFormField<String>(
-                            value: _selectedPlanName,
-                            decoration: const InputDecoration(labelText: 'Select Master Plan Template'),
-                            items: masterPlanNames.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
-                            onChanged: (name) {
-                              setState(() {
-                                _selectedPlanName = name;
-                                _selectedPlanId = allMasterPlans[name];
-                              });
-                            },
-                            validator: (v) => v == null ? 'Master plan selection is required.' : null,
-                          ),
-                        ],
+            child: plansAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, stack) => Center(child: Text('Error loading master plans: $err')),
+              data: (allMasterPlans) => Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    // --- 1. Master Plan Selection ---
+                    Card(
+                      elevation: 4,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Select Plan Template', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                            const Divider(),
+                            _buildPlanSelectorField(allMasterPlans),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 40),
 
-                  // --- 2. Lifestyle Goals ---
-                  Card(
-                    elevation: 4,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('2. Lifestyle Goals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
-                          const Divider(),
-                          Text("Selected Goals (${_selectedLifestyleGoals.length}):", style: const TextStyle(fontWeight: FontWeight.w600)),
-                          Wrap(spacing: 8.0, children: _selectedLifestyleGoals.map((name) => Chip(
-                              label: Text(name),
-                              onDeleted: () => setState(() => _selectedLifestyleGoals.remove(name)),
-                              deleteIcon: const Icon(Icons.close, size: 18)
-                          )).toList()),
-                          const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: () => _openLifestyleGoalsDialog(allHabits),
-                            icon: const Icon(Icons.fitness_center),
-                            label: const Text("Select Lifestyle Goals"),
-                          ),
-                        ],
+                    // --- Final Action Button ---
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _assignPlanAndInterventions,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                        backgroundColor: Colors.indigo,
+                        foregroundColor: Colors.white,
                       ),
+                      child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("ASSIGN PLAN"),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-
-
-                  // --- 3. Monitoring & Follow-up ---
-                  Card(
-                    elevation: 4,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('3. Monitoring & Follow-up', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
-                          const Divider(),
-                          TextFormField(
-                            controller: _followUpController,
-                            decoration: const InputDecoration(labelText: 'Next Follow-up in Days (e.g., 7 or 14)', hintText: '14'),
-                            keyboardType: TextInputType.number,
-                            validator: (v) => (v == null || v.isEmpty) ? 'Follow-up days required' : null,
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // --- 4. Guidelines & Instructions ---
-                  Card(
-                    elevation: 4,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('4. Guidelines & Instructions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
-                          const Divider(),
-                          Text("Selected Guidelines (${_selectedGuidelines.length}):", style: const TextStyle(fontWeight: FontWeight.w600)),
-                          Wrap(spacing: 8.0, children: _selectedGuidelines.map((name) => Chip(
-                            label: Text(name),
-                            // 🎯 FIX: Added onDeleted for Guidelines
-                            onDeleted: () => setState(() => _selectedGuidelines.remove(name)),
-                            deleteIcon: const Icon(Icons.close, size: 18),
-                          )).toList()),
-                          const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: () => _openGuidelinesDialog(allGuidelines),
-                            icon: const Icon(Icons.description),
-                            label: const Text("Select Guidelines"),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // --- 5. Investigations/Lab Orders ---
-                  Card(
-                    elevation: 4,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('5. Investigations/Lab Orders', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
-                          const Divider(),
-                          Text("Investigations Ordered (${_selectedInvestigations.length}):", style: const TextStyle(fontWeight: FontWeight.w600)),
-                          Wrap(spacing: 8.0, children: _selectedInvestigations.map((name) => Chip(
-                            label: Text(name),
-                            backgroundColor: Colors.red.shade50,
-                            // 🎯 FIX: Added onDeleted for Investigations
-                            onDeleted: () => setState(() => _selectedInvestigations.remove(name)),
-                            deleteIcon: const Icon(Icons.close, size: 18),
-                          )).toList()),
-                          const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: () => _openInvestigationDialog(allInvestigations),
-                            icon: const Icon(Icons.science),
-                            label: const Text("Order Investigations"),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // --- Final Action Button ---
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _assignPlanAndInterventions,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      backgroundColor: Colors.indigo,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("ASSIGN PLAN & INTERVENTIONS"),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
           ),

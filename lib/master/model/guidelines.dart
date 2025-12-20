@@ -5,8 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Represents a master guideline or principle (e.g., "Drink 8 Glasses of Water").
 class Guideline {
   final String id;
-  final String enTitle;
-  final Map<String, String> titleLocalized;
+  final String name;
+  final Map<String, String> nameLocalized;
   final bool isDeleted;
   final DateTime? createdDate;
 
@@ -15,8 +15,8 @@ class Guideline {
 
   const Guideline({
     required this.id,
-    required this.enTitle,
-    this.titleLocalized = const {},
+    required this.name,
+    this.nameLocalized = const {},
     this.isDeleted = false,
     this.createdDate,
     this.dietPlanCategoryIds = const [],
@@ -27,14 +27,14 @@ class Guideline {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
     Map<String, String> localizedTitles = {};
-    if (data['titleLocalized'] is Map) {
-      localizedTitles = Map<String, String>.from(data['titleLocalized']);
+    if (data['nameLocalized'] is Map) {
+      localizedTitles = Map<String, String>.from(data['nameLocalized']);
     }
 
     return Guideline(
       id: doc.id,
-      enTitle: data['enTitle'] ?? '',
-      titleLocalized: localizedTitles,
+      name: data['name'] ?? '',
+      nameLocalized: localizedTitles,
       isDeleted: data['isDeleted'] ?? false,
       dietPlanCategoryIds: List<String>.from(data['dietPlanCategoryIds'] ?? []),
       createdDate: (data['createdDate'] as Timestamp?)?.toDate(),
@@ -44,8 +44,8 @@ class Guideline {
   /// Convert Guideline object to a Map for storage in Firestore.
   Map<String, dynamic> toMap() {
     return {
-      'enTitle': enTitle,
-      'titleLocalized': titleLocalized,
+      'name': name,
+      'nameLocalized': nameLocalized,
       'isDeleted': isDeleted,
       'dietPlanCategoryIds': dietPlanCategoryIds,
       'createdDate': createdDate != null ? Timestamp.fromDate(createdDate!) : FieldValue.serverTimestamp(),
@@ -54,16 +54,16 @@ class Guideline {
   }
   Guideline copyWith({
     String? id,
-    String? enTitle,
-    Map<String, String>? titleLocalized,
+    String? name,
+    Map<String, String>? nameLocalized,
     bool? isDeleted,
     DateTime? createdDate,
     List<String>? dietPlanCategoryIds,
   }) {
     return Guideline(
       id: id ?? this.id,
-      enTitle: enTitle ?? this.enTitle,
-      titleLocalized: titleLocalized ?? this.titleLocalized,
+      name: name ?? this.name,
+      nameLocalized: nameLocalized ?? this.nameLocalized,
       isDeleted: isDeleted ?? this.isDeleted,
       createdDate: createdDate ?? this.createdDate,
       dietPlanCategoryIds: dietPlanCategoryIds ?? this.dietPlanCategoryIds,

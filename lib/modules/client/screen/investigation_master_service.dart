@@ -12,7 +12,7 @@ class InvestigationMasterService {
   // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
   // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
   FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
-  CollectionReference get _collection => _firestore.collection(MasterCollectionPath.collection_Investigation);
+  CollectionReference get _collection => _firestore.collection(MasterCollectionMapper.getPath(MasterEntity.entity_Investigation));
 
   /// Fetches a stream of all non-deleted diagnoses.
   Stream<List<InvestigationMasterModel>> getInvestigation() {
@@ -44,7 +44,7 @@ class InvestigationMasterService {
   Stream<List<InvestigationMasterModel>> streamAllActive() {
     return _collection
         .where('isDeleted', isEqualTo: false)
-        .orderBy('enTitle')
+        .orderBy('name')
         .snapshots()
         .map((snapshot) => snapshot.docs
         .map((doc) => InvestigationMasterModel.fromFirestore(doc))

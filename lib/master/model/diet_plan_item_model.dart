@@ -168,15 +168,31 @@ class MasterDayPlanModel {
   };
 
   // 🎯 NEW: Factory for parsing embedded Map data
+  // lib/master/model/diet_plan_item_model.dart
+
   factory MasterDayPlanModel.fromMap(Map<String, dynamic> data, String id) {
-    final mealsData = data['dayPlan'] ['meals']as Map<String, dynamic>? ?? {};
-    final mealsList = mealsData.entries.map((e) =>
-        DietPlanMealModel.fromFirestore(e.value as Map<String, dynamic>, e.key)
-    ).toList();
+    // 🎯 FIX: Check if we are parsing a nested 'dayPlan' or the object itself
+    final Map<String, dynamic> source = data.containsKey('dayPlan')
+        ? (data['dayPlan'] as Map<String, dynamic>? ?? {})
+        : data;
+
+    // 🎯 SAFE ACCESS: Ensure meals is never null before mapping
+    final mealsData = source['meals'];
+    List<DietPlanMealModel> mealsList = [];
+
+    if (mealsData is Map) {
+      mealsList = mealsData.entries.map((e) =>
+          DietPlanMealModel.fromFirestore(e.value as Map<String, dynamic>, e.key)
+      ).toList();
+    } else if (mealsData is List) {
+      mealsList = mealsData.map((e) =>
+          DietPlanMealModel.fromFirestore(e as Map<String, dynamic>, e['id'] ?? '')
+      ).toList();
+    }
 
     return MasterDayPlanModel(
       id: id,
-      dayName: data['dayPlan']['dayName'] as String? ?? 'Fixed Day',
+      dayName: source['dayName'] as String? ?? 'Fixed Day',
       meals: mealsList,
     );
   }

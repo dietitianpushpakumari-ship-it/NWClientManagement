@@ -22,7 +22,7 @@ class _InvestigationMasterEntryDialogState extends ConsumerState<InvestigationMa
   void initState() {
     super.initState();
     if (widget.investigation != null) {
-      _nameController.text = widget.investigation!.enName;
+      _nameController.text = widget.investigation!.name;
     }
   }
 
@@ -30,8 +30,8 @@ class _InvestigationMasterEntryDialogState extends ConsumerState<InvestigationMa
     if (_formKey.currentState!.validate()) {
       setState(() { _isSaving = true; });
 
-      final investigationToSave = (widget.investigation ?? const InvestigationMasterModel(id: '', enName: '')).copyWith(
-        enName: _nameController.text.trim(),id: DateTime.now().microsecondsSinceEpoch.toString()
+      final investigationToSave = (widget.investigation ?? const InvestigationMasterModel(id: '', name: '')).copyWith(
+        name: _nameController.text.trim(),id: DateTime.now().microsecondsSinceEpoch.toString()
       );
 
       try {

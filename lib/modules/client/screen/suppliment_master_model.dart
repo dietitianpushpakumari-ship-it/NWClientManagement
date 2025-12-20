@@ -3,13 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SupplimentMasterModel {
   final String id;
-  final String enName; // English name (e.g., "Gram")/ The physical type: 'mass' or 'volume'
+  final String name; // English name (e.g., "Gram")/ The physical type: 'mass' or 'volume'
   final Map<String, String> nameLocalized; // e.g., {'hi': 'ग्राम', 'od': 'ଗ୍ରାମ'}
   final bool isDeleted; // For soft-delete functionality
 
   const SupplimentMasterModel({
     required this.id,
-    required this.enName,
+    required this.name,
     this.nameLocalized = const {},
     this.isDeleted = false,
   });
@@ -31,7 +31,7 @@ class SupplimentMasterModel {
 
     return SupplimentMasterModel(
       id: doc.id,
-      enName: docData['enName'] ?? '',
+      name: docData['name'] ?? '',
       nameLocalized: localizedNames,
       isDeleted: docData['isDeleted'] ?? false,
     );
@@ -40,7 +40,7 @@ class SupplimentMasterModel {
   /// Convert ServingUnit object to a Map for storage in Firestore.
   Map<String, dynamic> toMap() {
     return {
-      'enName': enName,
+      'name': name,
       'nameLocalized': nameLocalized,
       'isDeleted': isDeleted,
       // Add a timestamp for audit/ordering
@@ -53,13 +53,13 @@ class SupplimentMasterModel {
   /// Creates a copy of the ServingUnit with updated fields.
   SupplimentMasterModel copyWith({
     String? id,
-    String? enName,
+    String? name,
     Map<String, String>? nameLocalized,
     bool? isDeleted,
   }) {
     return SupplimentMasterModel(
       id: id ?? this.id,
-      enName: enName ?? this.enName,
+      name: name ?? this.name,
       nameLocalized: nameLocalized ?? this.nameLocalized,
       isDeleted: isDeleted ?? this.isDeleted,
     );

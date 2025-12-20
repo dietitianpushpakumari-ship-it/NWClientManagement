@@ -12,7 +12,7 @@ class DiseaseMasterService {
   // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
   FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
 
-  final String _collection = MasterCollectionPath.collection_master_disease;
+  final String _collection = FirestoreCollection.collection_master_disease;
 
   // 1. Check for Duplicates
   Future<bool> checkDuplicate(String enName) async {

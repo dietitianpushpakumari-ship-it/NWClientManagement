@@ -1,34 +1,31 @@
-// lib/master_diet_planner/client_clinical_assessment_sheet.dart
-
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
-import 'package:nutricare_client_management/master_diet_planner/history_sections.dart';
 import 'package:nutricare_client_management/master_diet_planner/complex_input_widgets.dart';
 import 'package:nutricare_client_management/master_diet_planner/generic_multi_select_dialogg.dart';
+import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/admin/generic_clinical_master_entry_screen.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 
-
-final masterServiceProvider = masterDataServiceProvider;
-final mapper = MasterCollectionMapper.getPath;
-
-// Clinical Assessment Providers
-final clinicalComplaintMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  return ref.watch(masterServiceProvider).fetchMasterList(mapper(MasterEntity.entity_Complaint));
+// --- Data Providers for Assessment ---
+final clinicalComplaintDataProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
+  final service = ref.watch(masterDataServiceProvider);
+  final mapper = MasterCollectionMapper.getPath;
+  return await service.fetchMasterList(mapper(MasterEntity.entity_Complaint));
 });
 
-final nutritionDiagnosisMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  return ref.watch(masterServiceProvider).fetchMasterList(mapper(MasterEntity.entity_Diagnosis));
+final nutritionDiagnosisDataProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
+  final service = ref.watch(masterDataServiceProvider);
+  final mapper = MasterCollectionMapper.getPath;
+  return await service.fetchMasterList(mapper(MasterEntity.entity_Diagnosis));
 });
 
-final noteCategoryMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  return ref.watch(masterServiceProvider).fetchMasterList(mapper(MasterEntity.entity_Clinicalnotes));
+final clinicalNoteCategoryDataProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
+  final service = ref.watch(masterDataServiceProvider);
+  final mapper = MasterCollectionMapper.getPath;
+  return await service.fetchMasterList(mapper(MasterEntity.entity_Clinicalnotes));
 });
-// 🎯 REMOVED: lifeStyleHabitMasterProvider is moved to MasterPlanAssignmentPage
-// --------------------------------------------------------------------
-
 
 class ClientClinicalAssessmentSheet extends ConsumerStatefulWidget {
   final VitalsModel? latestVitals;
@@ -46,79 +43,39 @@ class ClientClinicalAssessmentSheet extends ConsumerStatefulWidget {
 
 class _ClientClinicalAssessmentSheetState extends ConsumerState<ClientClinicalAssessmentSheet> {
   final _formKey = GlobalKey<FormState>();
-
-  // State for Clinical Assessment Section
-  List<String> _clinicalComplaintKeys = [];
-  Map<String, String> _finalComplaints = {}; // Complaint: Severity/Detail
-
-  List<String> _diagnosisKeys = [];
-  Map<String, String> _finalDiagnoses = {}; // Diagnosis: Related Factor/Etiology
-
-  // Structured Notes (SOAP/ADIME)
-  List<String> _noteCategoryKeys = [];
-  Map<String, TextEditingController> _noteControllers = {}; // Category: Text Content
-  Map<String, String> _finalNotes = {};
-
-  // 🎯 REMOVED: _lifestyleGoalKeys state
-
   bool _isLoading = false;
 
-  // --- Helper Methods ---
+  // --- SOURCE OF TRUTH ---
+  late Map<String, String> _clinicalComplaints;
+  late Map<String, String> _nutritionDiagnoses;
+  late Map<String, String> _clinicalNotes;
 
-  Map<String, String> _safeToMapOfStrings(dynamic data) {
-    if (data == null) return {};
-    if (data is Map) return Map<String, String>.from(data.cast<String, String>());
-    return {};
-  }
+  // 🎯 FIX: Explicitly declare the missing keys list
+  List<String> _noteCategoryKeys = [];
 
-  List<String> _safeToListOfStrings(dynamic data) {
-    if (data == null) return [];
-    if (data is Iterable) return List<String>.from(data.cast<String>());
-    if (data is String && data.isNotEmpty) return [data];
-    return [];
-  }
-
-
-  void _updateNoteContent(String key, String content) {
-    _noteControllers[key]!.text = content;
-    _finalNotes[key] = content.isEmpty ? 'Not specified' : content;
-  }
-
-  void _updateAssessmentMap(String keyType, Map<String, String> data) {
-    setState(() {
-      if (keyType == 'complaint') {
-        _finalComplaints = Map.from(_finalComplaints);
-        _finalComplaints.addAll(data);
-      }
-      else if (keyType == 'diagnosis') {
-        _finalDiagnoses = Map.from(_finalDiagnoses);
-        _finalDiagnoses.addAll(data);
-      }
-    });
-  }
-
-  // --- Initialization ---
+  // --- PERSISTENT CONTROLLERS (Fixes Cursor Focus Loss) ---
+  final Map<String, TextEditingController> _noteControllers = {};
 
   @override
   void initState() {
     super.initState();
+    _initializeRestoration();
+  }
 
-    final initialComplaintMap = _safeToMapOfStrings(widget.latestVitals?.clinicalComplaints);
-    _clinicalComplaintKeys = initialComplaintMap.keys.toList();
-    _finalComplaints = initialComplaintMap;
+  void _initializeRestoration() {
+    final v = widget.latestVitals;
 
-    final initialDiagnosisMap = _safeToMapOfStrings(widget.latestVitals?.nutritionDiagnoses);
-    _diagnosisKeys = initialDiagnosisMap.keys.toList();
-    _finalDiagnoses = initialDiagnosisMap;
+    _clinicalComplaints = Map<String, String>.from(v?.clinicalComplaints ?? {});
+    _nutritionDiagnoses = Map<String, String>.from(v?.nutritionDiagnoses ?? {});
+    _clinicalNotes = Map<String, String>.from(v?.clinicalNotes ?? {});
 
-    final initialNotesMap = _safeToMapOfStrings(widget.latestVitals?.clinicalNotes);
-    _noteCategoryKeys = initialNotesMap.keys.toList();
-    _finalNotes = initialNotesMap;
-    initialNotesMap.forEach((key, value) {
-      _noteControllers[key] = TextEditingController(text: value);
+    // Initialize Keys
+    _noteCategoryKeys = _clinicalNotes.keys.toList();
+
+    // Restore controllers for saved notes to maintain focus
+    _clinicalNotes.forEach((key, value) {
+      _noteControllers[key] = TextEditingController(text: value == 'Not specified' ? '' : value);
     });
-
-    // 🎯 REMOVED: _lifestyleGoalKeys initialization
   }
 
   @override
@@ -127,236 +84,195 @@ class _ClientClinicalAssessmentSheetState extends ConsumerState<ClientClinicalAs
     super.dispose();
   }
 
-  // --- Master Navigation/Dialog Handlers ---
-
-  void _addMasterComplaint() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => GenericClinicalMasterEntryScreen(
-      entityName: MasterEntity.entity_Complaint,
-    ))).then((_) => ref.invalidate(clinicalComplaintMasterProvider));
-  }
-  void _addMasterDiagnosis() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => GenericClinicalMasterEntryScreen(
-      entityName: MasterEntity.entity_Diagnosis,
-    ))).then((_) => ref.invalidate(nutritionDiagnosisMasterProvider));
-  }
-  void _addMasterNoteCategory() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => GenericClinicalMasterEntryScreen(
-      entityName: MasterEntity.entity_Clinicalnotes,
-    ))).then((_) => ref.invalidate(noteCategoryMasterProvider));
+  void _updateEntry(String section, String key, String value) {
+    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.idle) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateEntry(section, key, value));
+      return;
+    }
+    setState(() {
+      if (section == 'complaint') _clinicalComplaints[key] = value;
+      if (section == 'diagnosis') _nutritionDiagnoses[key] = value;
+      if (section == 'notes') _clinicalNotes[key] = value;
+    });
   }
 
-  // 🎯 REMOVED: _addMasterLifestyleGoal handler
-
-
-  // Dialog Handler - Remains the same
-  void _openDialog(Map<String, String> masterDataMap, List<String> currentKeys, String title, Function(List<String>) onResult, VoidCallback onAddMaster, {bool singleSelect = false}) async {
+  void _openSelection({
+    required String title,
+    required Map<String, String> masterData,
+    required Map<String, String> currentMap,
+    required String section,
+    required String defaultValue,
+  }) async {
     final result = await showModalBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) => GenericMultiSelectDialog(
         title: title,
-        items: masterDataMap.keys.toList(),
-        itemNameIdMap: masterDataMap,
-        initialSelectedItems: currentKeys,
-        onAddMaster: onAddMaster,
-        singleSelect: singleSelect,
+        items: masterData.keys.toList(),
+        itemNameIdMap: masterData,
+        initialSelectedItems: section == 'notes' ? _noteCategoryKeys : currentMap.keys.toList(),
+        onAddMaster: () {},
       ),
     );
-    if (result != null) onResult(result);
-  }
 
-  void _openComplaintDialog(Map<String, String> allComplaints) {
-    _openDialog(allComplaints, _clinicalComplaintKeys, "Select ${MasterEntity.entity_Complaint}s", (r) => setState(() => _clinicalComplaintKeys = r), _addMasterComplaint);
-  }
-  void _openDiagnosisDialog(Map<String, String> allDiagnoses) {
-    _openDialog(allDiagnoses, _diagnosisKeys, "Select ${MasterEntity.entity_Diagnosis}", (r) => setState(() => _diagnosisKeys = r), _addMasterDiagnosis);
-  }
-  void _openNoteCategoryDialog(Map<String, String> allNotes) {
-    _openDialog(allNotes, _noteCategoryKeys, "Manage Note Categories", (r) {
+    if (result != null) {
       setState(() {
-        _noteCategoryKeys = r;
-        // Clean up/initialize controllers after selection
-        _noteControllers.keys.toList().forEach((key) {
-          if (!r.contains(key)) _noteControllers.remove(key)?.dispose();
-        });
-        r.forEach((key) {
-          if (!_noteControllers.containsKey(key)) {
-            _noteControllers[key] = TextEditingController(text: _finalNotes[key] ?? '');
+        if (section == 'notes') {
+          _noteCategoryKeys = result;
+          for (var key in result) {
+            if (!_noteControllers.containsKey(key)) {
+              _noteControllers[key] = TextEditingController(text: _clinicalNotes[key] ?? '');
+              _clinicalNotes[key] = _clinicalNotes[key] ?? defaultValue;
+            }
           }
-        });
+          // Clean up removed controllers
+          _noteControllers.removeWhere((k, v) {
+            if (!result.contains(k)) {
+              v.dispose();
+              return true;
+            }
+            return false;
+          });
+          _clinicalNotes.removeWhere((k, v) => !result.contains(k));
+        } else {
+          for (var key in result) {
+            if (!currentMap.containsKey(key)) currentMap[key] = defaultValue;
+          }
+          currentMap.removeWhere((k, v) => !result.contains(k));
+        }
       });
-    }, _addMasterNoteCategory);
-  }
-
-  // 🎯 REMOVED: _openLifestyleGoalDialog handler
-
-
-  Future<void> _saveAssessment() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
-
-    try {
-      // Final aggregation of all new clinical fields
-      final Map<String, String> finalNotes = _noteCategoryKeys.asMap().map((_, key) => MapEntry(key, _noteControllers[key]?.text.trim() ?? 'Not specified'));
-
-      final Map<String, dynamic> assessmentData = {
-        'clinicalComplaints': _finalComplaints,
-        'nutritionDiagnoses': _finalDiagnoses,
-        'clinicalNotes': finalNotes,
-        // 🎯 REMOVED: 'lifestyleGoals' from assessmentData
-      };
-
-      // Report final data back to the parent widget
-      widget.onSaveAssessment(assessmentData);
-
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Assessment Save failed: $e")));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  // Local helper to build the assessment-specific header with the back button (Premium Layout)
-  Widget _buildAssessmentHeader(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 10,
-        left: 16,
-        right: 16,
-        bottom: 16,
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black87),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const SizedBox(width: 10),
-          const Text(
-            'Clinical Assessment & Diagnosis', // Specific Title
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-          ),
-        ],
-      ),
-    );
-  }
-
 
   @override
   Widget build(BuildContext context) {
-    // Watch providers
-    final complaintsAsync = ref.watch(clinicalComplaintMasterProvider);
-    final diagnosisAsync = ref.watch(nutritionDiagnosisMasterProvider);
-    final notesAsync = ref.watch(noteCategoryMasterProvider);
-    // 🎯 REMOVED: habitsAsync watch
+    final complaintsAsync = ref.watch(clinicalComplaintDataProvider);
+    final diagnosisAsync = ref.watch(nutritionDiagnosisDataProvider);
+    final notesAsync = ref.watch(clinicalNoteCategoryDataProvider);
 
-
-    // Error and Loading checks
     if (complaintsAsync.isLoading || diagnosisAsync.isLoading || notesAsync.isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    if (complaintsAsync.hasError || diagnosisAsync.hasError || notesAsync.hasError) {
-      return Scaffold(body: Center(child: Text('Error loading clinical masters: ${complaintsAsync.error ?? diagnosisAsync.error ?? notesAsync.error}')));
-    }
 
-    final allComplaints = complaintsAsync.value!;
-    final allDiagnoses = diagnosisAsync.value!;
-    final allNotes = notesAsync.value!;
-    // 🎯 REMOVED: allHabits extraction
-
-    // Full-screen Scaffold Structure (No AppBar)
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      body: Column(
-        children: [
-          _buildAssessmentHeader(context),
-          Expanded(
+      backgroundColor: const Color(0xFFF4F7FF),
+      body: CustomScrollView(
+        slivers: [
+          _buildPremiumHeader(),
+          SliverToBoxAdapter(
             child: Form(
               key: _formKey,
-              child: ListView(
+              child: Padding(
                 padding: const EdgeInsets.all(20),
-                children: [
-                  // --- Card Wrapper for Assessment ---
-                  buildCard(
-                    title: "Clinical Assessment Details",
-                    icon: Icons.assignment_turned_in,
-                    color: Colors.purple,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // --- MODULE 1: Clinical Complaint ---
-                        const Text("Primary Complaints:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A))),
-                        ..._clinicalComplaintKeys.map((key) => ComplaintDetailInput(
-                          key: ValueKey(key), complaint: key, initialDetail: _finalComplaints[key] ?? '',
-                          onChanged: (map) => _updateAssessmentMap('complaint', map),
-                          onDelete: () => setState(() { _clinicalComplaintKeys.remove(key); _finalComplaints.remove(key); }),
-                        )).toList(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            ElevatedButton.icon(onPressed: () => _openComplaintDialog(allComplaints), icon: const Icon(Icons.psychology), label: const Text("Select Complaints")),
-                            IconButton(onPressed: _addMasterComplaint, icon: const Icon(Icons.add_circle, color: Colors.green), tooltip: "Add Complaint Master"),
-                          ],
-                        ),
-                        const Divider(height: 25),
+                child: Column(
+                  children: [
+                    _buildPremiumCard("Primary Complaints", Icons.personal_injury, Colors.deepOrange, [
+                      _buildAddAction("Select Complaints", () => _openSelection(
+                          title: "Complaints", masterData: complaintsAsync.value!,
+                          currentMap: _clinicalComplaints, section: 'complaint', defaultValue: "Not specified"
+                      )),
+                      ..._clinicalComplaints.keys.map((k) => ComplaintDetailInput(
+                        key: ValueKey('comp_$k'), complaint: k, initialDetail: _clinicalComplaints[k]!,
+                        onChanged: (val) => _updateEntry('complaint', k, val[k]!),
+                        onDelete: () => setState(() => _clinicalComplaints.remove(k)),
+                      )),
+                    ]),
 
-                        // --- MODULE 2: Diagnosis Selection ---
-                        const Text("Formal Nutrition Diagnoses:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A))),
-                        ..._diagnosisKeys.map((key) => DiagnosisDetailInput(
-                          key: ValueKey(key), diagnosis: key, initialDetail: _finalDiagnoses[key] ?? '',
-                          onChanged: (map) => _updateAssessmentMap('diagnosis', map),
-                          onDelete: () => setState(() { _diagnosisKeys.remove(key); _finalDiagnoses.remove(key); }),
-                        )).toList(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            ElevatedButton.icon(onPressed: () => _openDiagnosisDialog(allDiagnoses), icon: const Icon(Icons.local_hospital), label: const Text("Select Diagnoses")),
-                            IconButton(onPressed: _addMasterDiagnosis, icon: const Icon(Icons.add_circle, color: Colors.green), tooltip: "Add Diagnosis Master"),
-                          ],
-                        ),
-                        const Divider(height: 25),
+                    _buildPremiumCard("Nutrition Diagnosis", Icons.assignment_late, Colors.indigo, [
+                      _buildAddAction("Identify Diagnoses", () => _openSelection(
+                          title: "Diagnoses", masterData: diagnosisAsync.value!,
+                          currentMap: _nutritionDiagnoses, section: 'diagnosis', defaultValue: "Not specified"
+                      )),
+                      ..._nutritionDiagnoses.keys.map((k) => DiagnosisDetailInput(
+                        key: ValueKey('diag_$k'), diagnosis: k, initialDetail: _nutritionDiagnoses[k]!,
+                        onChanged: (val) => _updateEntry('diagnosis', k, val[k]!),
+                        onDelete: () => setState(() => _nutritionDiagnoses.remove(k)),
+                      )),
+                    ]),
 
-                        // 🎯 REMOVED: Lifestyle Goals Module
-                        // const Divider(height: 25),
+                    _buildPremiumCard("Clinical Notes (ADIME)", Icons.description, Colors.blueGrey, [
+                      _buildAddAction("Manage Categories", () => _openSelection(
+                          title: "Notes", masterData: notesAsync.value!,
+                          currentMap: _clinicalNotes, section: 'notes', defaultValue: ""
+                      )),
+                      ..._noteCategoryKeys.map((k) => NoteCategoryInput(
+                        key: ValueKey('note_$k'), category: k,
+                        controller: _noteControllers[k]!,
+                        onChanged: (cat, val) => _updateEntry('notes', cat, val),
+                        onDelete: () => setState(() {
+                          _noteCategoryKeys.remove(k);
+                          _clinicalNotes.remove(k);
+                          _noteControllers.remove(k)?.dispose();
+                        }),
+                      )),
+                    ]),
 
-                        // --- MODULE 3: Structured Clinical Notes ---
-                        const Text("Structured Clinical Notes:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A))),
-                        ..._noteCategoryKeys.map((key) => NoteCategoryInput(
-                          key: ValueKey(key),
-                          category: key,
-                          controller: _noteControllers[key]!,
-                          onChanged: _updateNoteContent,
-                          onDelete: () => setState(() {
-                            _noteCategoryKeys.remove(key);
-                            _noteControllers.remove(key)?.dispose();
-                            _finalNotes.remove(key);
-                          }),
-                        )).toList(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            ElevatedButton.icon(onPressed: () => _openNoteCategoryDialog(allNotes), icon: const Icon(Icons.notes), label: const Text("Manage Note Structure")),
-                            IconButton(onPressed: _addMasterNoteCategory, icon: const Icon(Icons.add_circle, color: Colors.green), tooltip: "Add Note Category Master"),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Save button
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _saveAssessment,
-                    style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(40)),
-                    child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("SAVE CLINICAL ASSESSMENT"),
-                  ),
-                  const SizedBox(height: 50),
-                ],
+                    const SizedBox(height: 30),
+                    _buildSaveButton(),
+                    const SizedBox(height: 50),
+                  ],
+                ),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  // --- UI COMPONENTS ---
+  Widget _buildPremiumHeader() => SliverAppBar(expandedHeight: 100, pinned: true, automaticallyImplyLeading: false, backgroundColor: Colors.white, flexibleSpace: FlexibleSpaceBar(titlePadding: const EdgeInsets.only(left: 20, bottom: 16), title: Row(children: [GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.black)), const SizedBox(width: 12), const Text("Clinical Assessment", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18))])));
+  Widget _buildPremiumCard(String t, IconData i, Color c, List<Widget> ch) => Container(margin: const EdgeInsets.only(bottom: 24), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: c.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 8))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(i, color: c, size: 22), const SizedBox(width: 12), Text(t, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))]), const Divider(height: 32), ...ch]));
+  Widget _buildAddAction(String l, VoidCallback t) => TextButton.icon(onPressed: t, icon: const Icon(Icons.add_circle_outline, size: 18), label: Text(l));
+
+  Widget _buildSaveButton() => ElevatedButton(
+    onPressed: _isLoading ? null : _save,
+    style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 56), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+    child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("CONFIRM ASSESSMENT", style: TextStyle(fontWeight: FontWeight.bold)),
+  );
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Sync note map from controllers to ensure current text is captured
+      _noteControllers.forEach((key, controller) {
+        _clinicalNotes[key] = controller.text.trim().isEmpty ? 'Not specified' : controller.text.trim();
+      });
+
+      // 2. Aggregate the clinical assessment data
+      final Map<String, dynamic> updateData = {
+        'clinicalComplaints': _clinicalComplaints,
+        'nutritionDiagnoses': _nutritionDiagnoses,
+        'clinicalNotes': _clinicalNotes,
+      };
+
+      // 3. 🎯 FIX: Explicitly call the service to update Firestore
+      // Note: This requires widget.client.id or widget.latestVitals.clientId
+      final clientId = widget.latestVitals?.clientId ?? "";
+
+      if (clientId.isNotEmpty) {
+        await ref.read(vitalsServiceProvider).updateHistoryData(
+          clientId: clientId,
+          updateData: updateData,
+          existingVitals: widget.latestVitals,
+        );
+      }
+
+      // 4. Notify parent and close the sheet
+      widget.onSaveAssessment(updateData);
+      if (mounted) Navigator.pop(context);
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Firestore Update Failed: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 }

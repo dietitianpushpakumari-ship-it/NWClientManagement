@@ -32,7 +32,7 @@ class LabTestConfig {
 
 class LabVitalsData {
   // 1. Define the categories strictly to ensure order
-  static const List<String> labCategories = [
+  static const List<String> labCategories1 = [
     'Hematology',
     'Diabetic Profile',
     'Lipid Profile',
@@ -43,7 +43,7 @@ class LabVitalsData {
   ];
 
   // 2. Define the Map of all tests needed by the UI with numeric ranges
-  static const Map<String, LabTestConfig> allLabTests = {
+  static const Map<String, LabTestConfig> allLabTests1 = {
     // --- Hematology ---
     'hemoglobin': LabTestConfig(displayName: 'Hemoglobin', unit: 'g/dL', category: 'Hematology', minRange: 12.0, maxRange: 15.5),
     'rbc_count': LabTestConfig(displayName: 'RBC Count', unit: 'mil/uL', category: 'Hematology', minRange: 4.5, maxRange: 5.5),

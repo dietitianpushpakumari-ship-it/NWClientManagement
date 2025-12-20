@@ -12,7 +12,7 @@ class SupplimentMasterService {
   // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
   // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
   FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
-  CollectionReference get _collection => _firestore.collection(MasterCollectionPath.collection_master_suppliment);
+  CollectionReference get _collection => _firestore.collection(FirestoreCollection.collection_master_suppliment);
 
 
 
@@ -46,7 +46,7 @@ class SupplimentMasterService {
   Stream<List<SupplimentMasterModel>> streamAllActive() {
     return _collection
         .where('isDeleted', isEqualTo: false)
-        .orderBy('enTitle')
+        .orderBy('name')
         .snapshots()
         .map((snapshot) => snapshot.docs
         .map((doc) => SupplimentMasterModel.fromFirestore(doc))

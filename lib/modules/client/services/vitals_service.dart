@@ -1,19 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nutricare_client_management/admin/database_provider.dart'; // Import to access firestoreProvider
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 import '../model/vitals_model.dart'; // Import your VitalsModel
 
 
 class VitalsService {
-  final Ref _ref; // 🎯 STEP 1: Add the Ref field
+  final Ref _ref;
 
-  // 🎯 STEP 2: Update the constructor to accept the Ref
   VitalsService(this._ref);
 
-  // 🎯 STEP 3: Replace the old static/final Firebase instance with a DYNAMIC GETTER
   FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
 
-  CollectionReference get _vitalsCollection => _firestore.collection('vitals');
+  CollectionReference get _vitalsCollection => _firestore.collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientVitals));
 
 
   // -----------------------------------------------------------
@@ -58,6 +57,8 @@ class VitalsService {
     }
     return null;
   }
+
+  // GET LATEST VITALS RECORD FOR A CLIENT
   Future<VitalsModel?> getLatestVitals(String clientId) async {
     try {
       final snapshot = await _vitalsCollection
@@ -74,6 +75,7 @@ class VitalsService {
     }
     return null;
   }
+
   // STREAM ALL VITALS FOR CLIENT (For History/Comparison UI)
   Stream<List<VitalsModel>> streamAllVitalsForClient(String clientId) {
     return _vitalsCollection
@@ -83,18 +85,55 @@ class VitalsService {
         .map((snapshot) =>
         snapshot.docs.map((doc) => VitalsModel.fromFirestore(doc)).toList());
   }
-    // 🎯 REINTRODUCED FUTURE METHOD (For existing FutureBuilders)
-    // This method uses the stream to fetch a single list snapshot.
-    Future<List<VitalsModel>> getClientVitals(String clientId) async {
-      try {
-        // Use .first to grab the first snapshot of the stream and return it as a Future.
-        final list = await streamAllVitalsForClient(clientId).first;
-        return list;
-      } catch (e) {
-        // Handle the case where the collection might be empty or the stream fails immediately.
-        print("Error fetching client vitals list: $e");
-        return [];
-      }
+
+  // REINTRODUCED FUTURE METHOD (For existing FutureBuilders)
+  Future<List<VitalsModel>> getClientVitals(String clientId) async {
+    try {
+      final list = await streamAllVitalsForClient(clientId).first;
+      return list;
+    } catch (e) {
+      print("Error fetching client vitals list: $e");
+      return [];
     }
+  }
+
+  // 🎯 CORRECTED METHOD: Update history fields on the latest record, or create a new one
+  // lib/modules/client/services/vitals_service.dart
+
+  Future<void> updateHistoryData({
+    required String clientId,
+    required Map<String, dynamic> updateData,
+    VitalsModel? existingVitals,
+  }) async {
+    try {
+      VitalsModel? vitalsToUpdate = existingVitals;
+
+      // Get latest if none provided
+      if (vitalsToUpdate == null || vitalsToUpdate.id.isEmpty) {
+        vitalsToUpdate = await getLatestVitals(clientId);
+      }
+
+      // Clean up nulls
+      updateData.removeWhere((key, value) => value == null);
+
+      if (vitalsToUpdate != null && vitalsToUpdate.id.isNotEmpty) {
+        // Update the existing document
+        await _vitalsCollection.doc(vitalsToUpdate.id).update(updateData);
+      } else {
+        // Create a brand new document if none exists
+        final Map<String, dynamic> newVitalsMap = {
+          'clientId': clientId,
+          'date': DateTime.now(),
+          'isFirstConsultation': true,
+          ...updateData,
+        };
+
+        final VitalsModel newVitals = VitalsModel.fromMap('', newVitalsMap);
+        await saveVitals(newVitals);
+      }
+    } catch (e) {
+      throw Exception("Failed to update history data: $e");
+    }
+  }
 
 }

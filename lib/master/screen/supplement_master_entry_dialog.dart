@@ -24,7 +24,7 @@ class _SupplementationMasterEntryDialogState extends ConsumerState<Supplementati
   void initState() {
     super.initState();
     if (widget.supplementation != null) {
-      _nameController.text = widget.supplementation!.enName;
+      _nameController.text = widget.supplementation!.name;
     }
   }
 
@@ -32,8 +32,8 @@ class _SupplementationMasterEntryDialogState extends ConsumerState<Supplementati
     if (_formKey.currentState!.validate()) {
       setState(() { _isSaving = true; });
 
-      final supplementationToSave = (widget.supplementation ?? const SupplimentMasterModel(id: '', enName: '')).copyWith(
-        enName: _nameController.text.trim(),id:   DateTime.now().microsecondsSinceEpoch.toString()
+      final supplementationToSave = (widget.supplementation ?? const SupplimentMasterModel(id: '', name: '')).copyWith(
+        name: _nameController.text.trim(),id:   DateTime.now().microsecondsSinceEpoch.toString()
       );
 
       try {

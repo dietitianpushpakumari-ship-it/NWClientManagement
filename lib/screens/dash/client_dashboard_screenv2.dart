@@ -19,6 +19,8 @@ import 'package:nutricare_client_management/admin/client_package_list_screen.dar
 import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_list.dart';
 import 'package:nutricare_client_management/modules/client/screen/master_plan_assignment_page.dart';
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
+// 🎯 Import the Checklist Screen (used for initiating a new session)
+import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart';
 
 class ClientDashboardScreen extends ConsumerStatefulWidget {
   final ClientModel client;
@@ -75,7 +77,8 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
   void initState() {
     super.initState();
     _currentClient = widget.client;
-    _tabController = TabController(length: 6, vsync: this);
+    // 🎯 FIX: Increase tab count from 6 to 7
+    _tabController = TabController(length: 7, vsync: this);
 
     // 🎯 FIX 1: Explicitly call refresh on initial load
     _refreshClientData();
@@ -116,6 +119,51 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
     );
     _refreshClientData();
   }
+
+  // 🎯 NEW: Method to start a NEW, unsaved consultation session for the existing patient
+  void _startNewConsultation() {
+    // Navigate to the single session checklist screen.
+    // The NULL consultationRecordId signals a BRAND NEW SESSION/RECORD.
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ClientConsultationChecklistScreen(
+          client: _currentClient,
+          latestVitals: null, // Let the checklist screen fetch the latest vitals for context
+          activePackage: null, // Let the checklist screen fetch the active package for context
+          // consultationRecordId is NULL, signaling a BRAND NEW SESSION/RECORD
+        ),
+      ),
+    ).then((_) => _refreshClientData()); // Refresh dashboard after consultation finishes
+  }
+
+  // 🎯 Placeholder Screen for Consultation History (User must create this dedicated list screen)
+  Widget ClientConsultationHistoryScreenPlaceholder({required ClientModel client}) {
+    // NOTE: This widget needs to be replaced by a dedicated screen that streams/fetches
+    // and displays the list of ConsultationModel records, as discussed in the previous step.
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("Consultation History View", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Text("This is where the chronological list of past consultation records for ${client.name} will be displayed.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+              const SizedBox(height: 20),
+              const Text("Ensure you implement the dedicated list screen.", textAlign: TextAlign.center, style: TextStyle(color: Colors.red)),
+            ],
+          )
+      ),
+      // Allows starting a new session directly from the history tab
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _startNewConsultation,
+        label: const Text("Start New Consultation"),
+        icon: const Icon(Icons.add),
+        backgroundColor: Colors.teal,
+      ),
+    );
+  }
+
 
   Future<void> _handleSoftDelete() async {
     final clientService = ref.read(clientServiceProvider);
@@ -195,6 +243,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
                     : TabBarView(
                   controller: _tabController,
                   physics: const BouncingScrollPhysics(),
+                  // 🎯 FIX: Add the new Consultation History Placeholder
                   children: [
                     _buildProfileTab(),
                     ClientMeetingScheduleTab(client: _currentClient),
@@ -202,6 +251,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
                     _buildActionsGrid(),
                     VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name),
                     ClientPackageListScreen(client: _currentClient),
+                    ClientConsultationHistoryScreenPlaceholder(client: _currentClient), // 🎯 NEW TAB CONTENT
                   ],
                 ),
               ),
@@ -212,7 +262,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
     );
   }
 
-  // ... (omitted _buildCustomHeader and _buildPremiumTabBar for brevity)
+  // ... (omitted _buildCustomHeader for brevity)
 
   Widget _buildCustomHeader() {
     // Status Logic
@@ -304,6 +354,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
     );
   }
 
+  // 🎯 MODIFIED: TabBar labels to include the new 'Consultations' tab
   Widget _buildPremiumTabBar() {
     return Container(
       height: 60,
@@ -322,6 +373,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
         labelColor: Colors.white,
         unselectedLabelColor: Colors.grey.shade600,
         labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        // 🎯 FIX: Add the new tab
         tabs: const [
           Tab(text: "Profile"),
           Tab(text: "Schedule"),
@@ -329,6 +381,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
           Tab(text: "Actions"),
           Tab(text: "Vitals"),
           Tab(text: "Billing"),
+          Tab(text: "Consultations"), // 🎯 NEW TAB
         ],
       ),
     );
@@ -413,6 +466,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
   }
 
   // --- TAB 4: ACTIONS (Grid Layout) ---
+  // 🎯 MODIFIED: _buildActionsGrid to include the navigation to the new tab
   Widget _buildActionsGrid() {
     return GridView.count(
       crossAxisCount: 2,
@@ -421,13 +475,22 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
       mainAxisSpacing: 16,
       childAspectRatio: 1.1, // Square-ish cards
       children: [
+        // 🎯 NEW: Start New Consultation Action Card
+        _buildActionCard(
+          "New Consultation",
+          "Start New Follow-up Session",
+          Icons.note_add,
+          Colors.teal,
+          _startNewConsultation, // 🎯 Call the new method
+        ),
+
         // 1. Vitals Log
         _buildActionCard(
           "Vitals Log", "Log Measurements", Icons.monitor_heart, Colors.red,
-              () => Navigator.push(context, MaterialPageRoute(builder: (_) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name))),
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name,))),
         ),
 
-        // 🎯 2. NEW: Vitals Comparison/Progress Analysis
+        // 🎯 2. Vitals Comparison/Progress Analysis
         _buildActionCard(
           "Vitals Progress",
           "Compare Labs Side-by-Side",
@@ -452,14 +515,14 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
 
         // 4. Diet Template
         _buildActionCard(
-          "Diet Template", "Assign Master", Icons.restaurant_menu, Theme.of(context).colorScheme.primary,
-              (){}// => Navigator.push(context, MaterialPageRoute(builder: (_) => MasterPlanSelectionPage(client: _currentClient, onMasterPlanAssigned: _refreshClientData))),
+            "Diet Template", "Assign Master", Icons.restaurant_menu, Theme.of(context).colorScheme.primary,
+                (){}// => Navigator.push(context, MaterialPageRoute(builder: (_) => MasterPlanSelectionPage(client: _currentClient, onMasterPlanAssigned: _refreshClientData))),
         ),
 
-        // 5. Custom Plan
+        // 5. Custom Plan (Link to Plan Management Hub)
         _buildActionCard(
-          "Custom Plan", "Edit Details", Icons.edit_note, Colors.orange,
-              () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssignedDietPlanListScreen(client: _currentClient, onMealPlanSaved: _refreshClientData))),
+          "Plan Management", "Manage Drafts and History", Icons.edit_note, Colors.orange,
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssignedDietPlanListScreen(clientId: _currentClient.id, clientName: _currentClient.name,client: _currentClient))),
         ),
       ],
     );

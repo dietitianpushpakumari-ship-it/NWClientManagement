@@ -9,7 +9,7 @@ import 'package:nutricare_client_management/master/model/master_constants.dart';
 
 class ClinicalNotesMasterService {
   final FirebaseFirestore _firestore;
-  final String _collectionPath = MasterCollectionPath.collection_clinicalnote;
+  final String _collectionPath = FirestoreCollection.collection_clinicalnote;
 
   ClinicalNotesMasterService(this._firestore);
 

@@ -148,18 +148,27 @@ class _ClientHistorySheetState extends ConsumerState<ClientHistorySheet> {
     super.dispose();
   }
 
-  // 🎯 UNIFIED CALLBACK: Updates the state when a sub-widget reports a change
+// lib/master_diet_planner/client_history_sheet.dart
+
+// lib/master_diet_planner/client_history_sheet.dart
+
+// lib/master_diet_planner/client_history_sheet.dart
+
   void _updateComplexMap(String keyType, Map<String, String> data) {
     setState(() {
-      if (keyType == 'medication') _finalMedications = data;
-      else if (keyType == 'caffeine') _finalCaffeine = data;
-      else if (keyType == 'medical') _finalMedicalHistory = data;
-      else if (keyType == 'gi') _finalGIDetails = data;
-      else if (keyType == 'habit') _finalHabits = data;
+      if (keyType == 'medication') {
+        _finalMedications = {..._finalMedications, ...data}; // Merges instead of replacing
+      } else if (keyType == 'caffeine') {
+        _finalCaffeine = {..._finalCaffeine, ...data};
+      } else if (keyType == 'medical') {
+        _finalMedicalHistory = {..._finalMedicalHistory, ...data};
+      } else if (keyType == 'gi') {
+        _finalGIDetails = {..._finalGIDetails, ...data};
+      } else if (keyType == 'habit') {
+        _finalHabits = {..._finalHabits, ...data};
+      }
     });
   }
-
-
   Future<void> _saveHistory() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -178,13 +187,19 @@ class _ClientHistorySheetState extends ConsumerState<ClientHistorySheet> {
         'caffeineIntake': _finalCaffeine,
       };
 
-      // 2. Perform database update (Placeholder for service call)
-      // await ref.read(vitalsServiceProvider).updateHistoryData(widget.client.id, updateData);
+      // 🎯 FIX: Call the service with the aggregated data
+      await ref.read(vitalsServiceProvider).updateHistoryData(
+        clientId: widget.client.id,
+        updateData: updateData,
+        existingVitals: widget.latestVitals,
+      );
 
       widget.onSave(true);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Save failed: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Save failed: $e"))
+      );
       widget.onSave(false);
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -259,7 +274,19 @@ class _ClientHistorySheetState extends ConsumerState<ClientHistorySheet> {
 
   // 🎯 FIX 4: Update dialog functions to pass Map<String, String>
   void _openMedicalHistoryDialog(Map<String, String> allDiseases) {
-    _openDialog(allDiseases, _medicalConditionKeys, "Select Medical Conditions", (r) => setState(() => _medicalConditionKeys = r), _addMasterDisease);
+    _openDialog(allDiseases, _medicalConditionKeys, "Select Medical Conditions", (selectedKeys) {
+      setState(() {
+        _medicalConditionKeys = selectedKeys;
+        for (var key in selectedKeys) {
+          // 🎯 Initialize default if it doesn't exist
+          if (!_finalMedicalHistory.containsKey(key)) {
+            _finalMedicalHistory[key] = 'Not specified';
+          }
+        }
+        // Cleanup: remove data for keys no longer selected
+        _finalMedicalHistory.removeWhere((key, value) => !selectedKeys.contains(key));
+      });
+    }, _addMasterDisease);
   }
   void _openGIDetailsDialog(Map<String, String> allGI) {
     _openDialog(allGI, _giDetailKeys, "Select GI Details", (r) => setState(() => _giDetailKeys = r), _addMasterGIMaster);
@@ -270,8 +297,22 @@ class _ClientHistorySheetState extends ConsumerState<ClientHistorySheet> {
   void _openCaffeineIntakeDialog(Map<String, String> allCaffeine) {
     _openDialog(allCaffeine, _caffeineKeys, "Select Caffeine Source", (r) => setState(() => _caffeineKeys = r), _addMasterCaffeineIntake);
   }
+  // lib/master_diet_planner/client_history_sheet.dart
+
   void _openHabitDialog(Map<String, String> allHabits) {
-    _openDialog(allHabits, _lifestyleHabitKeys, "Manage Lifestyle Habits", (r) => setState(() => _lifestyleHabitKeys = r), _addMasterHabit);
+    _openDialog(allHabits, _lifestyleHabitKeys, "Manage Lifestyle Habits", (selectedKeys) {
+      setState(() {
+        _lifestyleHabitKeys = selectedKeys;
+        // 🎯 Initialize default values so variables aren't empty
+        for (var key in selectedKeys) {
+          if (!_finalHabits.containsKey(key)) {
+            _finalHabits[key] = '1|Day'; // Default for HabitFrequencyInput
+          }
+        }
+        // Remove data for unselected items
+        _finalHabits.removeWhere((key, value) => !selectedKeys.contains(key));
+      });
+    }, _addMasterHabit);
   }
   void _openAllergiesDialog(Map<String, String> allAllergies) {
     _openDialog(allAllergies, _selectedFoodAllergies, "Select Food Allergies", (r) => setState(() => _selectedFoodAllergies = r), _addMasterAllergy);

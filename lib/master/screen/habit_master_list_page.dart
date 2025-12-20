@@ -41,7 +41,7 @@ class _HabitMasterListPageState extends ConsumerState<HabitMasterListPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Confirm Delete"),
-        content: Text("Are you sure you want to delete the habit: '${habit.title}'?"),
+        content: Text("Are you sure you want to delete the habit: '${habit.name}'?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
           ElevatedButton(
@@ -101,7 +101,7 @@ class _HabitMasterListPageState extends ConsumerState<HabitMasterListPage> {
 
                       // 🎯 Filter Logic
                       final filteredHabits = allHabits.where((habit) =>
-                      habit.title.toLowerCase().contains(_searchQuery) ||
+                      habit.name.toLowerCase().contains(_searchQuery) ||
                           habit.description.toLowerCase().contains(_searchQuery)
                       ).toList();
 
@@ -162,7 +162,7 @@ class _HabitMasterListPageState extends ConsumerState<HabitMasterListPage> {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12)),
             child: Icon(habit.iconData, color: Colors.teal)),
-        title: Text(habit.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text(habit.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

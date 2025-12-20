@@ -874,9 +874,10 @@ class _DiagnosisDetailInputState extends ConsumerState<DiagnosisDetailInput>
                 border: OutlineInputBorder(),
               ),
               maxLines: 3,
-              validator: (v) => (v == null || v!.isEmpty)
-                  ? 'Etiology is critical for intervention.'
-                  : null,
+              validator: null
+                  //(v) => (v == null || v!.isEmpty)
+                 // ? 'Etiology is critical for intervention.'
+                 // : null,
             ),
           ],
         ),

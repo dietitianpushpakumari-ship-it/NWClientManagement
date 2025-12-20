@@ -36,10 +36,10 @@ class _GuidelineEntryPageState extends State<GuidelineEntryPage> {
 
     if (widget.guidelineToEdit != null) {
       // Assuming enTitle now holds the primary content
-      _enContentController.text = widget.guidelineToEdit!.enTitle;
+      _enContentController.text = widget.guidelineToEdit!.name;
 
       // Assuming translations are now stored in 'titleLocalized'
-      widget.guidelineToEdit!.titleLocalized.forEach((code, title) {
+      widget.guidelineToEdit!.nameLocalized.forEach((code, title) {
         if (_localizedTitleControllers.containsKey(code)) {
           _localizedTitleControllers[code]!.text = title;
         }
@@ -92,8 +92,8 @@ class _GuidelineEntryPageState extends State<GuidelineEntryPage> {
 
     final itemToSave = Guideline(
       id: widget.guidelineToEdit?.id ?? '',
-      enTitle: _enContentController.text.trim(),
-      titleLocalized: localizedTitles,
+      name: _enContentController.text.trim(),
+      nameLocalized: localizedTitles,
     );
 
     try {

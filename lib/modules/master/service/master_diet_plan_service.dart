@@ -35,14 +35,17 @@ class MasterDietPlanService{
   Future<Map<String, String>> fetchMasterPlanNamesMap() async {
     try {
       final snapshot = await _collection
-          .where('isDeleted', isEqualTo: false)
+          .where('isActive', isEqualTo: true)
           .orderBy('name', descending: false)
           .get();
 
       final Map<String, String> planMap = {};
       for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>?;
-        final name = data?['name'] as String? ?? 'Unnamed Plan';
+        // 🎯 FIX: doc.data() returns MasterDietPlanModel (due to withConverter).
+        // Access the 'name' field directly on the object.
+        final masterPlan = doc.data();
+        final name = masterPlan.name; // Assumes MasterDietPlanModel has a 'name' property
+
         if (name.isNotEmpty) {
           planMap[name] = doc.id;
         }

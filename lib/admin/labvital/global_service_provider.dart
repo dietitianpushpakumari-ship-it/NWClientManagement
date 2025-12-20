@@ -12,8 +12,10 @@ import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:nutricare_client_management/admin/patient_service.dart';
 import 'package:nutricare_client_management/admin/services/master_data_service.dart';
 import 'package:nutricare_client_management/admin/staff_management_service.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/master/service/disease_master_service.dart';
 import 'package:nutricare_client_management/meal_planner/service/Dependancy_service.dart';
+import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/screen/Suppliment_master_service.dart';
 import 'package:nutricare_client_management/modules/client/screen/investigation_master_service.dart';
 import 'package:nutricare_client_management/modules/client/services/client_diet_plan_service.dart';
@@ -119,6 +121,22 @@ final designationsProvider = StreamProvider<List<String>>((ref) {
 });
 
 
+final clinicalComplaintsDataProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
+  final service = ref.watch(masterDataServiceProvider);
+  final mapper = MasterCollectionMapper.getPath;
+  // Use the master service to fetch the list based on the entity
+  return await service.fetchMasterList(mapper(MasterEntity.entity_Complaint));
+});
+
+final nutritionDiagnosisDataProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
+  final service = ref.watch(masterDataServiceProvider);
+  final mapper = MasterCollectionMapper.getPath;
+  return await service.fetchMasterList(mapper(MasterEntity.entity_Diagnosis));
+});
+final clientDetailProvider = FutureProvider.family.autoDispose<ClientModel, String>((ref, clientId) async {
+  final service = ref.watch(clientServiceProvider);
+  return await service.getClientById(clientId);
+});
 
 
 

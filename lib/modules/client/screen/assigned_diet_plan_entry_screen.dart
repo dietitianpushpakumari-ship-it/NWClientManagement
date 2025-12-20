@@ -2,10 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
-import 'package:intl/intl.dart';
-
-import 'package:nutricare_client_management/admin/labvital/clinical_master_service.dart';
-import 'package:nutricare_client_management/admin/labvital/clinical_model.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/premium_habit_select_sheet.dart';
 import 'package:nutricare_client_management/admin/labvital/premium_master_select_sheet.dart';
@@ -24,17 +20,6 @@ import 'package:nutricare_client_management/modules/client/screen/suppliment_mas
 import 'package:nutricare_client_management/admin/habit_master_model.dart';
 import 'package:nutricare_client_management/admin/habit_master_service.dart';
 
-
-
-extension IterableExtensions<T> on Iterable<T> {
-  T? firstWhereOrNull(bool Function(T) test) {
-    for (final element in this) {
-      if (test(element)) return element;
-    }
-    return null;
-  }
-}
-
 class ClientDietPlanEntryPage extends ConsumerStatefulWidget {
   final String? planId;
   final ClientDietPlanModel? initialPlan;
@@ -52,29 +37,28 @@ class ClientDietPlanEntryPage extends ConsumerStatefulWidget {
 }
 
 class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPage> with TickerProviderStateMixin {
-  final Logger logger = Logger();
+  static const List<String> _dosageOptions = [
+    '1-0-1 (Morning & Night)', '1-1-1 (Thrice a day)', '0-0-1 (Night only)',
+    '1-0-0 (Morning only)', '1-1-0 (Morning & Afternoon)', 'Once a week', 'SOS (As needed)'
+  ];
 
-  TabController? _tabController;
+  static const List<String> _timingOptions = ['AF (After Food)', 'BF (Before Food)', 'Empty Stomach', 'Bedtime'];
+
+  final Logger logger = Logger();
+  TabController? _tabController; // For Meals
+  TabController? _dayTabController; // For Days (Weekly)
+
   bool _isSaving = false;
   bool _isLoadingData = true;
 
-  // --- PLAN DATA ---
   String _planName = '';
   VitalsModel? _linkedVitals;
-
-  List<String> _diagnosisIds = [];
   List<String> _guidelineIds = [];
-  List<String> _supplementIds = [];
+  Map<String, String> _supplementDosages = {};
   List<String> _investigationIds = [];
-
-  List<String> _complaints = [];
-  List<String> _clinicalNotes = [];
-  List<String> _instructions = [];
-
   int _followUpDays = 0;
   bool _isProvisional = false;
 
-  // 🎯 GOALS & HABITS STATE
   double _waterGoal = 3.0;
   double _sleepGoal = 7.5;
   int _stepGoal = 8000;
@@ -95,9 +79,10 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
     final foodItemService = ref.read(foodItemServiceProvider);
     final masterMealNameService = ref.read(masterMealNameServiceProvider);
     final clientDietPlanService = ref.read(clientDietPlanServiceProvider);
+
     final foods = await foodItemService.fetchAllActiveFoodItems();
     final meals = await masterMealNameService.fetchAllMealNames();
-    meals.sort((a, b) => (a.startTime ?? "").compareTo(b.startTime ?? ""));
+    meals.sort((a, b) => (a.order ?? 0).compareTo(b.order ?? 0));
 
     ClientDietPlanModel plan;
     if (widget.planId != null) {
@@ -105,62 +90,203 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
     } else if (widget.initialPlan != null) {
       plan = widget.initialPlan!;
     } else {
+      // Fallback
       final initialMeals = meals.map((m) => DietPlanMealModel(id: m.id, mealNameId: m.id, mealName: m.name, items: [], order: m.order)).toList();
       plan = ClientDietPlanModel(days: [MasterDayPlanModel(id: 'd1', dayName: 'Fixed Day', meals: initialMeals)]);
     }
 
-    VitalsModel? loadedVitals;
-    if (plan.linkedVitalsId != null && plan.linkedVitalsId!.isNotEmpty && plan.clientId.isNotEmpty) {
-      try {
-        final vitalsService = ref.read(vitalsServiceProvider);
-        final allVitals = await vitalsService.getClientVitals(plan.clientId);
-        loadedVitals = IterableExtensions(allVitals).firstWhereOrNull((v) => v.id == plan.linkedVitalsId);
-      } catch (e) {
-        logger.w("Could not load linked vitals: $e");
-      }
-    }
+    final updatedDays = plan.days.map((day) {
+      final sortedMeals = List<DietPlanMealModel>.from(day.meals);
+      sortedMeals.sort((a, b) {
+        final orderA = meals.firstWhereOrNull((m) => m.id == a.mealNameId)?.order ?? 99;
+        final orderB = meals.firstWhereOrNull((m) => m.id == b.mealNameId)?.order ?? 99;
+        return orderA.compareTo(orderB);
+      });
+      return day.copyWith(meals: sortedMeals);
+    }).toList();
+
+    plan = plan.copyWith(days: updatedDays);
 
     if (mounted) {
       setState(() {
         _allFoodItems = foods;
         _allMealNames = meals;
         _currentPlan = plan;
-
         _planName = plan.name;
-        _diagnosisIds = List.from(plan.diagnosisIds);
         _guidelineIds = List.from(plan.guidelineIds);
-        _supplementIds = List.from(plan.suplimentIds);
+        _supplementDosages = Map<String, String>.from(plan.suplimentIdsMap ?? {});
         _investigationIds = List.from(plan.investigationIds);
-
-        _complaints = _parseList(plan.complaints);
-        _clinicalNotes = _parseList(plan.clinicalNotes, separator: '\n');
-        _instructions = _parseList(plan.instructions, separator: '\n');
-
         _followUpDays = plan.followUpDays ?? 0;
         _isProvisional = plan.isProvisional;
-        _linkedVitals = loadedVitals;
-
-        // 🎯 Load Goals
         _waterGoal = plan.dailyWaterGoal;
         _sleepGoal = plan.dailySleepGoal;
         _stepGoal = plan.dailyStepGoal;
-        _mindfulnessGoal = plan.dailyMindfulnessMinutes.toDouble().toInt();
+        _mindfulnessGoal = plan.dailyMindfulnessMinutes;
         _assignedHabitIds = List.from(plan.assignedHabitIds);
 
-        if (plan.days.isNotEmpty) {
-          _tabController = TabController(length: plan.days.first.meals.length, vsync: this);
+        // 🎯 Initialize Day Tab Controller for Weekly Plans
+        if (_currentPlan.days.length > 1) {
+          _dayTabController = TabController(length: _currentPlan.days.length, vsync: this);
+          _dayTabController!.addListener(() {
+            if (!_dayTabController!.indexIsChanging) setState(() {});
+          });
         }
+
+        // 🎯 Initialize Meal Tab Controller
+        if (_currentPlan.days.isNotEmpty) {
+          _tabController = TabController(length: _currentPlan.days.first.meals.length, vsync: this);
+        }
+
         _isLoadingData = false;
       });
     }
   }
 
-  List<String> _parseList(String text, {String separator = ', '}) {
-    if (text.isEmpty) return [];
-    return text.split(separator).where((s) => s.trim().isNotEmpty).map((e) => e.trim()).toList();
+  void _updateMealItems(String mealId, List<DietPlanItemModel> newItems) {
+    setState(() {
+      final int currentDayIndex = _dayTabController?.index ?? 0;
+      final day = _currentPlan.days[currentDayIndex];
+      final mealIndex = day.meals.indexWhere((m) => m.id == mealId);
+
+      if (mealIndex == -1) return;
+
+      final updatedMeals = List<DietPlanMealModel>.from(day.meals);
+      updatedMeals[mealIndex] = updatedMeals[mealIndex].copyWith(items: newItems);
+
+      final updatedDays = List<MasterDayPlanModel>.from(_currentPlan.days);
+      updatedDays[currentDayIndex] = day.copyWith(meals: updatedMeals);
+
+      _currentPlan = _currentPlan.copyWith(days: updatedDays);
+    });
   }
 
-  // --- SHEET LAUNCHERS ---
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoadingData || _currentPlan.days.isEmpty) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final isWeekly = _currentPlan.days.length == 7;
+    final int currentDayIndex = _dayTabController?.index ?? 0;
+    final currentDayMeals = _currentPlan.days[currentDayIndex].meals;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(context),
+            _buildSummarySelector(),
+            if (isWeekly && _dayTabController != null)
+              TabBar(
+                controller: _dayTabController,
+                isScrollable: true,
+                labelColor: Colors.teal,
+                indicatorColor: Colors.teal,
+                tabs: _currentPlan.days.map((d) => Tab(text: d.dayName)).toList(),
+              ),
+            if (_tabController != null)
+              Container(
+                height: 45,
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  indicator: BoxDecoration(color: Colors.indigo, borderRadius: BorderRadius.circular(20)),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: currentDayMeals.map((m) => Tab(text: m.mealName)).toList(),
+                ),
+              ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: currentDayMeals.map((meal) => PremiumMealEntryList(
+                  meal: meal,
+                  allFoodItems: _allFoodItems,
+                  onUpdate: (items) => _updateMealItems(meal.id, items),
+                )).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.white,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+          const Text("Diet Planner", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          IconButton(
+            icon: _isSaving ? const CircularProgressIndicator() : const Icon(Icons.save, color: Colors.indigo),
+            onPressed: _isSaving ? null : _savePlan,
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummarySelector() {
+    return GestureDetector(
+      onTap: _openSettingsSheet,
+      child: Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_planName.isEmpty ? "Untitled Plan" : _planName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                const Text("Tap to edit goals & clinical notes", style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+            const Icon(Icons.settings, color: Colors.indigo),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ... [Keep your existing _openSettingsSheet and helper methods from current code] ...
+
+  Future<void> _savePlan() async {
+    if (_planName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please set a Plan Name in settings.")));
+      return;
+    }
+    setState(() => _isSaving = true);
+    try {
+      final updatedPlan = _currentPlan.copyWith(
+        name: _planName,
+        dailyWaterGoal: _waterGoal,
+        dailySleepGoal: _sleepGoal,
+        dailyStepGoal: _stepGoal,
+        dailyMindfulnessMinutes: _mindfulnessGoal,
+        assignedHabitIds: _assignedHabitIds,
+        suplimentIdsMap: _supplementDosages,
+        guidelineIds: _guidelineIds,
+        investigationIds: _investigationIds,
+        followUpDays: _followUpDays,
+        isProvisional: _isProvisional,
+      );
+      await ref.read(clientDietPlanServiceProvider).savePlan(updatedPlan);
+      widget.onMealPlanSaved();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      logger.e("Save failed: $e");
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
 
   void _openSettingsSheet() {
 
@@ -175,6 +301,7 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      isDismissible: false,
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.95,
         minChildSize: 0.5,
@@ -222,43 +349,6 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
                         )
                     ),
 
-                    // 3. Clinical Context (Existing)
-                    _buildPremiumCard(
-                        title: "Clinical Context",
-                        icon: Icons.medical_services,
-                        color: Colors.purple,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildVitalsLinker(updateState),
-                            const Divider(height: 30),
-                            // 🎯 FIX 1: Diagnosis Master
-                            _buildMultiSelectWithChips<DiagnosisMasterModel>(context,
-                                service: _diagonisService, // Pass service
-                                title: "Diagnosis", selectedIds: _diagnosisIds, stream: _diagonisService.getDiagnoses(), getName: (d) => d.enName, getId: (d) => d.id,
-                                // 🎯 FIX: ADD LOCALIZED NAMES TO ONADD/ONEDIT
-                                onAdd: (name, localizedNames) async => await _diagonisService.addOrUpdateDiagnosis(DiagnosisMasterModel(id: '', enName: name, nameLocalized: localizedNames)),
-                                onEdit: (item, name, localizedNames) async => await _diagonisService.addOrUpdateDiagnosis(item.copyWith(enName: name, nameLocalized: localizedNames)),
-                                onDelete: (item) async => await _diagonisService.softDeleteDiagnosis(item.id),
-                                onUpdate: (ids) => updateState(() => _diagnosisIds = ids),
-                                nameResolver: (ids) => _diagonisService.fetchAllDiagnosisMasterByIds(ids).then((l) => l.map((e) => e.enName).toList())
-                            ),
-                            const SizedBox(height: 20),
-                            // 🎯 FIX 2: Complaints Master
-                            _buildStringMultiSelectWithChips(context,
-                                service: _clinicalService, // Pass service
-                                title: "Chief Complaints", selectedItems: _complaints, collection: ClinicalMasterService.colComplaints, onUpdate: (list) => updateState(() => _complaints = list)
-                            ),
-                            const SizedBox(height: 20),
-                            // 🎯 FIX 3: Clinical Notes Master
-                            _buildStringMultiSelectWithChips(context,
-                                service: _clinicalService, // Pass service
-                                title: "Clinical Notes", selectedItems: _clinicalNotes, collection: ClinicalMasterService.colClinicalNotes, onUpdate: (list) => updateState(() => _clinicalNotes = list)
-                            ),
-                          ],
-                        )
-                    ),
-
                     // 4. Protocols (Existing)
                     _buildPremiumCard(
                         title: "Protocols & Instructions",
@@ -268,40 +358,26 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildMultiSelectWithChips<Guideline>(context,
-                                service: _guidelineService, title: "Guidelines", selectedIds: _guidelineIds, stream: _guidelineService.streamAllActive(), getName: (g) => g.enTitle, getId: (g) => g.id,
+                                service: _guidelineService, title: "Guidelines", selectedIds: _guidelineIds, stream: _guidelineService.streamAllActive(), getName: (g) => g.name, getId: (g) => g.id,
                                 // 🎯 FIX: ADD LOCALIZED NAMES
-                                onAdd: (name, localizedNames) async => await _guidelineService.save(Guideline(id: '', enTitle: name, titleLocalized: localizedNames)),
-                                onEdit: (item, name, localizedNames) async => await _guidelineService.save(item.copyWith(enTitle: name, titleLocalized: localizedNames)),
+                                onAdd: (name, localizedNames) async => await _guidelineService.save(Guideline(id: '', name: name, nameLocalized: localizedNames)),
+                                onEdit: (item, name, localizedNames) async => await _guidelineService.save(item.copyWith(name: name, nameLocalized: localizedNames)),
                                 onDelete: (item) async => await _guidelineService.softDelete(item.id),
                                 onUpdate: (ids) => updateState(() => _guidelineIds = ids),
-                                nameResolver: (ids) => _guidelineService.fetchGuidelinesByIds(ids).then((l) => l.map((e) => e.enTitle).toList())
+                                nameResolver: (ids) => _guidelineService.fetchGuidelinesByIds(ids).then((l) => l.map((e) => e.name).toList())
                             ),
                             const SizedBox(height: 20),
-                            // 🎯 FIX 4: Investigation Master
+                            // 🎯 FIX 4: Investigation Masterin
                             _buildMultiSelectWithChips<InvestigationMasterModel>(context,
-                                service: _investigationService, title: "Investigations", selectedIds: _investigationIds, stream: _investigationService.getInvestigation(), getName: (i) => i.enName, getId: (i) => i.id,
-                                onAdd: (name, localizedNames) async => await _investigationService.addOrUpdateInvestigation(InvestigationMasterModel(id: '', enName: name, nameLocalized: localizedNames)),
-                                onEdit: (item, name, localizedNames) async => await _investigationService.addOrUpdateInvestigation(item.copyWith(enName: name, nameLocalized: localizedNames)),
+                                service: _investigationService, title: "Investigations", selectedIds: _investigationIds, stream: _investigationService.getInvestigation(), getName: (i) => i.name, getId: (i) => i.id,
+                                onAdd: (name, localizedNames) async => await _investigationService.addOrUpdateInvestigation(InvestigationMasterModel(id: '', name: name, nameLocalized: localizedNames)),
+                                onEdit: (item, name, localizedNames) async => await _investigationService.addOrUpdateInvestigation(item.copyWith(name: name, nameLocalized: localizedNames)),
                                 onDelete: (item) async => await _investigationService.softDeleteInvestigation(item.id),
                                 onUpdate: (ids) => updateState(() => _investigationIds = ids),
-                                nameResolver: (ids) => _investigationService.fetchAllInvestigationMasterByIds(ids).then((l) => l.map((e) => e.enName).toList())
+                                nameResolver: (ids) => _investigationService.fetchAllInvestigationMasterByIds(ids).then((l) => l.map((e) => e.name).toList())
                             ),
                             const SizedBox(height: 20),
-                            // 🎯 FIX 5: Supplementation Master
-                            _buildMultiSelectWithChips<SupplimentMasterModel>(context,
-                                service: _supplementationService, title: "Supplements", selectedIds: _supplementIds, stream: _supplementationService.getSupplimentMaster(), getName: (s) => s.enName, getId: (s) => s.id,
-                                onAdd: (name, localizedNames) async => await _supplementationService.addOrUpdateSupplimentMaster(SupplimentMasterModel(id: '', enName: name, nameLocalized: localizedNames)),
-                                onEdit: (item, name, localizedNames) async => await _supplementationService.addOrUpdateSupplimentMaster(item.copyWith(enName: name, nameLocalized: localizedNames)),
-                                onDelete: (item) async => await _supplementationService.softDeleteSupplimentMaster(item.id),
-                                onUpdate: (ids) => updateState(() => _supplementIds = ids),
-                                nameResolver: (ids) => _supplementationService.fetchAllSupplimentMasterMasterByIds(ids).then((l) => l.map((e) => e.enName).toList())
-                            ),
-                            const SizedBox(height: 20),
-                            // 🎯 FIX 6: Client Instructions Master
-                            _buildStringMultiSelectWithChips(context,
-                                service: _clinicalService, // Pass service
-                                title: "Client Instructions", selectedItems: _instructions, collection: ClinicalMasterService.colInstructions, onUpdate: (list) => updateState(() => _instructions = list)
-                            ),
+                            _buildSupplementSection(updateState, _supplementationService),
                           ],
                         )
                     ),
@@ -321,10 +397,26 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
       ),
     );
   }
-
-  // --- WIDGET HELPERS ---
-
-  // 🎯 Slider Helper
+  Widget _buildPremiumCard({required String title, required IconData icon, required Color color, required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))], border: Border.all(color: color.withOpacity(0.1))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)), const SizedBox(width: 12), Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color))]),
+        const SizedBox(height: 16),
+        child,
+      ]),
+    );
+  }
+  Widget _buildTextField(String label, {String? initialValue, Function(String)? onChanged, bool isNumber = false}) {
+    return TextFormField(
+      initialValue: initialValue,
+      onChanged: onChanged,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      decoration: InputDecoration(labelText: label, filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
+    );
+  }
   Widget _buildSlider(String label, double val, double min, double max, int divs, String displayVal, Color color, ValueChanged<double> onChanged) {
     return Column(
       children: [
@@ -384,7 +476,7 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
               return Wrap(
                 spacing: 8, runSpacing: 8,
                 children: selectedHabits.map((habit) => Chip(
-                  label: Text(habit.title, style: const TextStyle(fontSize: 11)),
+                  label: Text(habit.name, style: const TextStyle(fontSize: 11)),
                   avatar: Icon(habit.iconData, size: 14, color: Colors.white),
                   backgroundColor: Colors.teal,
                   labelStyle: const TextStyle(color: Colors.white),
@@ -397,31 +489,6 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
       ],
     );
   }
-
-  // 🎯 Vitals Linker
-  Widget _buildVitalsLinker(Function(VoidCallback) updateState) {
-    String dateStr = _linkedVitals != null ? DateFormat('dd MMM').format(_linkedVitals!.date) : "";
-    String detailStr = _linkedVitals != null ? "${_linkedVitals!.weightKg}kg | BMI ${_linkedVitals!.bmi.toStringAsFixed(1)}" : "Select a record to link clinical data";
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(_linkedVitals == null ? "Link Vitals Record" : "Vitals: $dateStr", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-      subtitle: Text(detailStr, style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade700)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.blueGrey),
-      onTap: () async {
-        final result = await showModalBottomSheet<VitalsModel>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (ctx) => VitalsPickerSheet(clientId: widget.initialPlan?.clientId ?? "", selectedId: _linkedVitals?.id),
-        );
-        if (result != null) {
-          updateState(() => _linkedVitals = result);
-        }
-      },
-    );
-  }
-
-  // 🎯 Multi-Select (Generic Master Data)
   Widget _buildMultiSelectWithChips<T>(
       BuildContext context, {
         required dynamic service, // Placeholder for service instance
@@ -468,8 +535,12 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
           FutureBuilder<List<String>>(
             future: nameResolver(selectedIds),
             builder: (context, snapshot) {
-              if (!snapshot.hasData) return const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2));
+              if (!snapshot.hasData)
+                return const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2));
               final names = snapshot.data!;
+              if (names.length != selectedIds.length) {
+                return const SizedBox(); // Return empty while syncing
+              }
               return Wrap(
                 spacing: 8, runSpacing: 8,
                 children: names.asMap().entries.map((entry) {
@@ -487,240 +558,148 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
       ],
     );
   }
-
-  // 🎯 String Multi-Select (Clinical Masters like Complaints/Notes)
-  Widget _buildStringMultiSelectWithChips(BuildContext context, {required ClinicalMasterService service, required String title, required List<String> selectedItems, required String collection, required Function(List<String>) onUpdate}) {
-
+  Widget _buildSupplementSection(Function(VoidCallback) updateState, dynamic service) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+            const Text("Supplements & Dosage", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             InkWell(
               onTap: () async {
                 final result = await showModalBottomSheet<List<String>>(
                   context: context,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
-                  builder: (ctx) => PremiumMasterSelectSheet<ClinicalItemModel>(
-                    title: "Select $title", itemLabel: title, stream: service.streamActiveItems(collection),
-                    getName: (c) => c.name, getId: (c) => c.name,
-
-                    // 🎯 FIX ERROR 3 & 4: Correctly handle three arguments
-                    onAdd: (name, localizedNames) async => await service.addItem(collection, name, localizedNames),
-                    onEdit: (item, name, localizedNames) async => await service.saveItem(collection, item.copyWith(name: name, nameLocalized: localizedNames)),
-
-                    onDelete: (item) async => await service.deleteItem(collection, item.id),
-                    selectedIds: selectedItems,
+                  builder: (ctx) => PremiumMasterSelectSheet<SupplimentMasterModel>(
+                    title: "Select Supplements",
+                    itemLabel: "Supplement",
+                    stream: service.getSupplimentMaster(),
+                    getName: (s) => s.name,
+                    getId: (s) => s.id,
+                    selectedIds: _supplementDosages.keys.toList(),
+                    onAdd: (name, loc) async => await service.addOrUpdateSupplimentMaster(SupplimentMasterModel(id: '', name: name, nameLocalized: loc)),
+                    onEdit: (item, name, loc) async => await service.addOrUpdateSupplimentMaster(item.copyWith(name: name, nameLocalized: loc)),
+                    onDelete: (item) async => await service.softDeleteSupplimentMaster(item.id),
                   ),
                 );
-                if (result != null) onUpdate(result);
+                if (result != null) {
+                  updateState(() {
+                    // Keep existing dosages for items still selected, add new ones as empty
+                    Map<String, String> newMap = {};
+                    for (var id in result) {
+                      newMap[id] = _supplementDosages[id] ?? "";
+                    }
+                    _supplementDosages = newMap;
+                  });
+                }
               },
-              child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.1), borderRadius: BorderRadius.circular(20)), child: Text("Edit / Add", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary))),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: Colors.indigo.withOpacity(.1), borderRadius: BorderRadius.circular(20)),
+                child: const Text("Edit / Add", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo)),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 10),
-        if (selectedItems.isEmpty)
+        if (_supplementDosages.isEmpty)
           const Text("None selected", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 13))
         else
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: selectedItems.map((item) => Chip(
-              label: Text(item, style: const TextStyle(fontSize: 12)),
-              onDeleted: () => onUpdate(List.from(selectedItems)..remove(item)),
-              backgroundColor: Colors.white, elevation: 1, side: BorderSide(color: Colors.grey.shade200),
-              deleteIcon: const Icon(Icons.close, size: 14, color: Colors.grey),
-            )).toList(),
-          )
+          FutureBuilder<List<SupplimentMasterModel>>(
+            future: service.fetchAllSupplimentMasterMasterByIds(_supplementDosages.keys.toList()),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const LinearProgressIndicator();
+              return Column(
+                children: snapshot.data!.map((item) {
+                  // Parse the stored value: "Pattern | Timing"
+                  final currentVal = _supplementDosages[item.id] ?? "";
+                  final parts = currentVal.split(" | ");
+
+                  // Default to standard patterns if data is missing
+                  String currentPattern = parts.isNotEmpty && _dosageOptions.contains(parts[0])
+                      ? parts[0]
+                      : _dosageOptions[0]; // Default: 1-0-1
+
+                  String currentTiming = parts.length > 1 && _timingOptions.contains(parts[1])
+                      ? parts[1]
+                      : _timingOptions[0]; // Default: AF
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            // 🎯 Dropdown 1: Pattern (1-0-1, etc.)
+                            Expanded(
+                              flex: 3,
+                              child: DropdownButtonFormField<String>(
+                                value: currentPattern,
+                                decoration: _inputDec("Frequency", Icons.medication),
+                                items: _dosageOptions.map((v) => DropdownMenuItem(
+                                    value: v,
+                                    child: Text(v, style: const TextStyle(fontSize: 12))
+                                )).toList(),
+                                onChanged: (val) => updateState(() {
+                                  _supplementDosages[item.id] = "$val | $currentTiming";
+                                }),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // 🎯 Dropdown 2: Meal Timing (BF/AF)
+                            Expanded(
+                              flex: 2,
+                              child: DropdownButtonFormField<String>(
+                                value: currentTiming,
+                                decoration: _inputDec("Timing", Icons.restaurant),
+                                items: _timingOptions.map((v) => DropdownMenuItem(
+                                    value: v,
+                                    child: Text(v, style: const TextStyle(fontSize: 12))
+                                )).toList(),
+                                onChanged: (val) => updateState(() {
+                                  _supplementDosages[item.id] = "$currentPattern | $val";
+                                }),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
+                              onPressed: () => updateState(() => _supplementDosages.remove(item.id)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
       ],
     );
   }
-
-  Future<void> _savePlan() async {
-
-    if (_planName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please set a Plan Name in settings.")));
-      _openSettingsSheet();
-      return;
-    }
-    setState(() => _isSaving = true);
-
-    final finalPlan = _currentPlan.copyWith(
-      id: widget.planId ?? _currentPlan.id,
-      name: _planName,
-      diagnosisIds: _diagnosisIds,
-      guidelineIds: _guidelineIds,
-      linkedVitalsId: _linkedVitals?.id,
-      suplimentIds: _supplementIds,
-      investigationIds: _investigationIds,
-      instructions: _instructions.join('\n'),
-      clinicalNotes: _clinicalNotes.join('\n'),
-      complaints: _complaints.join(', '),
-      followUpDays: _followUpDays,
-      isProvisional: _isProvisional,
-      // 🎯 SAVE GOALS
-      dailyWaterGoal: _waterGoal,
-      dailySleepGoal: _sleepGoal,
-      dailyStepGoal: _stepGoal,
-      dailyMindfulnessMinutes: _mindfulnessGoal,
-      assignedHabitIds: _assignedHabitIds,
-    );
-
-    try {
-      final  _clientDietPlanService = ref.watch(clientDietPlanServiceProvider);
-      await _clientDietPlanService.savePlan(finalPlan);
-      widget.onMealPlanSaved();
-      if (mounted) {
-        Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Plan saved!")));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  void _updateMealItems(String mealId, List<DietPlanItemModel> newItems) {
-    setState(() {
-      final day = _currentPlan.days.first;
-      final mealIndex = day.meals.indexWhere((m) => m.id == mealId);
-      if (mealIndex == -1) return;
-      final updatedMeals = List<DietPlanMealModel>.from(day.meals);
-      updatedMeals[mealIndex] = updatedMeals[mealIndex].copyWith(items: newItems);
-      _currentPlan = _currentPlan.copyWith(days: [day.copyWith(meals: updatedMeals)]);
-    });
-  }
-
-  Widget _buildTextField(String label, {String? initialValue, Function(String)? onChanged, bool isNumber = false}) {
-    return TextFormField(
-      initialValue: initialValue,
-      onChanged: onChanged,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      decoration: InputDecoration(labelText: label, filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14)),
-    );
-  }
-
-  Widget _buildPremiumCard({required String title, required IconData icon, required Color color, required Widget child}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))], border: Border.all(color: color.withOpacity(0.1))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)), const SizedBox(width: 12), Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color))]),
-        const SizedBox(height: 16),
-        child,
-      ]),
-    );
-  }
-  // ... Build Method (Same as previous, just ensuring it's clear this is the full file logic) ...
-// ... [Existing Imports] ...
-// Make sure to import: import 'dart:ui';
-
-// ... [State Class] ...
-  // Replace Scaffold contents with this structure:
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      body: Stack(
-        children: [
-          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
-          if (_isLoadingData) const Center(child: CircularProgressIndicator()) else SafeArea(
-            child: Column(
-              children: [
-                // 1. HEADER
-                _buildHeader(context),
-
-                // 2. CONTENT
-                Expanded(
-                  child: Column(
-                    children: [
-                      // Summary Card
-                      GestureDetector(
-                        onTap: _openSettingsSheet,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(_planName.isEmpty ? "Setup Plan" : _planName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                  Text(_linkedVitals != null ? "Vitals Linked" : "No Vitals", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                                ],
-                              ),
-                              Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Tabs
-                      if (_tabController != null)
-                        Container(
-                          height: 40, margin: const EdgeInsets.symmetric(horizontal: 16),
-                          child: TabBar(
-                            controller: _tabController, isScrollable: true,
-                            indicator: BoxDecoration(color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(20)),
-                            labelColor: Colors.white, unselectedLabelColor: Colors.grey,
-                            tabs: _currentPlan.days.first.meals.map((m) => Tab(text: m.mealName)).toList(),
-                          ),
-                        ),
-
-                      const SizedBox(height: 10),
-
-                      // List
-                      if (_tabController != null)
-                        Expanded(
-                          child: TabBarView(
-                            controller: _tabController,
-                            children: _currentPlan.days.first.meals.map((meal) => PremiumMealEntryList(
-                              meal: meal, allFoodItems: _allFoodItems, onUpdate: (items) => _updateMealItems(meal.id, items),
-                            )).toList(),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          )
-        ],
+  InputDecoration _inputDec(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon, size: 20),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
       ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      labelStyle: TextStyle(color: Colors.grey.shade700, fontSize: 14),
     );
   }
-
-  Widget _buildHeader(BuildContext context) {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          color: Colors.white.withOpacity(0.8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.arrow_back)),
-              const Text("Diet Planner", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              Row(
-                children: [
-                  Text(_isProvisional ? "Draft" : "Final", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _isProvisional ? Colors.orange : Colors.green)),
-                  Switch(value: !_isProvisional, onChanged: (v) => setState(() => _isProvisional = !v), activeColor: Colors.green),
-                  IconButton(onPressed: _isSaving ? null : _savePlan, icon: _isSaving ? const CircularProgressIndicator() : Icon(Icons.save, color: Theme.of(context).colorScheme.primary))
-                ],
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-// ...
 }

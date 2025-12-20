@@ -1,10 +1,15 @@
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/client_history_manager.dart';
+import 'package:nutricare_client_management/admin/consultation_session_model.dart';
+import 'package:nutricare_client_management/admin/consultation_session_service.dart';
 import 'package:nutricare_client_management/master_diet_planner/client_clinical_assessment_sheet.dart';
 import 'package:nutricare_client_management/master_diet_planner/client_history_sheet.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
+import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_list.dart';
 import 'package:nutricare_client_management/modules/client/screen/master_plan_assignment_page.dart';
 // Placeholder route imports (Replace with actual routes when implementing the modules)
 import 'package:nutricare_client_management/screens/vitals_history_page.dart';
@@ -48,6 +53,7 @@ class ClientConsultationChecklistScreen extends ConsumerStatefulWidget {
 
 class _ClientConsultationChecklistScreenState extends ConsumerState<ClientConsultationChecklistScreen> {
   Map<String, ModuleStatus> _moduleStatus = {};
+  ConsultationSessionModel? _activeSession;
 
   final List<ConsultationModule> _modules = [
     ConsultationModule(key: 'profile', title: "1. Personal & Contact Info", icon: Icons.person_pin, color: Colors.indigo, requiredForConsult: false),
@@ -175,15 +181,35 @@ class _ClientConsultationChecklistScreenState extends ConsumerState<ClientConsul
   // --- NAVIGATION & ACTION HANDLERS ---
 
   void _handleCardTap(ConsultationModule module) async {
-
-    // Case 1: Always allow profile navigation.
     if (module.key == 'profile') {
       await Navigator.push(context, MaterialPageRoute(builder: (_) => ClientPersonalInfoSheet(
         client: _currentClient,
-        onSave: (ClientModel updatedClient) {
+        onSave: (ClientModel updatedClient) async {
           setState(() {
             _currentClient = updatedClient;
           });
+
+          // 🎯 START SESSION HERE
+          if (_activeSession == null && updatedClient.id.isNotEmpty) {
+            final sessionService = ref.read(consultationServiceProvider);
+
+            // 1. Check if there is already an ongoing session to resume
+            var session = await sessionService.getActiveSession(updatedClient.id);
+
+            if (session == null) {
+              // 2. Create new session with current Date and Time
+              final now = Timestamp.now();
+              final sessionId = await sessionService.startSession(
+                 updatedClient.id,
+                 "current_user_id", // Get from your Auth provider
+              );
+              session = await sessionService.getSessionById(sessionId);
+            }
+
+            setState(() {
+              _activeSession = session;
+            });
+          }
         },
       )));
       _initializeStatus();
@@ -204,25 +230,26 @@ class _ClientConsultationChecklistScreenState extends ConsumerState<ClientConsul
         _moduleStatus['clinical'] = ModuleStatus.pending;
         _initializeStatus();
 
-        await Navigator.push(context, MaterialPageRoute(builder: (_) => VitalsHistoryPage(clientId: client.id, clientName: client.name,)));
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => VitalsHistoryPage(clientId: client.id,clientName: client.name,sessionId: _activeSession?.id,)));
 
         await _fetchLatestVitals();
         break;
 
       case 'history':
       // 🎯 NEW: Navigate to History Sheet
+      // 🎯 NEW: Navigate to History Sheet
         savedSuccessfully = await Navigator.push(context, MaterialPageRoute<bool>(
-          builder: (_) => ClientHistorySheet(
+          builder: (_) => ClientHistoryManager(
             client: client,
             latestVitals: _latestVitals,
-            onSave: (isSaved) {
+            onSaveComplete: (isSaved) {
               if (isSaved) {
                 // If Vitals exists, update its underlying history fields and mark history complete.
                 _moduleStatus['history'] = ModuleStatus.complete;
                 // Since this updates Vitals fields, refetch to update _latestVitals
                 _fetchLatestVitals();
               }
-            },
+            }
           ),
         ));
         if (savedSuccessfully == true) {
@@ -235,13 +262,12 @@ class _ClientConsultationChecklistScreenState extends ConsumerState<ClientConsul
       // 🎯 NEW: Navigate to Clinical Assessment Sheet
         savedSuccessfully = await Navigator.push(context, MaterialPageRoute<bool>(
           builder: (_) => ClientClinicalAssessmentSheet(
-            //client: client,
             latestVitals: _latestVitals,
             onSaveAssessment: (isSaved) {
               if (isSaved != null) {
-             //   _moduleStatus['clinical'] = ModuleStatus.complete;
+                _moduleStatus['clinical'] = ModuleStatus.complete;
                 // Refetch vitals if clinical data is considered part of the latest vital record
-              //  _fetchLatestVitals();
+               _fetchLatestVitals();
               }
             },
           ),
@@ -257,8 +283,8 @@ class _ClientConsultationChecklistScreenState extends ConsumerState<ClientConsul
         break;
 
       case 'plan':
-        await Navigator.push(context, MaterialPageRoute(builder: (_) => MasterPlanAssignmentPage(
-            client: client
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => AssignedDietPlanListScreen(
+            clientId: client.id, clientName: client.name,client :  client
         )));
         break;
       case 'payment':
@@ -267,13 +293,21 @@ class _ClientConsultationChecklistScreenState extends ConsumerState<ClientConsul
     }
   }
 
-  void _finalizeConsultation() {
+  void _finalizeConsultation()  async{
     bool allRequiredDone = true;
     for (var module in _modules) {
       if (module.requiredForConsult && _moduleStatus[module.key] == ModuleStatus.pending) {
         allRequiredDone = false;
         break;
       }
+    }
+    if (_activeSession != null) {
+      await ref.read(consultationServiceProvider).closeSession(_activeSession!.id);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Consultation Finalized and Records Locked"), backgroundColor: Colors.green)
+      );
+      Navigator.pop(context);
     }
 
     if (!allRequiredDone) {

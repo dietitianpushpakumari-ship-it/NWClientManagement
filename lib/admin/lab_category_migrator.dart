@@ -17,7 +17,7 @@ class LabCategoryMigrator {
     final Map<String, Map<String, dynamic>> itemsToUpload = {};
 
     // Iterate over the categories list from the helper file
-    for (var categoryName in LabVitalsData.labCategories) {
+    for (var categoryName in LabVitalsData.labCategories1) {
       // Use nanoid for a reliable unique document ID
       final id = nanoid(10);
 

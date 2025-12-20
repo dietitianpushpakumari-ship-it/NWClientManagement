@@ -49,7 +49,7 @@ class _HabitMasterEntryPageState extends ConsumerState<HabitMasterEntryPage> {
   }
 
   void _initializeForEdit(HabitMasterModel habit) {
-    _enTitleController.text = habit.title;
+    _enTitleController.text = habit.name;
     _enDescController.text = habit.description;
 
     habit.titleLocalized.forEach((code, name) {
@@ -122,7 +122,7 @@ class _HabitMasterEntryPageState extends ConsumerState<HabitMasterEntryPage> {
 
     final itemToSave = HabitMasterModel(
       id: widget.itemToEdit?.id ?? '',
-      title: _enTitleController.text.trim(),
+      name: _enTitleController.text.trim(),
       description: _enDescController.text.trim(),
       category: _selectedCategory,
       iconCode: _selectedIconCode,

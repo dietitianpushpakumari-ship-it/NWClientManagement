@@ -1,31 +1,31 @@
 // --- 1. Entity Name Constants (Used for UI, Dialogs, Errors) ---
 abstract class MasterEntity {
-  static const String entity_allergy = 'entity_allergy';//
-  static const String entity_disease = 'entity_disease';//
-  static const String entity_supplement = 'entity_supplement';//
-  static const String entity_giSymptom = 'entity_giSymptom';//
+  static const String entity_allergy = 'entity_allergy'; //
+  static const String entity_disease = 'entity_disease'; //
+  static const String entity_supplement = 'entity_supplement'; //
+  static const String entity_giSymptom = 'entity_giSymptom'; //
   static const String entity_develop_habits = 'entity_developHabit';
   static const String entity_waterIntake = 'entity_waterIntake';
   static const String entity_caffeineSource = 'entity_caffeineSource';
-  static const String entity_Complaint = 'entity_Complaint';//
-  static const String entity_Diagnosis = 'entity_Diagnosis';//
-  static const String entity_Clinicalnotes = 'entity_Clinicalnotes';//
-  static const String entity_Investigation = 'entity_Investigation';//
+  static const String entity_Complaint = 'entity_Complaint'; //
+  static const String entity_Diagnosis = 'entity_Diagnosis'; //
+  static const String entity_Clinicalnotes = 'entity_Clinicalnotes'; //
+  static const String entity_Investigation = 'entity_Investigation'; //
 
   // Food/Diet Planning Masters (typically complex)
-  static const String entity_FoodItem = 'entity_FoodItem';//
-  static const String entity_FoodCategory = 'entity_FoodCategory';//
-   static const String entity_MealNames= 'entity_MealNames';//
-  static const String entity_ServingUnits = 'entity_ServingUnits';//
-  static const String entity_Guidelines = 'entity_Guidelines';//
-  static const String entity_DietPlanCategories = 'entity_DietPlanCategories';//
+  static const String entity_FoodItem = 'entity_FoodItem'; //
+  static const String entity_FoodCategory = 'entity_FoodCategory'; //
+  static const String entity_MealNames = 'entity_MealNames'; //
+  static const String entity_ServingUnits = 'entity_ServingUnits'; //
+  static const String entity_Guidelines = 'entity_Guidelines'; //
+  static const String entity_DietPlanCategories = 'entity_DietPlanCategories'; //
 
 
   // Simple Dropdown Masters
-  static const String entity_LifestyleHabit= 'entity_lifestyleHabit';
+  static const String entity_LifestyleHabit = 'entity_lifestyleHabit';
   static const String entity_ActivityLevels = 'entity_ActivityLevels';
   static const String entity_SleepQuality = 'entity_SleepQuality';
-  static const String entity_MenstrualStatus  = 'entity_MenstrualStatus';
+  static const String entity_MenstrualStatus = 'entity_MenstrualStatus';
 
   static const String entity_foodHabitsOptions = 'entity_foodHabitsOptions';
   static const String entity_packagefeature = 'entity_packageFeature';
@@ -40,8 +40,13 @@ abstract class MasterEntity {
 
 }
 
+abstract class TransactionEntity {
+  static const String entity_patientVitals = 'entity_patientVitals'; // For package entries themselves
+  static const String entity_patientMealPlan = 'entity_patientMealPlan';
+}
+
 // --- 2. Collection Path Constants (Used in MasterDataService) ---
-abstract class MasterCollectionPath {
+abstract class FirestoreCollection {
   static const String collection_allergy = 'master_allergies';
   static const String collection_master_disease = 'master_disease';
   static const String collection_master_suppliment = 'master_supplement';
@@ -80,6 +85,9 @@ abstract class MasterCollectionPath {
   static const String collection_mealTemplates = 'master_mealTemplates';
   static const String collection_labTestCategory = 'config_labTestCategory';
   static const String collection_labTestConfig = 'config_labTestConfigs';
+
+  static const String collection_patientVitals = 'patient_vitals';
+  static const String collection_patientMealPlan = 'patient_mealPlan';
 }
 
 
@@ -89,45 +97,47 @@ class MasterCollectionMapper {
 
   // 🎯 Central Map: Maps the Entity Constant to the Collection Path Constant
   static const Map<String, String> collectionMap = {
-    MasterEntity.entity_allergy: MasterCollectionPath.collection_allergy,
-    MasterEntity.entity_disease: MasterCollectionPath.collection_master_disease,
-    MasterEntity.entity_supplement: MasterCollectionPath.collection_master_suppliment,
-    MasterEntity.entity_giSymptom: MasterCollectionPath.collection_master_giSymptom,
-    MasterEntity.entity_LifestyleHabit: MasterCollectionPath.collection_master_lifestyle_habits,
-    MasterEntity.entity_develop_habits: MasterCollectionPath.collection_master_develop_habits,
+    MasterEntity.entity_allergy: FirestoreCollection.collection_allergy,
+    MasterEntity.entity_disease: FirestoreCollection.collection_master_disease,
+    MasterEntity.entity_supplement: FirestoreCollection.collection_master_suppliment,
+    MasterEntity.entity_giSymptom: FirestoreCollection.collection_master_giSymptom,
+    MasterEntity.entity_LifestyleHabit: FirestoreCollection.collection_master_lifestyle_habits,
+    MasterEntity.entity_develop_habits: FirestoreCollection.collection_master_develop_habits,
     // Note: Water Intake and Caffeine Source point to the same collection path
-    MasterEntity.entity_waterIntake: MasterCollectionPath.collection_master_intake,
-    MasterEntity.entity_caffeineSource: MasterCollectionPath.collection_caffeineSource,
+    MasterEntity.entity_waterIntake: FirestoreCollection.collection_master_intake,
+    MasterEntity.entity_caffeineSource: FirestoreCollection.collection_caffeineSource,
 
-    MasterEntity.entity_Complaint: MasterCollectionPath.collection_complaint,
-    MasterEntity.entity_Diagnosis: MasterCollectionPath.collection_diagnosis,
-    MasterEntity.entity_Clinicalnotes: MasterCollectionPath.collection_clinicalnote,
-    MasterEntity.entity_Investigation: MasterCollectionPath.collection_Investigation,
+    MasterEntity.entity_Complaint: FirestoreCollection.collection_complaint,
+    MasterEntity.entity_Diagnosis: FirestoreCollection.collection_diagnosis,
+    MasterEntity.entity_Clinicalnotes: FirestoreCollection.collection_clinicalnote,
+    MasterEntity.entity_Investigation: FirestoreCollection.collection_Investigation,
 
 // Food/Diet Planning Masters (typically complex)
-    MasterEntity.entity_FoodItem: MasterCollectionPath.collection_FoodItem,
-    MasterEntity.entity_FoodCategory: MasterCollectionPath.collection_FoodCategory,
-    MasterEntity.entity_MealNames: MasterCollectionPath.collection_MealNames,
-    MasterEntity.entity_ServingUnits: MasterCollectionPath.collection_ServingUnits,
-    MasterEntity.entity_Guidelines: MasterCollectionPath.collection_Guidelines,
-    MasterEntity.entity_DietPlanCategories: MasterCollectionPath.collection_DietPlanCategories,
-    MasterEntity.entity_mealTemplates: MasterCollectionPath.collection_mealTemplates,
+    MasterEntity.entity_FoodItem: FirestoreCollection.collection_FoodItem,
+    MasterEntity.entity_FoodCategory: FirestoreCollection.collection_FoodCategory,
+    MasterEntity.entity_MealNames: FirestoreCollection.collection_MealNames,
+    MasterEntity.entity_ServingUnits: FirestoreCollection.collection_ServingUnits,
+    MasterEntity.entity_Guidelines: FirestoreCollection.collection_Guidelines,
+    MasterEntity.entity_DietPlanCategories: FirestoreCollection.collection_DietPlanCategories,
+    MasterEntity.entity_mealTemplates: FirestoreCollection.collection_mealTemplates,
 
 
 
     // Simple Dropdown Masters
-    MasterEntity.entity_ActivityLevels: MasterCollectionPath.collection_ActivityLevels,
-    MasterEntity.entity_SleepQuality: MasterCollectionPath.collection_SleepQuality,
-    MasterEntity.entity_MenstrualStatus: MasterCollectionPath.collection_MenstrualStatus,
-    MasterEntity.entity_foodHabitsOptions: MasterCollectionPath.collection_foodHabitsOptions,
+    MasterEntity.entity_ActivityLevels: FirestoreCollection.collection_ActivityLevels,
+    MasterEntity.entity_SleepQuality: FirestoreCollection.collection_SleepQuality,
+    MasterEntity.entity_MenstrualStatus: FirestoreCollection.collection_MenstrualStatus,
+    MasterEntity.entity_foodHabitsOptions: FirestoreCollection.collection_foodHabitsOptions,
 
-    MasterEntity.entity_packagefeature : MasterCollectionPath.collection_packagefeature,
-    MasterEntity.entity_packages :MasterCollectionPath.collection_packages,
-    MasterEntity.entity_packageInclusion: MasterCollectionPath.collection_packageInclusion,
-    MasterEntity.entity_packageTargetCondition : MasterCollectionPath.collection_packageTargetCondition,
-    MasterEntity.entity_packageCategory : MasterCollectionPath.collection_packageCategory,
-    MasterEntity.entity_labTestCategory: MasterCollectionPath.collection_labTestCategory,
-    MasterEntity.entity_labTestConfig : MasterCollectionPath.collection_labTestConfig
+    MasterEntity.entity_packagefeature : FirestoreCollection.collection_packagefeature,
+    MasterEntity.entity_packages :FirestoreCollection.collection_packages,
+    MasterEntity.entity_packageInclusion: FirestoreCollection.collection_packageInclusion,
+    MasterEntity.entity_packageTargetCondition : FirestoreCollection.collection_packageTargetCondition,
+    MasterEntity.entity_packageCategory : FirestoreCollection.collection_packageCategory,
+    MasterEntity.entity_labTestCategory: FirestoreCollection.collection_labTestCategory,
+    MasterEntity.entity_labTestConfig : FirestoreCollection.collection_labTestConfig,
+    TransactionEntity.entity_patientVitals: FirestoreCollection.collection_patientVitals,
+    TransactionEntity.entity_patientMealPlan: FirestoreCollection.collection_patientMealPlan,
 
 
 

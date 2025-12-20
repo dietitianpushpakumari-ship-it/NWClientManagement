@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/lab_category_migrator.dart';
+import 'package:nutricare_client_management/admin/lab_test_config_entry_page.dart';
 import 'package:nutricare_client_management/admin/lab_test_config_model.dart';
 import 'package:nutricare_client_management/admin/lab_test_config_service.dart';
+import 'package:nutricare_client_management/admin/lab_vitals_migrator.dart';
 import 'dart:ui';
 
 // 🎯 Helper for Categories and initial data
@@ -11,11 +13,8 @@ import 'package:nutricare_client_management/helper/lab_vitals_data.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/admin/services/master_data_service.dart';
 
-import '../lab_test_config_entry_page.dart';
-import '../lab_vitals_migrator.dart';
 
-
-// 🎯 NEW PROVIDER: Fetches list of category names (Strings) from Firestore
+// NEW PROVIDER: Fetches list of category names (Strings) from Firestore
 final labCategoryNamesProvider = StreamProvider.autoDispose<List<String>>((ref) {
   final service = ref.watch(masterDataServiceProvider);
   final collectionPath = MasterCollectionMapper.getPath(MasterEntity.entity_labTestCategory);
@@ -37,7 +36,7 @@ class _LabTestConfigListScreenState extends ConsumerState<LabTestConfigListScree
 
   // --- Bulk Upload Logic (Retained) ---
   void _confirmBulkUpload(BuildContext context) async {
-    final testsCount = LabVitalsData.allLabTests.length;
+    final testsCount = LabVitalsData.allLabTests1.length;
 
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -56,7 +55,11 @@ class _LabTestConfigListScreenState extends ConsumerState<LabTestConfigListScree
     );
 
     if (confirm == true) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Starting bulk upload...")), );
+      // FIX: duration passed to SnackBar, not showSnackBar
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Starting bulk upload..."),
+          duration: Duration(seconds: 1)
+      ));
       try {
         final uploadedCount = await LabVitalsMigrator.runBulkMigration(ref);
 
@@ -68,7 +71,7 @@ class _LabTestConfigListScreenState extends ConsumerState<LabTestConfigListScree
   }
 
   void _confirmCategoryBulkUpload(BuildContext context) async {
-    final categoriesCount = LabVitalsData.labCategories.length;
+    final categoriesCount = LabVitalsData.labCategories1.length;
 
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -87,7 +90,11 @@ class _LabTestConfigListScreenState extends ConsumerState<LabTestConfigListScree
     );
 
     if (confirm == true) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Starting category bulk upload...")), );
+      // FIX: duration passed to SnackBar, not showSnackBar
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Starting category bulk upload..."),
+          duration: Duration(seconds: 1)
+      ));
       try {
         final uploadedCount = await LabCategoryMigrator.runBulkMigration(ref);
 
@@ -135,8 +142,7 @@ class _LabTestConfigListScreenState extends ConsumerState<LabTestConfigListScree
     );
   }
 
-  // --- List View Builders (Retained) ---
-
+  // 🎯 MODIFIED: Replaced Row of IconButtons with a single PopupMenuButton
   Widget _buildTestCard(BuildContext context, LabTestConfigModel test) {
     final rangeText = (test.minRange != null && test.maxRange != null)
         ? "${test.minRange} - ${test.maxRange} ${test.unit}"
@@ -154,13 +160,39 @@ class _LabTestConfigListScreenState extends ConsumerState<LabTestConfigListScree
             Text("Range: $rangeText", style: const TextStyle(fontSize: 12)),
           ],
         ),
-        trailing: IconButton(
-          icon: const Icon(Icons.edit, color: Colors.blue),
-          onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => LabTestConfigEntryPage(initialTest: test)));
+        // 🎯 NEW: Menu for Edit and Delete
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'edit') {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => LabTestConfigEntryPage(initialTest: test)));
+            } else if (value == 'delete') {
+              _confirmDelete(test.id, test.displayName);
+            }
           },
+          itemBuilder: (context) => [
+            const PopupMenuItem<String>(
+              value: 'edit',
+              child: Row(
+                children: [
+                  Icon(Icons.edit, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text('Edit'),
+                ],
+              ),
+            ),
+            const PopupMenuItem<String>(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_forever, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Delete'),
+                ],
+              ),
+            ),
+          ],
+          icon: const Icon(Icons.more_vert),
         ),
-        onLongPress: () => _confirmDelete(test.id, test.displayName),
       ),
     );
   }
@@ -195,7 +227,7 @@ class _LabTestConfigListScreenState extends ConsumerState<LabTestConfigListScree
   @override
   Widget build(BuildContext context) {
     final testsAsyncValue = ref.watch(allLabTestsStreamProvider);
-    // 🎯 Use the new provider for categories instead of the hardcoded list
+    // Use the new provider for categories instead of the hardcoded list
     final categoriesAsync = ref.watch(labCategoryNamesProvider);
 
     return Scaffold(
@@ -221,7 +253,7 @@ class _LabTestConfigListScreenState extends ConsumerState<LabTestConfigListScree
           children: [
             _buildCustomHeader(context),
 
-            // 🎯 CATEGORY FILTER DROPDOWN (Now driven by Firestore data)
+            // CATEGORY FILTER DROPDOWN (Now driven by Firestore data)
             categoriesAsync.when(
               loading: () => const Padding(
                 padding: EdgeInsets.all(20),
