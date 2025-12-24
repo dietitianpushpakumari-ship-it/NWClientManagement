@@ -5,10 +5,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
-import 'package:nutricare_client_management/admin/admin_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/staff_management_service.dart';
 import 'package:nutricare_client_management/image_compressor.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
+import 'package:nutricare_client_management/master_diet_planner/generic_multi_select_dialogg.dart';
 
 class DietitianOnboardingScreen extends ConsumerStatefulWidget {
   final AdminProfileModel? staffToEdit;
@@ -35,6 +36,8 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
   final _specInputCtrl = TextEditingController();
   final _qualInputCtrl = TextEditingController();
   final _desigInputCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final TextEditingController _regNoController = TextEditingController();
 
   // State
   AdminRole _selectedRole = AdminRole.dietitian;
@@ -80,13 +83,17 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
     _addressCtrl.text = staff.address ?? '';
     _empIdCtrl.text = staff.employeeId;
     _selectedDesignation = staff.designation.isNotEmpty ? staff.designation : null;
-
+    //_emailCtrl.text = staff.email;
     _selectedRole = staff.role;
     _gender = staff.gender;
     _dob = staff.dob;
     _selectedQuals = List.from(staff.qualifications);
     _selectedSpecs = List.from(staff.specializations);
     _existingPhotoUrl = staff.photoUrl;
+    _regNoController.text = staff.regdNo;
+    _emailCtrl.text = staff.companyEmail;
+    _empIdCtrl.text = staff.employeeId;
+
 
     // 🎯 Load Permissions
     _selectedPermissions = List.from(staff.permissions);
@@ -102,29 +109,83 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
 
   // --- MASTER DATA HANDLERS ---
   Future<void> _addDesig() async {
-    if (_desigInputCtrl.text.isNotEmpty) {
-      await ref.read(staffManagementProvider).addDesignationToMaster(_desigInputCtrl.text.trim());
-      setState(() => _selectedDesignation = _desigInputCtrl.text.trim());
-      _desigInputCtrl.clear();
-      if (mounted) Navigator.pop(context);
+    final String val = _desigInputCtrl.text.trim();
+
+    if (val.isNotEmpty) {
+      try {
+        // 1. Check for local duplicates before calling the service
+        // This prevents unnecessary network calls if the item is already selected
+        if (_selectedDesignation == val) {
+          _desigInputCtrl.clear();
+          if (mounted) Navigator.pop(context);
+          return;
+        }
+
+        // 2. Call the service to add to the Firestore master array
+        await ref.read(staffManagementProvider).addDesignationToMaster(val);
+
+        // 3. Update the local state immediately
+        // This ensures the value is reflected in the UI without waiting for the stream
+        setState(() {
+          _selectedDesignation = val;
+        });
+
+        // 4. Cleanup UI
+        _desigInputCtrl.clear();
+        if (mounted) Navigator.pop(context);
+
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Failed to add designation: $e"))
+          );
+        }
+      }
     }
   }
+// lib/admin/dietitian_onboarding_screen.dart
 
   Future<void> _addQual() async {
-    if (_qualInputCtrl.text.isNotEmpty) {
-      final val = _qualInputCtrl.text.trim();
+    final val = _qualInputCtrl.text.trim();
+    if (val.isNotEmpty) {
+      // Prevent local duplicate selection before saving
+      if (_selectedQuals.contains(val)) {
+        _qualInputCtrl.clear();
+        Navigator.pop(context);
+        return;
+      }
+
       await ref.read(staffManagementProvider).addQualificationToMaster(val);
-      setState(() => _selectedQuals.add(val));
+
+      // Update local selection state immediately
+      setState(() {
+        _selectedQuals.add(val);
+      });
+
       _qualInputCtrl.clear();
       if (mounted) Navigator.pop(context);
     }
   }
 
+
+
   Future<void> _addSpec() async {
-    if (_specInputCtrl.text.isNotEmpty) {
-      final val = _specInputCtrl.text.trim();
+    final val = _specInputCtrl.text.trim();
+    if (val.isNotEmpty) {
+      // Prevent local duplicate selection before saving
+      if (_selectedSpecs.contains(val)) {
+        _specInputCtrl.clear();
+        Navigator.pop(context);
+        return;
+      }
+
       await ref.read(staffManagementProvider).addSpecializationToMaster(val);
-      setState(() => _selectedSpecs.add(val));
+
+      // Update local selection state immediately
+      setState(() {
+        _selectedSpecs.add(val);
+      });
+
       _specInputCtrl.clear();
       if (mounted) Navigator.pop(context);
     }
@@ -168,8 +229,11 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
           designation: _selectedDesignation!,
           qualifications: _selectedQuals,
           specializations: _selectedSpecs,
+          companyEmail: _emailCtrl.text.trim(),
           photoUrl: photoUrl,
-          permissions: _selectedPermissions, // 🎯 Save permissions on edit
+          regdNo: _regNoController.text.trim(),
+          permissions: _selectedPermissions,
+          employeeId: _empIdCtrl.text.trim()// 🎯 Save permissions on edit
         );
         await ref.read(staffManagementProvider).updateStaffProfile(updatedStaff);
         if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated!"), backgroundColor: Colors.green)); Navigator.pop(context); }
@@ -190,7 +254,10 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
           qualifications: _selectedQuals,
           specializations: _selectedSpecs,
           photoUrl: photoUrl,
-          permissions: _selectedPermissions, // 🎯 Passed here
+          regdNo: _regNoController.text.trim(),
+          companyEmail: _emailCtrl.text.trim(),
+          permissions: _selectedPermissions,
+          employeeId: _empIdCtrl.text.trim()// 🎯 Passed here
         );
         if (mounted) _showSuccessDialog(empId);
       }
@@ -220,12 +287,31 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 1. Photo
-              Center(child: GestureDetector(onTap: _pickImage, child: CircleAvatar(radius: 60, backgroundImage: _photo != null ? FileImage(_photo!) : (_existingPhotoUrl != null ? NetworkImage(_existingPhotoUrl!) : null), child: (_photo == null && _existingPhotoUrl == null) ? const Icon(Icons.add_a_photo) : null))),
+              // lib/admin/dietitian_onboarding_screen.dart
+
+              Center(
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: CircleAvatar(
+                    radius: 60,
+                    backgroundImage: _photo != null
+                        ? FileImage(_photo!) // Load local picked image
+                        : (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty // 🎯 Check for non-empty string
+                        ? NetworkImage(_existingPhotoUrl!)
+                        : null),
+                    child: (_photo == null && (_existingPhotoUrl == null || _existingPhotoUrl!.isEmpty)) // 🎯 Also check here
+                        ? const Icon(Icons.add_a_photo, size: 40)
+                        : null,
+                  ),
+                ),
+              ),
               const SizedBox(height: 30),
 
               // 2. Identity
               _buildPremiumCard("Identity & Role", Icons.badge, Colors.indigo, [
                 _buildDropdown("Role", _selectedRole, AdminRole.values, (v) => setState(() => _selectedRole = v!)),
+                const SizedBox(height: 16),
+                _buildTextField(_empIdCtrl, "Employee ID", Icons.badge_outlined),
                 const SizedBox(height: 16),
                 Row(children: [
                   Expanded(child: _buildTextField(_fnameCtrl, "First Name", Icons.person)),
@@ -238,6 +324,8 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
                   const SizedBox(width: 12),
                   Expanded(child: _buildDatePicker("DOB", _dob, (d) => setState(() => _dob = d))),
                 ]),
+                const SizedBox(width: 12),
+                _buildTextField(_emailCtrl, "Official Email", Icons.email),
               ]),
 
               // 3. Contact
@@ -253,55 +341,73 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
                 _buildTextField(_panCtrl, "PAN Number", Icons.credit_card),
               ]),
 
-              // 4. Professional
+              // 4. Professional Profile Section
               _buildPremiumCard("Professional Profile", Icons.school, Colors.teal, [
-                // DESIGNATION
-                _buildMasterHeader("Designation", ref.watch(staffManagementProvider).streamDesignations(), () => _showAddDialog("Designation", _desigInputCtrl, _addDesig)),
-                StreamBuilder<List<String>>(
-                    stream: ref.watch(staffManagementProvider).streamDesignations(),
-                    builder: (ctx, snap) => DropdownButtonFormField<String>(
-                      value: (snap.data ?? []).contains(_selectedDesignation) ? _selectedDesignation : null,
-                      items: (snap.data ?? []).map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                      onChanged: (v) => setState(() => _selectedDesignation = v),
-                      decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12)),
-                      hint: const Text("Select Designation"),
-                    )
-                ),
-                const SizedBox(height: 20),
 
-                // QUALIFICATIONS
-                _buildMasterHeader("Qualifications", ref.watch(staffManagementProvider).streamQualifications(), () => _showAddDialog("Qualification", _qualInputCtrl, _addQual)),
+
+
+                // lib/admin/dietitian_onboarding_screen.dart
+
+// 🎯 DESIGNATION (Inside the build method)
                 StreamBuilder<List<String>>(
-                  stream: ref.watch(staffManagementProvider).streamQualifications(),
+                  stream: ref.watch(staffManagementProvider).streamDesignations(),
                   builder: (context, snapshot) {
-                    final items = snapshot.data ?? [];
-                    return Wrap(spacing: 8, children: items.map((q) => FilterChip(
-                      label: Text(q),
-                      selected: _selectedQuals.contains(q),
-                      onSelected: (v) => setState(() => v ? _selectedQuals.add(q) : _selectedQuals.remove(q)),
-                      selectedColor: Colors.teal.shade100,
-                    )).toList());
+                    final designations = snapshot.data ?? []; // 識 This list is live
+                    return _buildSelectionTile(
+                      label: "Designation",
+                      value: (_selectedDesignation == null || _selectedDesignation!.isEmpty)
+                          ? "Select Designation"
+                          : _selectedDesignation!,
+                      icon: Icons.badge_outlined,
+                      onTap: () => _openSingleSelect(
+                        "Designation",
+                        designations, // 識 Pass the live list from the StreamBuilder
+                        _selectedDesignation,
+                            (res) => setState(() => _selectedDesignation = res),
+                      ),
+                    );
                   },
                 ),
 
+
+                const SizedBox(height: 20),
+                _buildTextField(_regNoController, "Registration Number", Icons.app_registration),
+
+                const SizedBox(height: 20),
+                // lib/admin/dietitian_onboarding_screen.dart
+
+                _buildSelectionTile(
+                  label: "Qualifications",
+                  value: _selectedQuals.isEmpty ? "Select Qualifications" : _selectedQuals.join(", "),
+                  icon: Icons.school_outlined,
+                  onTap: () => _openMultiSelect(
+                    "Qualifications",
+                    ref.read(staffManagementProvider).streamQualifications(), // 🎯 Pass Stream
+                    _selectedQuals,
+                        (res) => setState(() => _selectedQuals = res),
+                  ),
+                ),
+
                 const SizedBox(height: 20),
 
-                // SPECIALIZATIONS
-                _buildMasterHeader("Specializations", ref.watch(staffManagementProvider).streamSpecializations(), () => _showAddDialog("Specialization", _specInputCtrl, _addSpec)),
-                StreamBuilder<List<String>>(
-                  stream: ref.watch(staffManagementProvider).streamSpecializations(),
-                  builder: (context, snapshot) {
-                    final items = snapshot.data ?? [];
-                    return Wrap(spacing: 8, children: items.map((s) => FilterChip(
-                      label: Text(s),
-                      selected: _selectedSpecs.contains(s),
-                      onSelected: (v) => setState(() => v ? _selectedSpecs.add(s) : _selectedSpecs.remove(s)),
-                      selectedColor: Colors.teal.shade100,
-                      checkmarkColor: Colors.teal,
-                    )).toList());
-                  },
+                _buildSelectionTile(
+                  label: "Specializations",
+                  value: _selectedSpecs.isEmpty ? "Select Specializations" : _selectedSpecs.join(", "),
+                  icon: Icons.star_outline,
+                  onTap: () => _openMultiSelect(
+                    "Specializations",
+                    ref.read(staffManagementProvider).streamSpecializations(), // 🎯 Pass Stream
+                    _selectedSpecs,
+                        (res) => setState(() => _selectedSpecs = res),
+                  ),
                 ),
+                // DESIGNATION (Keeping single select as is)
+
+                const SizedBox(height: 20),
+
+
               ]),
+
 
               // 🎯 5. NEW: ACCESS PERMISSIONS
               _buildPremiumCard("Access Control", Icons.lock_open, Colors.redAccent, [
@@ -359,5 +465,102 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
   }
   Widget _buildDatePicker(String label, DateTime? val, ValueChanged<DateTime> onSelect) {
     return InkWell(onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime(1990), firstDate: DateTime(1950), lastDate: DateTime.now()); if (d != null) onSelect(d); }, child: InputDecorator(decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), filled: true, fillColor: Colors.white), child: Text(val != null ? DateFormat('dd/MM/yyyy').format(val) : "Select")));
+  }
+
+  // Helper to launch your existing Generic Dialog
+// lib/admin/dietitian_onboarding_screen.dart
+
+  // lib/admin/dietitian_onboarding_screen.dart
+
+  // lib/admin/dietitian_onboarding_screen.dart
+
+  void _openMultiSelect(
+      String title,
+      Stream<List<String>> itemStream, // 🎯 Pass the stream directly
+      List<String> currentSelections,
+      Function(List<String>) onUpdate,
+      ) async {
+    final List<String>? results = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StreamBuilder<List<String>>(
+        stream: itemStream, // 🎯 Re-run builder whenever Firestore changes
+        builder: (context, snapshot) {
+          return GenericMultiSelectDialog(
+            title: title,
+            items: snapshot.data ?? [], // 🎯 Live data from stream
+            itemNameIdMap: const {},
+            initialSelectedItems: currentSelections,
+            onAddMaster: () {
+              if (title == "Qualifications") {
+                _showAddDialog("Qualification", _qualInputCtrl, _addQual);
+              } else if (title == "Specializations") {
+                _showAddDialog("Specialization", _specInputCtrl, _addSpec);
+              }
+            },
+          );
+        },
+      ),
+    );
+
+    if (results != null) onUpdate(results);
+  }
+  Widget _buildSelectionTile({
+    required String label,
+    required String value,
+    required IconData icon,
+    required VoidCallback onTap
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, size: 20, color: Colors.teal),
+          border: const OutlineInputBorder(),
+          filled: true,
+          fillColor: Colors.white,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
+            const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+  // lib/admin/dietitian_onboarding_screen.dart
+
+  void _openSingleSelect(
+      String title,
+      List<String> items,
+      String? currentValue,
+      Function(String?) onUpdate,
+      ) async {
+    // Use showModalBottomSheet as required by your GenericMultiSelectDialog layout
+    final List<String>? results = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true, // Allows the 0.9 height container
+      backgroundColor: Colors.transparent,
+      builder: (context) => GenericMultiSelectDialog(
+        title: title,
+        items: items,
+        itemNameIdMap: const {}, // Not currently used for UI display
+        initialSelectedItems: currentValue != null ? [currentValue] : [],
+        singleSelect: true, // 🎯 Key fix for single selection logic
+        onAddMaster: () {
+          // Trigger your existing designation add logic
+          _showAddDialog("Designation", _desigInputCtrl, _addDesig);
+        },
+      ),
+    );
+
+    if (results != null) {
+      // Return the first item if list is not empty, otherwise null
+      onUpdate(results.isNotEmpty ? results.first : null);
+    }
   }
 }

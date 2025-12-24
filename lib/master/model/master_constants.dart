@@ -38,11 +38,17 @@ abstract class MasterEntity {
   static const String entity_labTestCategory = 'entity_labTestCategory';
   static const String entity_labTestConfig = 'entity_labTestConfigs';
 
+  static const String entity_userDesignation = 'designations';
+  static const String entity_userQualification = 'qualifications';
+  static const String entity_userSpecialization = 'specializations';
+
 }
 
 abstract class TransactionEntity {
   static const String entity_patientVitals = 'entity_patientVitals'; // For package entries themselves
   static const String entity_patientMealPlan = 'entity_patientMealPlan';
+  static const String entity_patientSubscription = 'entity_patientSubscription';
+  static const String entity_patientPayment = 'entity_patientPayment';
 }
 
 // --- 2. Collection Path Constants (Used in MasterDataService) ---
@@ -88,6 +94,13 @@ abstract class FirestoreCollection {
 
   static const String collection_patientVitals = 'patient_vitals';
   static const String collection_patientMealPlan = 'patient_mealPlan';
+  static const String collection_patientSubscription = 'patient_subscription';
+  static const String collection_patientPayment = 'patient_payment';
+
+
+  static const String collection_masterUserDesignation = 'configurations/staff_master';
+  static const String collection_masterUserQualification = 'configurations/staff_master';
+  static const String collection_masterUserSpecialization = 'configurations/staff_master';
 }
 
 
@@ -138,6 +151,13 @@ class MasterCollectionMapper {
     MasterEntity.entity_labTestConfig : FirestoreCollection.collection_labTestConfig,
     TransactionEntity.entity_patientVitals: FirestoreCollection.collection_patientVitals,
     TransactionEntity.entity_patientMealPlan: FirestoreCollection.collection_patientMealPlan,
+    TransactionEntity.entity_patientSubscription:FirestoreCollection.collection_patientSubscription,
+    TransactionEntity.entity_patientPayment:FirestoreCollection.collection_patientPayment,
+
+    MasterEntity.entity_userDesignation : FirestoreCollection.collection_masterUserDesignation,
+    MasterEntity.entity_userQualification : FirestoreCollection.collection_masterUserQualification,
+    MasterEntity.entity_userSpecialization : FirestoreCollection.collection_masterUserSpecialization,
+
 
 
 

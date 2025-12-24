@@ -78,7 +78,7 @@ class _HabitMasterScreenState extends ConsumerState<HabitMasterScreen> {
 
   void _editItem(HabitMasterModel habit) {
     _clearForm();
-    _enTitleController.text = habit.title;
+    _enTitleController.text = habit.name;
     _enDescController.text = habit.description;
 
     habit.titleLocalized.forEach((code, name) {
@@ -145,7 +145,7 @@ class _HabitMasterScreenState extends ConsumerState<HabitMasterScreen> {
 
     final itemToSave = HabitMasterModel(
       id: _editingHabit?.id ?? '',
-      title: _enTitleController.text.trim(),
+      name: _enTitleController.text.trim(),
       description: _enDescController.text.trim(),
       category: _selectedCategory,
       iconCode: _selectedIconCode,
@@ -343,7 +343,7 @@ class _HabitMasterScreenState extends ConsumerState<HabitMasterScreen> {
             final allHabits = snapshot.data ?? [];
 
             final filteredHabits = allHabits.where((habit) =>
-            habit.title.toLowerCase().contains(_searchQuery) ||
+            habit.name.toLowerCase().contains(_searchQuery) ||
                 habit.description.toLowerCase().contains(_searchQuery)
             ).toList();
 
@@ -360,7 +360,7 @@ class _HabitMasterScreenState extends ConsumerState<HabitMasterScreen> {
                   margin: const EdgeInsets.only(bottom: 10),
                   child: ListTile(
                     leading: Icon(habit.iconData, color: Colors.teal),
-                    title: Text(habit.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    title: Text(habit.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

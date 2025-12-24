@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
-import 'package:provider/provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/package/model/package_model.dart';
 import 'package:nutricare_client_management/modules/package/service/package_Service.dart';
@@ -11,8 +11,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PackageAssignmentPage extends ConsumerStatefulWidget {
   final ClientModel client;
+  final String? sessionId;
 
-  const PackageAssignmentPage({super.key, required this.client});
+  const PackageAssignmentPage({super.key, required this.client, this.sessionId});
 
   @override
   ConsumerState<PackageAssignmentPage> createState() => _PackageAssignmentPageState();
@@ -53,7 +54,6 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
     setState(() {
       _offerExtraDays = newValue;
       _extraDaysCtrl.text = newValue.toString();
-      // Ensure cursor stays at end if typing (optional but nice)
       _extraDaysCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _extraDaysCtrl.text.length));
     });
   }
@@ -90,6 +90,8 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
         'endDate': Timestamp.fromDate(endDate),
         'price': _selectedPackage!.price,
         'status': 'active',
+        // 🎯 LINKING THE SESSION
+        'sessionId': widget.sessionId,
 
         'sessionsTotal': _selectedPackage!.consultationCount,
         'sessionsRemaining': _selectedPackage!.consultationCount,
@@ -105,12 +107,11 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-      await ref.read(firestoreProvider).collection('subscriptions').add(subscriptionData);
+      await ref.read(firestoreProvider).collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientSubscription)).add(subscriptionData);
 
       await ref.read(firestoreProvider).collection('clients').doc(widget.client.id).update({
         'currentPlan': _selectedPackage!.name,
         'planExpiry': Timestamp.fromDate(endDate),
-        'clientType': 'active',
         'freeSessionsRemaining': finalFreeSessions,
       });
 
@@ -160,17 +161,29 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const LinearProgressIndicator();
 
-                final allPackages = snapshot.data!.where((p) => p.isActive).toList();
+                // 🎯 CRITICAL FIX: Filter by 'isFinalized' instead of 'isActive'
+                // This ensures ALL finalized plans show up (even if inactive), and NO drafts show up.
+                final allPackages = snapshot.data!.where((p) => p.isFinalized).toList();
 
+                if (allPackages.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: Text("No finalized packages available. Go to Package Master to finalize a draft.", style: TextStyle(color: Colors.red)),
+                  );
+                }
+
+                // Collect Conditions for Filter Tabs
                 final Set<String> conditions = {'All'};
                 for (var p in allPackages) {
                   conditions.addAll(p.targetConditions);
                 }
 
+                // Apply UI Filter (Tabs)
                 final filteredPackages = _selectedConditionFilter == 'All'
                     ? allPackages
                     : allPackages.where((p) => p.targetConditions.contains(_selectedConditionFilter)).toList();
 
+                // Reset Selection if filtered out
                 if (_selectedPackage != null && !filteredPackages.any((p) => p.id == _selectedPackage!.id)) {
                   WidgetsBinding.instance.addPostFrameCallback((_) => setState(() {
                     _selectedPackage = null;
@@ -178,6 +191,7 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
                     _updateExtraSessions(0);
                   }));
                 } else if (_selectedPackage != null) {
+                  // Keep selection updated
                   try {
                     _selectedPackage = filteredPackages.firstWhere((p) => p.id == _selectedPackage!.id);
                   } catch (_) {}
@@ -186,6 +200,7 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Condition Filter Chips
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -211,13 +226,14 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
                     ),
                     const SizedBox(height: 8),
 
+                    // Dropdown
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: _selectedPackage?.id,
-                          hint: Text("Select from ${filteredPackages.length} active plans..."),
+                          hint: Text("Select from ${filteredPackages.length} finalized plans..."),
                           isExpanded: true,
                           items: filteredPackages.map((pkg) => DropdownMenuItem(
                             value: pkg.id,
@@ -226,6 +242,8 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
                                 if(pkg.colorCode != null)
                                   Container(width: 8, height: 8, margin: const EdgeInsets.only(right: 8), decoration: BoxDecoration(color: Color(int.parse(pkg.colorCode!)), shape: BoxShape.circle)),
                                 Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                if(!pkg.isActive) // Optional: Visual indicator for inactive finalized plans
+                                  const Text(" (Archived)", style: TextStyle(color: Colors.red, fontSize: 10)),
                               ],
                             ),
                           )).toList(),
@@ -290,7 +308,8 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
     );
   }
 
-  // 🎯 UPDATED OFFER SECTION WITH TEXT BOXES
+  // ... [Keep _buildOfferSection, _buildNumberInput, _buildCounterBtn, _buildClientSummary, _buildPackagePreview, _buildDetailItem EXACTLY as they were] ...
+
   Widget _buildOfferSection(PackageModel pkg) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -311,7 +330,6 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
           ),
           const SizedBox(height: 16),
 
-          // 1. Extra Days Row
           Row(
             children: [
               Expanded(
@@ -324,7 +342,6 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
                   ],
                 ),
               ),
-              // Counter with Text Field
               _buildCounterBtn(Icons.remove, () => _updateExtraDays(_offerExtraDays - 1)),
               const SizedBox(width: 8),
               _buildNumberInput(_extraDaysCtrl, (v) => _updateExtraDays(v)),
@@ -334,7 +351,6 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
           ),
           const Divider(height: 24),
 
-          // 2. Extra Sessions Row
           Row(
             children: [
               Expanded(
@@ -347,7 +363,6 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
                   ],
                 ),
               ),
-              // Counter with Text Field
               _buildCounterBtn(Icons.remove, () => _updateExtraSessions(_offerExtraSessions - 1)),
               const SizedBox(width: 8),
               _buildNumberInput(_extraSessionsCtrl, (v) => _updateExtraSessions(v)),
@@ -360,25 +375,16 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
     );
   }
 
-  // Helper for Text Box between buttons
   Widget _buildNumberInput(TextEditingController ctrl, Function(int) onChanged) {
     return Container(
-      width: 50,
-      height: 36,
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade300)
-      ),
+      width: 50, height: 36,
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
       child: TextField(
         controller: ctrl,
         keyboardType: TextInputType.number,
         textAlign: TextAlign.center,
         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.only(bottom: 12), // Center vertically
-        ),
+        decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.only(bottom: 12)),
         onChanged: (val) {
           final v = int.tryParse(val);
           if (v != null) onChanged(v);
@@ -390,12 +396,7 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
   Widget _buildCounterBtn(IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
-        child: Icon(icon, size: 16, color: Colors.black87),
-      ),
+      child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)), child: Icon(icon, size: 16, color: Colors.black87)),
     );
   }
 

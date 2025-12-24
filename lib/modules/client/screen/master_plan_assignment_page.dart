@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/plan_report_view_screen.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/master_diet_planner/generic_multi_select_dialogg.dart';
@@ -7,7 +8,7 @@ import 'package:nutricare_client_management/admin/generic_clinical_master_entry_
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 // 🎯 ADDED REQUIRED IMPORTS
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
-import 'package:nutricare_client_management/modules/client/screen/plan_report_view_screen.dart';
+import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_list.dart';
 // Note: MasterDietPlanModel is assumed to be imported via global_service_provider.dart or similar.
 
 
@@ -24,15 +25,16 @@ final masterDietPlansProvider = FutureProvider.autoDispose<Map<String, String>>(
 
 class MasterPlanAssignmentSheet extends ConsumerStatefulWidget {
   final ClientModel client;
+  final String? sessionId;
 
-  const MasterPlanAssignmentSheet({super.key, required this.client});
+  const MasterPlanAssignmentSheet({super.key, required this.client,this.sessionId});
 
   // 🎯 FIX: Correctly define the static method for external calling
-  static Future<bool?> showAssignmentSheet(BuildContext context, ClientModel client) {
+  static Future<bool?> showAssignmentSheet(BuildContext context, ClientModel client,String? sessionId) {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => MasterPlanAssignmentSheet(client: client),
+      builder: (ctx) => MasterPlanAssignmentSheet(client: client, sessionId: sessionId,),
     );
   }
 
@@ -165,19 +167,19 @@ class _MasterPlanAssignmentSheetState extends ConsumerState<MasterPlanAssignment
 
       // The sheet must be closed before opening a full page preview
       if (mounted) {
-        Navigator.pop(context);
+       // Navigator.pop(context);
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => PlanReportViewScreen(
               plan: clientPlanForPreview,
               client: widget.client,
-              isMasterPreview: true,
+              isMasterPreview: true, vitals: null,
             ),
           ),
-        ).then((_) {
+        );//.then((_) {
           // Re-open the selector sheet when preview is dismissed
-          MasterPlanAssignmentSheet.showAssignmentSheet(context, widget.client);
-        });
+       //   MasterPlanAssignmentSheet.showAssignmentSheet(context, widget.client);
+     //   });
       }
     } catch (e) {
       if (mounted) {
@@ -190,45 +192,65 @@ class _MasterPlanAssignmentSheetState extends ConsumerState<MasterPlanAssignment
 
   // --- Plan Assignment Logic (FINALIZED) ---
 
+// lib/modules/client/screen/master_plan_assignment_page.dart
+
+// lib/modules/client/screen/master_plan_assignment_page.dart
+
   Future<void> _assignPlanAndInterventions() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedPlanId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a Master Diet Plan first.")));
-      return;
+    if (_selectedPlanId == null) return;
+
+    final clientPlanService = ref.read(clientDietPlanServiceProvider);
+
+    // 1. 🎯 Check if a draft already exists for this session
+    final existingPlans = ref.read(dietPlanStreamProvider(widget.client.id)).value ?? [];
+    final hasExistingDraft = existingPlans.any(
+            (p) => p.sessionId == widget.sessionId && p.isProvisional == true
+    );
+
+    // 2. 🎯 Only show confirmation if it's NOT the first time (i.e., a draft exists)
+    if (hasExistingDraft) {
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Replace Current Draft?"),
+          content: Text("You already have a draft for this session. Assigning '$_selectedPlanName' will replace it."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("CANCEL")),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+              child: const Text("REPLACE"),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
     }
 
+    // 3. Proceed with assignment (Dialog skipped if hasExistingDraft is false)
     setState(() => _isLoading = true);
-
     try {
-      final clientPlanService = ref.read(clientDietPlanServiceProvider);
-      final masterPlanService = ref.read(masterDietPlanServiceProvider);
+      final masterPlan = await ref.read(masterDietPlanServiceProvider).fetchPlanById(_selectedPlanId!);
 
-      // 1. Fetch the Master Plan Model (required by the new service method)
-      final masterPlan = await masterPlanService.fetchPlanById(_selectedPlanId!);
-
-
-      // 2. Call the new typed service method which handles DRAFT status and ID return
-      // We don't need the ID here, just the successful creation signal
       await clientPlanService.assignPlanToClientAndReturnId(
         clientId: widget.client.id,
         masterPlan: masterPlan,
+        sessionId: widget.sessionId,
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Plan copied to client file. Now finalizing...")));
-
-        // Pop the assignment sheet/dialog, returning 'true' to signal success to the list screen
+        // Invalidate to ensure the list updates immediately
+        ref.invalidate(dietPlanStreamProvider(widget.client.id));
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Assignment failed: $e")));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
   // --- UI Widgets ---
 
   Widget _buildPlanSelectorField(Map<String, String> allMasterPlans) {

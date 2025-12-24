@@ -69,7 +69,10 @@ class StaffManagementService {
     required List<String> qualifications,
     required List<String> specializations,
     required List<String> permissions,
+    required String regdNo,
+    required String companyEmail,
     String? photoUrl,
+    required String employeeId,
   }) async {
 
     final String empId = await _generateEmployeeId();
@@ -112,7 +115,7 @@ class StaffManagementService {
         panNumber: pan,
         address: address,
 
-        employeeId: empId,
+        employeeId: employeeId,
         role: role,
         isActive: true,
 
@@ -130,7 +133,11 @@ class StaffManagementService {
         updatedAt: now,
         createdBy: creatorUid,
         lastModifiedBy: creatorUid,
+        regdNo: regdNo,
+        companyEmail: companyEmail
+
       );
+
 
       await _firestore.collection('admins').doc(cred.user!.uid).set(newStaff.toMap());
 
@@ -285,14 +292,18 @@ class StaffManagementService {
   Future<void> addQualificationToMaster(String val) async => await _addToMasterArray('qualifications', val);
   Future<void> addDesignationToMaster(String val) async => await _addToMasterArray('designations', val);
 
+  // lib/admin/staff_management_service.dart
+
   Future<void> _addToMasterArray(String field, String value) async {
+    final String cleanValue = value.trim();
+    if (cleanValue.isEmpty) return;
+
     final docRef = _firestore.collection('configurations').doc('staff_master');
-    final doc = await docRef.get();
-    if (!doc.exists) {
-      await docRef.set({field: [value]});
-    } else {
-      await docRef.update({field: FieldValue.arrayUnion([value])});
-    }
+
+    // Use arrayUnion to ensure uniqueness at the database level
+    await docRef.set({
+      field: FieldValue.arrayUnion([cleanValue])
+    }, SetOptions(merge: true));
   }
 
   Future<void> deleteFromMaster(String field, String value) async {

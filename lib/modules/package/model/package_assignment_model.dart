@@ -10,12 +10,11 @@ class PackageAssignmentModel {
   final bool isActive;
   final bool isLocked;
   final String clientId;
-
   // NEW FIELDS
   final String? diagnosis; // Reason for package availment
   final double discount; // Discount amount or percentage (captured as an absolute value for simplicity)
   final double bookedAmount;
-  final String category; // The final amount client paid/booked for
+  final String? category; // The final amount client paid/booked for
 
   PackageAssignmentModel({
     required this.id,
@@ -100,12 +99,12 @@ class PackageAssignmentModel {
       packageId: data['packageId'] as String,
       packageName: data['packageName'] as String,
       diagnosis: data['diagnosis'] as String?,
-      discount: (data['discount'] as num).toDouble(),
+      discount: (data['discount'] ?? 0 as num).toDouble(),
       // Safely handle int/double from Firestore
-      bookedAmount: (data['bookedAmount'] as num).toDouble(),
+      bookedAmount: (data['bookedAmount'] ?? 0 as num).toDouble(),
       purchaseDate: parseDate(data['purchaseDate']),
       expiryDate: expiryDate,
-      category: data['category'],
+      category: data['category'] as String?,
       isActive: data['isActive'] as bool? ?? expiryDate.isAfter(DateTime.now()),
       isLocked: data['isLocked']  as bool? ?? false,
       clientId: data['clientID'] as String? ?? ''

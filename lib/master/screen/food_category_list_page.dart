@@ -139,7 +139,7 @@ class _FoodCategoryListPageState extends ConsumerState<FoodCategoryListPage> {
             ),
           ),
         ),
-        title: Text(item.enName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         subtitle: Text("Order: ${item.displayOrder}", style: TextStyle(color: Colors.grey.shade600, fontSize: 12)), // Show persisted order
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

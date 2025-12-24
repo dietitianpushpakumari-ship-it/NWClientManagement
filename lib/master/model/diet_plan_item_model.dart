@@ -211,6 +211,7 @@ class MasterDietPlanModel {
   final List<String> dietPlanCategoryIds;
   final List<MasterDayPlanModel> days; // <-- Holds ALL days (1 or 7)
   final bool isActive;
+  final Timestamp? createdAt;
 
   const MasterDietPlanModel({
     this.id = '',
@@ -219,6 +220,7 @@ class MasterDietPlanModel {
     this.dietPlanCategoryIds = const [],
     this.days = const [],
     this.isActive = true,
+    this.createdAt,
   });
 
   MasterDietPlanModel copyWith({
@@ -228,6 +230,7 @@ class MasterDietPlanModel {
     List<String>? dietPlanCategoryIds,
     List<MasterDayPlanModel>? days,
     bool? isActive,
+    Timestamp? createdAt,
   }) => MasterDietPlanModel(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -235,6 +238,7 @@ class MasterDietPlanModel {
     dietPlanCategoryIds: dietPlanCategoryIds ?? this.dietPlanCategoryIds,
     days: days ?? this.days,
     isActive: isActive ?? this.isActive ,
+    createdAt: createdAt ?? this.createdAt,
   );
 
   Map<String, dynamic> toFirestore() {
@@ -290,7 +294,7 @@ class MasterDietPlanModel {
         return MasterDayPlanModel(
             id: dayMap['id'] ?? 'd_id',
             dayName: dayMap['dayName'] ?? 'Unknown Day',
-            meals: mealsList
+            meals: mealsList,
         );
       }).toList();
 
@@ -307,6 +311,7 @@ class MasterDietPlanModel {
       dietPlanCategoryIds: List<String>.from(data['dietPlanCategoryIds'] as List? ?? []),
       days: loadedDays, // 🎯 Load the full list
       isActive: data['isActive'] ?? true,
+      createdAt: data['createdAt'] as Timestamp?,
     );
   }
 }

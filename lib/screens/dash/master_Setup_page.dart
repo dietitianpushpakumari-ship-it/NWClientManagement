@@ -1,12 +1,16 @@
-// lib/screens/dash/master_Setup_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:nutricare_client_management/admin/generic_list_page_v2.dart';
 import 'package:nutricare_client_management/admin/labvital/lab_test_config_list_screen.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
-import 'package:nutricare_client_management/admin/master_sub_module_screen.dart';
 import 'package:nutricare_client_management/admin/company_profile_master_screen.dart';
 import 'dart:ui';
 import 'package:nutricare_client_management/admin/master_data_uploader_screen.dart';
+import 'package:nutricare_client_management/master/screen/food_category_list_page.dart';
+import 'package:nutricare_client_management/master/screen/food_item_list_page.dart';
+import 'package:nutricare_client_management/master/screen/master_meal_name_list_page.dart';
+import 'package:nutricare_client_management/master/screen/serving_unit_list_page.dart';
+
 import 'package:nutricare_client_management/modules/master/screen/master_diet_plan_list_screen.dart';
 import 'package:nutricare_client_management/screens/package_list_page.dart';
 
@@ -19,6 +23,16 @@ class MasterModule {
 
 // Data definition (Retained structure, only Clinical Masters modified)
 final List<MasterModule> _masterModules = const [
+
+  const MasterModule(
+    title: 'Staff & Professional Masters',
+    color: Colors.deepOrange,
+    masters: [
+      { 'title': 'Designation Master', 'entity': MasterEntity.entity_userDesignation, 'icon': Icons.badge, 'color': Colors.deepOrange },
+      { 'title': 'Qualification Master', 'entity': MasterEntity.entity_userQualification, 'icon': Icons.school, 'color': Colors.deepOrange },
+      { 'title': 'Specialization Master', 'entity': MasterEntity.entity_userSpecialization, 'icon': Icons.star, 'color': Colors.deepOrange },
+    ],
+  ),
   // 1. PACKAGE MANAGEMENT MODULE
   MasterModule(
     title: 'Plan & Package Masters',
@@ -277,28 +291,57 @@ class MasterSetupPage extends StatelessWidget {
     );
   }
 
-  // NEW: Reusable widget to build an individual master item card inside the ExpansionTile
+  // lib/screens/dash/master_Setup_page.dart
+
   Widget _buildMasterItem(BuildContext context, Map<String, dynamic> master, Color moduleColor) {
-    // Determine target screen based on entity type
+    final String entity = master['entity'];
+    final String title = master['title'];
+
     Widget targetScreen;
-    if (master['entity'] == 'NAV_MASTER_DIET_PLANS') {
-      targetScreen = const MasterDietPlanListScreen();
-    } else if (master['entity'] == MasterEntity.entity_packages) {
+
+    // --- 1. PACKAGE MASTERS ---
+    if (entity == MasterEntity.entity_packages) {
       targetScreen = const PackageListPage();
-      // 🎯 NEW NAVIGATION LOGIC
-    } else if (master['entity'] == 'NAV_LAB_CONFIG') {
+    }
+
+    // --- 2. DIET PLAN MASTERS ---
+    else if (entity == 'NAV_MASTER_DIET_PLANS') {
+      targetScreen = const MasterDietPlanListScreen();
+    }else if (entity == MasterEntity.entity_MealNames) {
+      targetScreen = const MasterMealNameListPage();
+    } else if (entity == MasterEntity.entity_ServingUnits) {
+      targetScreen = const ServingUnitListPage();
+    }
+
+    // --- 3. FOOD MASTERS ---
+    else if (entity == MasterEntity.entity_FoodItem) {
+      targetScreen = const FoodItemListPage();
+    } else if (entity == MasterEntity.entity_FoodCategory) {
+      targetScreen = const FoodCategoryListPage();
+    }
+
+    // --- 4. CLINICAL MASTERS (Dedicated Screens) ---
+    else if (entity == 'NAV_LAB_CONFIG') {
       targetScreen = const LabTestConfigListScreen();
-    } else {
-      // Fallback for generic master data screens
-      targetScreen = MasterDataSubModuleScreen(
-        moduleTitle: master['title'] as String,
-        masters: [master],
-        color: moduleColor,
+    }
+
+    else {
+      String collectionPath;
+      try {
+        collectionPath = MasterCollectionMapper.getPath(entity);
+      } catch (e) {
+        // Fallback if path not found (prevents crash)
+        collectionPath = entity;
+      }
+
+      targetScreen = GenericListPageV2(
+        title: title,
+        entityName: entity, // 🎯 CORRECT: Pass 'entity_giSymptom', not 'name'
+        collectionPath: collectionPath,
       );
     }
 
     final color = master['color'] as Color? ?? moduleColor;
-    final title = master['title'] as String;
     final icon = master['icon'] as IconData;
 
     return InkWell(
@@ -306,7 +349,7 @@ class MasterSetupPage extends StatelessWidget {
         Navigator.push(context, MaterialPageRoute(builder: (_) => targetScreen));
       },
       child: Card(
-        color: color.withOpacity(0.05), // Lighter background than the module card itself
+        color: color.withOpacity(0.05),
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -319,11 +362,7 @@ class MasterSetupPage extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: color,
-                  ),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: color),
                 ),
               ),
               const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
@@ -333,7 +372,6 @@ class MasterSetupPage extends StatelessWidget {
       ),
     );
   }
-
   // NEW: Function to create an ExpansionTile for a module
   Widget _buildModuleGroup(BuildContext context, MasterModule module) {
     return Card(

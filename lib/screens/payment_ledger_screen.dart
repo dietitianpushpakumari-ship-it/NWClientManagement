@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -39,15 +38,14 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
 
   DateTime? _selectedDate;
 
-  double _currentTotalCollected = 0.0;
-  double get _pendingBalance => widget.assignment.bookedAmount - _currentTotalCollected;
-  bool get _isFullyPaid => _pendingBalance <= 0.01;
+  // 🎯 REMOVED: _currentTotalCollected state variable (It caused the sync issue)
 
   @override
   void initState() {
     super.initState();
-    _currentTotalCollected = widget.initialCollectedAmount;
-    _amountController.text = _pendingBalance > 0 ? _pendingBalance.toStringAsFixed(2) : '0.00';
+    // We don't initialize amount here anymore to prevent stale data logic
+    // But we can set a default "0.00" or leave it empty
+    _amountController.text = '';
   }
 
   @override
@@ -116,10 +114,7 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
       try {
         final _paymentLedgerService = ref.watch(packagePaymentServiceProvider);
         await _paymentLedgerService.deletePayment(payment.id, deletionReason: reasonController.text.trim());
-        setState(() {
-          _currentTotalCollected -= payment.amount;
-          _amountController.text = _pendingBalance > 0 ? _pendingBalance.toStringAsFixed(2) : '0.00';
-        });
+        // No need to manually update state, the Stream will refresh the UI automatically!
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment deleted.')));
         return true;
       } catch (e) {
@@ -130,7 +125,8 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
     return false;
   }
 
-  Future<void> _recordPayment() async {
+  // 🎯 UPDATED: Accepts pendingBalance to validate against
+  Future<void> _recordPayment(double pendingBalance) async {
     final _paymentLedgerService = ref.watch(packagePaymentServiceProvider);
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDate == null) {
@@ -143,8 +139,10 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Amount must be > 0')));
       return;
     }
-    if (amount > _pendingBalance + 0.01) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exceeds pending balance.')));
+
+    // Allow small margin of error (0.01)
+    if (amount > pendingBalance + 0.01) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exceeds pending balance (${currencyFormatter.format(pendingBalance)})')));
       return;
     }
 
@@ -160,9 +158,9 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
 
     try {
       await _paymentLedgerService.addPayment(newPayment);
+      // No manual state update needed! Stream handles it.
       setState(() {
-        _currentTotalCollected += amount;
-        _amountController.text = _pendingBalance > 0 ? _pendingBalance.toStringAsFixed(2) : '0.00';
+        _amountController.clear();
         _narrationController.clear();
         _selectedDate = null;
       });
@@ -177,6 +175,7 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
   @override
   Widget build(BuildContext context) {
     final _paymentLedgerService = ref.watch(packagePaymentServiceProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
       body: Stack(
@@ -196,7 +195,7 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
           SafeArea(
             child: Column(
               children: [
-                // 2. Custom Header (Fixed Alignment)
+                // 2. Custom Header
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
@@ -225,15 +224,27 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
 
                       final payments = snapshot.data ?? [];
 
+                      // 🎯 CRITICAL FIX: Calculate total dynamically from the Stream Data
+                      final totalCollected = payments.fold<double>(0.0, (sum, item) => sum + item.amount);
+                      final pendingBalance = widget.assignment.bookedAmount - totalCollected;
+                      final isFullyPaid = pendingBalance <= 0.01;
+
+                      // Auto-fill Amount Controller if empty and balance exists (Helper for UX)
+                      if (_amountController.text.isEmpty && pendingBalance > 0) {
+                        // Only set if user hasn't typed anything yet to avoid overwriting their input
+                        // _amountController.text = pendingBalance.toStringAsFixed(2);
+                        // Note: Commented out to be safe, but you can enable if you want auto-fill logic.
+                      }
+
                       return ListView(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                         children: [
-                          // Financial Summary
-                          _buildFinancialCard(),
+                          // Financial Summary (Pass calculated values)
+                          _buildFinancialCard(totalCollected, pendingBalance, isFullyPaid),
                           const SizedBox(height: 20),
 
-                          // Entry Form
-                          _buildPaymentForm(),
+                          // Entry Form (Pass pending balance for validation)
+                          _buildPaymentForm(pendingBalance, isFullyPaid),
                           const SizedBox(height: 24),
 
                           // History Header
@@ -263,7 +274,8 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
     );
   }
 
-  Widget _buildFinancialCard() {
+  // 🎯 UPDATED: Accepts calculated values instead of reading state
+  Widget _buildFinancialCard(double totalCollected, double pendingBalance, bool isFullyPaid) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -296,19 +308,22 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
           const Divider(height: 24),
           _buildSummaryRow("Total Cost", widget.assignment.bookedAmount, Colors.black87),
           const SizedBox(height: 8),
-          _buildSummaryRow("Paid", _currentTotalCollected, Colors.green.shade700),
+
+          // 🎯 Display the live calculated Total
+          _buildSummaryRow("Paid", totalCollected, Colors.green.shade700),
+
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _isFullyPaid ? Colors.green.shade50 : Colors.red.shade50,
+              color: isFullyPaid ? Colors.green.shade50 : Colors.red.shade50,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("Pending Balance", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _isFullyPaid ? Colors.green.shade900 : Colors.red.shade900)),
-                Text(currencyFormatter.format(_pendingBalance > 0 ? _pendingBalance : 0), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _isFullyPaid ? Colors.green.shade900 : Colors.red.shade900)),
+                Text("Pending Balance", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isFullyPaid ? Colors.green.shade900 : Colors.red.shade900)),
+                Text(currencyFormatter.format(pendingBalance > 0 ? pendingBalance : 0), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isFullyPaid ? Colors.green.shade900 : Colors.red.shade900)),
               ],
             ),
           )
@@ -317,7 +332,8 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
     );
   }
 
-  Widget _buildPaymentForm() {
+  // 🎯 UPDATED: Accepts pendingBalance
+  Widget _buildPaymentForm(double pendingBalance, bool isFullyPaid) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -333,7 +349,7 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
             const Text("Record New Payment", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
 
-            if (_isFullyPaid)
+            if (isFullyPaid)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -351,9 +367,9 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: _buildDatePicker()),
+                      Expanded(child: _buildDatePicker(isFullyPaid)),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildDropdown()),
+                      Expanded(child: _buildDropdown(isFullyPaid)),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -365,7 +381,7 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton.icon(
-                      onPressed: _recordPayment,
+                      onPressed: () => _recordPayment(pendingBalance), // Pass Pending Balance
                       icon: const Icon(Icons.add_card, size: 18),
                       label: const Text("RECORD PAYMENT", style: TextStyle(fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
@@ -462,9 +478,9 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
     );
   }
 
-  Widget _buildDatePicker() {
+  Widget _buildDatePicker(bool isDisabled) {
     return InkWell(
-      onTap: _isFullyPaid ? null : () => _selectDate(context),
+      onTap: isDisabled ? null : () => _selectDate(context),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         height: 50,
@@ -481,7 +497,7 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
     );
   }
 
-  Widget _buildDropdown() {
+  Widget _buildDropdown(bool isDisabled) {
     return Container(
       height: 50,
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -493,7 +509,7 @@ class _PaymentLedgerScreenState extends ConsumerState<PaymentLedgerScreen> {
           isExpanded: true,
           style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 13),
           items: _paymentMethods.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-          onChanged: _isFullyPaid ? null : (v) => setState(() => _selectedMethod = v!),
+          onChanged: isDisabled ? null : (v) => setState(() => _selectedMethod = v!),
         ),
       ),
     );

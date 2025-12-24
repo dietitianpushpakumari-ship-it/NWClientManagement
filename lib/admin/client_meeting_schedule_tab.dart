@@ -9,8 +9,6 @@ import 'package:nutricare_client_management/admin/schedule_meeting_utils.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-// [Keep Extension at bottom]
-
 class ClientMeetingScheduleTab extends ConsumerStatefulWidget {
   final ClientModel client;
   const ClientMeetingScheduleTab({super.key, required this.client});
@@ -34,10 +32,12 @@ class _ClientMeetingScheduleTabState extends ConsumerState<ClientMeetingSchedule
   @override
   void initState() {
     super.initState();
-    _meetingsFuture = ref.watch(meetingServiceProvider).getClientMeetings(widget.client.id);
+    // 🎯 FIX: Use ref.read instead of ref.watch in initState
+    _meetingsFuture = ref.read(meetingServiceProvider).getClientMeetings(widget.client.id);
   }
 
-  void _refresh() => setState(() => _meetingsFuture = ref.watch(meetingServiceProvider).getClientMeetings(widget.client.id));
+  // 🎯 FIX: Use ref.read here as well (it's an event/callback)
+  void _refresh() => setState(() => _meetingsFuture = ref.read(meetingServiceProvider).getClientMeetings(widget.client.id));
 
   Future<void> _schedule() async {
     if (!_formKey.currentState!.validate() || _selectedDate == null || _selectedTime == null) return;
@@ -45,9 +45,12 @@ class _ClientMeetingScheduleTabState extends ConsumerState<ClientMeetingSchedule
 
     try {
       final dt = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, _selectedTime!.hour, _selectedTime!.minute);
-      await ref.watch(meetingServiceProvider).scheduleMeeting(
+
+      // 🎯 FIX: Use ref.read for async actions
+      await ref.read(meetingServiceProvider).scheduleMeeting(
           clientId: widget.client.id, startTime: dt, meetingType: _selectedMeetingType, purpose: _purposeCtrl.text.trim(), meetLink: _linkCtrl.text.trim()
       );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meeting Scheduled!")));
         _purposeCtrl.clear(); _linkCtrl.clear(); _selectedDate = null; _selectedTime = null;

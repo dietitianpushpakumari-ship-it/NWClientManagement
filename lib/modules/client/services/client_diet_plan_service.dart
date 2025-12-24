@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart';
@@ -40,18 +41,10 @@ class ClientDietPlanService {
         name: "${oldPlan.name} (Copy)",
         isProvisional: true, // Mark as draft/provisional by default
       );
-
-      // 2. Prepare the map for Firestore
-      final planData = newPlan.toMap();
-
-      // 3. Add fresh timestamps
-      planData['createdAt'] = FieldValue.serverTimestamp();
-      planData['updatedAt'] = FieldValue.serverTimestamp();
-
+// 🎯 Use the correct collection reference instead of hardcoded 'diet_plans'
+      final docRef = _clientPlansCollection.doc();
+      await docRef.set(newPlan.copyWith(id: docRef.id));
       // 4. Save to the 'diet_plans' collection
-      await _firestore
-          .collection('diet_plans')
-          .add(planData);
 
     } catch (e) {
       throw Exception("Failed to duplicate diet plan: $e");
@@ -110,89 +103,54 @@ class ClientDietPlanService {
     }
   }
 
-  // 🎯 NEW METHOD: Assigns the plan as a DRAFT and returns the ID for immediate editing
+  // lib/modules/client/services/client_diet_plan_service.dart
+
+  // lib/modules/client/services/client_diet_plan_service.dart
+
   Future<String> assignPlanToClientAndReturnId({
     required String clientId,
     required MasterDietPlanModel masterPlan,
+    String? sessionId,
   }) async {
-    // Auto-archive existing active plans before assigning new one
-    final activeSnapshot = await _clientPlansCollection
-        .where('clientId', isEqualTo: clientId)
-        .where('isActive', isEqualTo: true)
-        .limit(1)
-        .get();
+    try {
+      final collection = _firestore.collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientMealPlan));
 
-    for (var doc in activeSnapshot.docs) {
-      await archivePlan(doc.id);
+      // 1. Overwrite Logic: Remove existing session drafts
+      if (sessionId != null) {
+        final existing = await collection
+            .where('clientId', isEqualTo: clientId)
+            .where('sessionId', isEqualTo: sessionId)
+            .where('isProvisional', isEqualTo: true)
+            .get();
+
+        for (var doc in existing.docs) {
+          await doc.reference.delete();
+        }
+      }
+
+      // 2. Prepare the new Model
+      final newClientPlan = ClientDietPlanModel.fromMaster(
+        masterPlan,
+        clientId,
+        [],
+      ).copyWith(
+        sessionId: sessionId,
+        isProvisional: true,
+        assignedDate: Timestamp.now(),
+      );
+
+      // 3. 🎯 FIX: Convert model to Map for Firestore .add()
+      // Ensure toMap() is defined in your ClientDietPlanModel
+      final docRef = await collection.add(newClientPlan.toMap());
+
+      // 4. Update the document with the generated ID
+      await docRef.update({'id': docRef.id});
+
+      return docRef.id;
+    } catch (e) {
+      throw Exception("Failed to assign plan: $e");
     }
-
-    // Create new plan as a DRAFT (not ready to deliver)
-    final newClientPlan = ClientDietPlanModel.fromMaster(
-      masterPlan,
-      clientId,
-      [], // Guidelines are empty by default, filled later in the edit screen
-    ).copyWith(
-      // 🎯 MODIFIED STATUS FOR DRAFT WORKFLOW
-      isReadyToDeliver: false, // Must be edited first
-      isProvisional: true , // Starts as provisional
-     // status: 'Draft',
-      // Ensure all intervention fields are explicitly reset/defaulted
-      guidelineIds: [],
-      investigationIds: [],
-      followUpDays: 0,
-     // assignedHabitIds: {},
-
-    );
-
-    // Save and return the new ID
-    final docRef = _clientPlansCollection.doc();
-    await docRef.set(newClientPlan.copyWith(id: docRef.id));
-
-    return docRef.id;
   }
-
-
-  // 🎯 RENAMED the old assignMasterPlan to clarify its usage and avoid conflict
-  Future<void> _legacyAssignMasterPlan(Map<String, dynamic> assignmentData) async {
-    final String masterPlanId = assignmentData['masterPlanId'];
-    final String clientId = assignmentData['clientId'];
-
-    // 1. Fetch the Master Plan details
-    final masterPlanDoc = await _collection.doc(masterPlanId).get();
-    if (!masterPlanDoc.exists) {
-      throw Exception('Master Plan template not found.');
-    }
-
-    final MasterDietPlanModel masterPlan = masterPlanDoc.data()!;
-    final masterPlanData = masterPlan.toFirestore(); // Use typed model's serialization
-
-    // 2. Create the Client's Assigned Plan Document (Copy the master plan)
-    final clientPlanData = {
-      ...masterPlanData, // Copy the entire structure from the master plan
-
-      // Override and add client-specific data:
-      'clientId': clientId,
-      'masterPlanId': masterPlanId, // Keep reference to the master
-      'status': 'Active',
-      'assignedAt': FieldValue.serverTimestamp(),
-      'lastUpdated': FieldValue.serverTimestamp(),
-
-      // Add Intervention Data from the Assignment Screen
-      'assignedGuidelines': assignmentData['assignedGuidelines'] ?? [],
-      'assignedInvestigations': assignmentData['assignedInvestigations'] ?? [],
-      'followUpDays': assignmentData['followUpDays'] ?? 14,
-      'lifestyleGoals': assignmentData['lifestyleGoals'] ?? '',
-
-      // Clean up fields that shouldn't be on the client instance (e.g., admin metadata)
-      'isMasterTemplate': false,
-      'isDeleted': false,
-    };
-
-    // 3. Save the new client-specific plan instance
-    await _assignedPlansSubCollection.add(clientPlanData);
-  }
-
-  // --- Existing Methods ---
 
   Future<void> assignPlanToClient({
     required String clientId,
@@ -253,6 +211,33 @@ class ClientDietPlanService {
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }
+  // lib/modules/client/services/client_diet_plan_service.dart
+
+  Future<void> saveClientPlanAsMaster(ClientDietPlanModel clientPlan, String templateName) async {
+    try {
+      // 1. Convert Client Model back to Master Model structure
+      final masterTemplate = MasterDietPlanModel(
+        id: '', // Will be generated by Firestore
+        name: templateName,
+        description: "Saved from client: ${clientPlan.name}",
+        days: clientPlan.days, // Reuse the existing meal/day structure
+        isActive: true,
+        createdAt: Timestamp.now(),
+      );
+
+      // 2. Save to the master_mealTemplates collection
+      final docRef = await _firestore
+          .collection(MasterCollectionMapper.getPath(MasterEntity.entity_mealTemplates))
+          .add(masterTemplate.toFirestore());
+
+      // 3. Update with ID
+      await docRef.update({'id': docRef.id});
+
+      logger.i('Client plan saved as master template: ${docRef.id}');
+    } catch (e) {
+      throw Exception("Failed to save as master template: $e");
+    }
+  }
 
   Future<ClientDietPlanModel> fetchPlanById(String planId) async {
     final doc = await _clientPlansCollection.doc(planId).get();
@@ -307,5 +292,32 @@ class ClientDietPlanService {
         .map((snapshot) {
       return snapshot.docs.map((doc) => doc.data().masterPlanId).toList();
     });
+  }
+  Future<void> hardDeletePlan(String planId) async {
+    // If it's a session draft, you might prefer a hard delete to clear the UI
+    await _clientPlansCollection.doc(planId).delete();
+    logger.i('Plan $planId hard deleted from session.');
+  }
+
+  // lib/screens/assigned_diet_plan_list_screen.dart
+// lib/services/client_management_service.dart
+
+  Future<void> updatePlanProvisionalStatus({
+    required String clientId,
+    required String planId,
+    required bool currentStatus,
+  }) async {
+    try {
+      // 🎯 Uses the multi-tenant firestore instance
+      await _clientPlansCollection
+          .doc(planId)
+          .update({
+        'isProvisional': !currentStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint("Service Error: Failed to toggle provisional status: $e");
+      rethrow;
+    }
   }
 }

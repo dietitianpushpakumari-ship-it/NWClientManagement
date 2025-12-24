@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nutricare_client_management/admin/client_consultataion_history_tab.dart';
 import 'package:nutricare_client_management/admin/labvital/client_profile_edit_screen.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/vitals_comprasion_screen.dart';
@@ -11,15 +12,12 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 // 🎯 Project Imports
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
-import 'package:nutricare_client_management/modules/client/services/client_service.dart';
 import 'package:nutricare_client_management/admin/client_meeting_schedule_tab.dart';
 import 'package:nutricare_client_management/scheduler/client_content_scheduler_tab.dart';
 import 'package:nutricare_client_management/screens/vitals_history_page.dart';
 import 'package:nutricare_client_management/admin/client_package_list_screen.dart';
 import 'package:nutricare_client_management/modules/client/screen/assigned_diet_plan_list.dart';
-import 'package:nutricare_client_management/modules/client/screen/master_plan_assignment_page.dart';
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
-// 🎯 Import the Checklist Screen (used for initiating a new session)
 import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart';
 
 class ClientDashboardScreen extends ConsumerStatefulWidget {
@@ -165,49 +163,6 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
   }
 
 
-  Future<void> _handleSoftDelete() async {
-    final clientService = ref.read(clientServiceProvider);
-    final check = await clientService.softDeleteClient(clientId: _currentClient.id, isCheckOnly: true);
-
-    if (!check['canDelete']) {
-      _showDialog("Cannot Delete", check['message'], isError: true);
-      return;
-    }
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Confirm Deletion"),
-        content: const Text("Soft delete this client? They will be moved to the archive."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
-          ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text("Delete")
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      final clientService = ref.read(clientServiceProvider);
-      await clientService.softDeleteClient(clientId: _currentClient.id, isCheckOnly: false);
-      if (mounted) Navigator.pop(context); // Exit dashboard
-    }
-  }
-
-  void _showDialog(String title, String msg, {bool isError = false}) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title, style: TextStyle(color: isError ? Colors.red : Colors.black)),
-        content: Text(msg),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("OK"))],
-      ),
-    );
-  }
-
   // --- UI BUILDERS ---
 
   @override
@@ -251,7 +206,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
                     _buildActionsGrid(),
                     VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name),
                     ClientPackageListScreen(client: _currentClient),
-                    ClientConsultationHistoryScreenPlaceholder(client: _currentClient), // 🎯 NEW TAB CONTENT
+                    ClientConsultationHistoryTab(client: _currentClient), // 🎯 NEW TAB CONTENT
                   ],
                 ),
               ),
@@ -522,7 +477,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
         // 5. Custom Plan (Link to Plan Management Hub)
         _buildActionCard(
           "Plan Management", "Manage Drafts and History", Icons.edit_note, Colors.orange,
-              () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssignedDietPlanListScreen(clientId: _currentClient.id, clientName: _currentClient.name,client: _currentClient))),
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssignedDietPlanListScreen(clientId: _currentClient.id, clientName: _currentClient.name,client: _currentClient,isReadOnly: true,))),
         ),
       ],
     );

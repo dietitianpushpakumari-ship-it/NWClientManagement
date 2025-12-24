@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 import '../../../master/model/food_category.dart';
 
 /// Service class for managing FoodCategory master data in Firestore.
@@ -14,7 +15,7 @@ class FoodCategoryService {
   // 🎯 DYNAMIC GETTERS (Switch based on Tenant)
   // These will now automatically point to 'Guest', 'Live', or 'Clinic A' DB
   FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
-  CollectionReference get _collection => _firestore.collection('foodCategories');
+  CollectionReference get _collection => _firestore.collection(MasterCollectionMapper.getPath(MasterEntity.entity_FoodCategory));
 
   // --- READ ---
   /// Provides a stream of all *active* food categories, ordered by displayOrder.
@@ -22,7 +23,7 @@ class FoodCategoryService {
     return _collection
         .where('isDeleted', isEqualTo: false)
         .orderBy('displayOrder') // Use displayOrder for custom sorting
-        .orderBy('enName')
+        .orderBy('name')
         .snapshots()
         .map((snapshot) => snapshot.docs
         .map((doc) => FoodCategory.fromFirestore(doc))

@@ -50,7 +50,7 @@ class _FoodCategoryEntryPageState extends ConsumerState<FoodCategoryEntryPage> {
   }
 
   void _initializeForEdit(FoodCategory item) {
-    _enNameController.text = item.enName;
+    _enNameController.text = item.name;
     _displayOrderController.text = item.displayOrder.toString();
     item.nameLocalized.forEach((code, name) {
       if (_localizedControllers.containsKey(code)) _localizedControllers[code]!.text = name;
@@ -105,7 +105,7 @@ class _FoodCategoryEntryPageState extends ConsumerState<FoodCategoryEntryPage> {
 
     final itemToSave = FoodCategory(
       id: widget.itemToEdit?.id ?? '',
-      enName: _enNameController.text.trim(),
+      name: _enNameController.text.trim(),
       displayOrder: int.tryParse(_displayOrderController.text) ?? 0,
       nameLocalized: localizedNames,
     );

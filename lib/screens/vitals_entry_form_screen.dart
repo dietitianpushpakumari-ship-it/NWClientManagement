@@ -1,25 +1,24 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/admin/lab_test_config_model.dart';
 import 'package:nutricare_client_management/admin/lab_test_config_service.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
-import 'package:nutricare_client_management/modules/client/model/client_model.dart';
-
-// --- Project Imports ---
+import 'package:nutricare_client_management/helper/lab_vitals_data.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
-import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
+import 'package:nutricare_client_management/admin/consultation_session_service.dart';
+import 'package:collection/collection.dart';
 
 class VitalsEntryScreen extends ConsumerStatefulWidget {
   final String clientId;
   final String clientName;
-  final String? sessionId; // 🎯 Add this
-  final bool isReadOnly;
-
   final VitalsModel? vitalToEdit;
+  final VitalsModel? previousVital;
+  final String? sessionId;
+  final bool isReadOnly;
   final VoidCallback onVitalsSaved;
-  final bool isFirstConsultation;
 
   const VitalsEntryScreen({
     super.key,
@@ -27,8 +26,8 @@ class VitalsEntryScreen extends ConsumerStatefulWidget {
     required this.clientName,
     required this.onVitalsSaved,
     this.vitalToEdit,
-    this.isFirstConsultation = false,
-    this.sessionId,        // 🎯 Initialize
+    this.previousVital,
+    this.sessionId,
     this.isReadOnly = false,
   });
 
@@ -37,644 +36,332 @@ class VitalsEntryScreen extends ConsumerStatefulWidget {
 }
 
 class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
-  final _formKey = GlobalKey<FormState>();
-
-  // --- Controllers for Anthro/Vitals ---
-  final _dateController = TextEditingController();
-  final _weightController = TextEditingController();
-  final _heightController = TextEditingController();
-  final _waistController = TextEditingController();
-  final _hipController = TextEditingController();
-  final _systolicController = TextEditingController();
-  final _diastolicController = TextEditingController();
-  final _heartRateController = TextEditingController();
-  final _bmiController = TextEditingController();
-  final _ibwController = TextEditingController();
-
-  // --- Dynamic Lab Controllers ---
-  final Map<String, TextEditingController> _labControllers = {};
-
-  // --- State Variables ---
-  DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
-  bool _isLabControllersInitialized = false;
-  ClientModel? clientData;
 
-  bool _isHeightInCm = true; // Toggle for height unit
-  final _feetController = TextEditingController();
-  final _inchesController = TextEditingController();
-  String _selectedGender = 'Male';
+  late TextEditingController _weightController;
+  late TextEditingController _heightController;
+  late TextEditingController _sysController;
+  late TextEditingController _diaController;
+  late TextEditingController _hrController;
+  late TextEditingController _waistController;
+  late TextEditingController _hipController;
+  double _idealBodyWeight = 0.0;
+
+  final Map<String, TextEditingController> _labControllers = {};
+  bool _isLabControllersInitialized = false;
+
+  double _bmiValue = 0.0;
+  double _fatValue = 0.0;
+  bool isCm = true;
 
   @override
   void initState() {
     super.initState();
-    _prefillForm(widget.vitalToEdit);
 
-    // 🎯 Auto-calculation Listeners
-    _weightController.addListener(_calculateAutoMetrics);
-    _heightController.addListener(_calculateAutoMetrics);
-    _feetController.addListener(_calculateAutoMetrics);
-    _inchesController.addListener(_calculateAutoMetrics);
+    _weightController = TextEditingController(text: widget.vitalToEdit?.weightKg.toString() ?? '');
+    _heightController = TextEditingController(text: widget.vitalToEdit?.heightCm?.toString() ?? '');
+    _sysController = TextEditingController(text: widget.vitalToEdit?.bloodPressureSystolic?.toString() ?? '');
+    _diaController = TextEditingController(text: widget.vitalToEdit?.bloodPressureDiastolic?.toString() ?? '');
+    _hrController = TextEditingController(text: widget.vitalToEdit?.heartRate?.toString() ?? '');
+    _fatValue = widget.vitalToEdit?.bodyFatPercentage ?? 0.0;
+    _waistController = TextEditingController(text: widget.vitalToEdit?.waistCm?.toString() ?? '');
+    _hipController = TextEditingController(text: widget.vitalToEdit?.hipCm?.toString() ?? '');
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchClientData();
-    });
+    _calculateBMI();
+    _weightController.addListener(_calculateBMI);
+    _heightController.addListener(_calculateBMI);
   }
 
-  Future<void> _fetchClientData() async {
-    try {
-      // Access the ClientService via Riverpod
-      final clientService = ref.read(clientServiceProvider);
-
-      // Fetch the full client object by ID
-      final client= await clientService.getClientById(widget.clientId);
-
-      if (mounted) {
-        setState(() {
-          clientData = client;
-        });
-
-        // 🎯 Once client is loaded, run auto-calculations if needed
-        if (clientData != null) {
-          _calculateAutoMetrics();
-        }
-      }
-    } catch (e) {
-      debugPrint("Error fetching client in initState: $e");
-    }
-  }
-
-  void _calculateAutoMetrics() {
-    double weight = double.tryParse(_weightController.text.trim()) ?? 0;
-    double heightCm = 0;
-
-    // 1. Determine Height in CM
-    if (_isHeightInCm) {
-      heightCm = double.tryParse(_heightController.text.trim()) ?? 0;
-    } else {
-      double feet = double.tryParse(_feetController.text.trim()) ?? 0;
-      double inches = double.tryParse(_inchesController.text.trim()) ?? 0;
-      heightCm = (feet * 30.48) + (inches * 2.54);
-
-      // Sync the master height controller used for saving to DB
-      if (heightCm > 0 && !_isHeightInCm) {
-        _heightController.text = heightCm.toStringAsFixed(1);
-      }
-    }
-
-    if (weight > 0 && heightCm > 100) {
-      // 2. BMI Calculation (kg/m²)
-      double heightInMeters = heightCm / 100;
-      double bmi = weight / (heightInMeters * heightInMeters);
-      _bmiController.text = bmi.toStringAsFixed(1);
-
-      // 3. IBW Calculation (Devine Formula)
-      // Gender pulled from widget.client.gender
-      double inchesOver5Feet = (heightCm - 152.4) / 2.54;
-      double ibw = 0;
-
-      bool isMale = !clientData!.gender.toLowerCase().contains('Female') || // Fallback if gender string is missing
-          (widget.clientId.isNotEmpty); // Replace with widget.client.gender check
-
-      // Standard Devine Formula
-      if (isMale) {
-        ibw = 50 + (2.3 * inchesOver5Feet);
-      } else {
-        ibw = 45.5 + (2.3 * inchesOver5Feet);
-      }
-
-      _ibwController.text = ibw.toStringAsFixed(1);
-    } else {
-      _bmiController.clear();
-      _ibwController.clear();
-    }
-  }
-
-  void _prefillForm(VitalsModel? vital) {
-    if (vital != null) {
-      _selectedDate = vital.date;
-      _dateController.text = DateFormat('dd MMM yyyy').format(vital.date);
-      _weightController.text = vital.weightKg.toString();
-      _heightController.text = vital.heightCm.toString();
-      _waistController.text = vital.waistCm?.toString() ?? '';
-      _hipController.text = vital.hipCm?.toString() ?? '';
-      _systolicController.text = vital.bloodPressureSystolic?.toString() ?? '';
-      _diastolicController.text = vital.bloodPressureDiastolic?.toString() ?? '';
-      _heartRateController.text = vital.heartRate?.toString() ?? '';
-      _bmiController.text = vital.bmi.toString();
-      _ibwController.text = vital.idealBodyWeightKg.toString();
-    } else {
-      _dateController.text = DateFormat('dd MMM yyyy').format(_selectedDate);
+  void _calculateBMI() {
+    final w = double.tryParse(_weightController.text);
+    final h = double.tryParse(_heightController.text);
+    if (w != null && h != null && h > 0) {
+      setState(() {
+        _bmiValue = w / ((h / 100) * (h / 100));
+        _idealBodyWeight = 22 * ((h / 100) * (h / 100));
+      });
     }
   }
 
   void _initializeLabControllers(List<LabTestConfigModel> tests) {
-    if (_isLabControllersInitialized) return;
-    for (var config in tests) {
-      _labControllers[config.id] = TextEditingController();
+    for (var test in tests) {
+      final existingValue = widget.vitalToEdit?.labResults?[test.id];
+      _labControllers[test.id] = TextEditingController(
+          text: existingValue != null ? existingValue.toString() : ''
+      );
     }
-    if (widget.vitalToEdit != null) {
-      widget.vitalToEdit!.labResults.forEach((key, value) {
-        if (_labControllers.containsKey(key)) {
-          _labControllers[key]!.text = value.toString();
-        }
-      });
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _isLabControllersInitialized = true);
-    });
+    _isLabControllersInitialized = true;
   }
 
   @override
   void dispose() {
-    _weightController.removeListener(_calculateAutoMetrics);
-    _heightController.removeListener(_calculateAutoMetrics);
-    _dateController.dispose();
     _weightController.dispose();
     _heightController.dispose();
-    _waistController.dispose();
-    _hipController.dispose();
-    _systolicController.dispose();
-    _diastolicController.dispose();
-    _heartRateController.dispose();
-    _bmiController.dispose();
-    _ibwController.dispose();
-    _labControllers.values.forEach((c) => c.dispose());
+    _sysController.dispose();
+    _diaController.dispose();
+    _hrController.dispose();
+    _labControllers.forEach((_, c) => c.dispose());
     super.dispose();
   }
 
-  Future<void> _saveVitals() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
-
-    final vitalsService = ref.read(vitalsServiceProvider);
-    final Map<String, double> labResults = {};
-    _labControllers.forEach((key, controller) {
-      final value = double.tryParse(controller.text.trim());
-      if (value != null) labResults[key] = value;
-    });
-
-    final vitalToSave = VitalsModel(
-      id: widget.vitalToEdit?.id ?? '',
-      clientId: widget.clientId,
-      date: _selectedDate,
-      weightKg: double.tryParse(_weightController.text.trim()) ?? 0.0,
-      heightCm: double.tryParse(_heightController.text.trim()) ?? 0.0,
-      waistCm: double.tryParse(_waistController.text.trim()),
-      hipCm: double.tryParse(_hipController.text.trim()),
-      bmi: double.tryParse(_bmiController.text.trim()) ?? 0.0,
-      idealBodyWeightKg: double.tryParse(_ibwController.text.trim()) ?? 0.0,
-      bloodPressureSystolic: int.tryParse(_systolicController.text.trim()),
-      bloodPressureDiastolic: int.tryParse(_diastolicController.text.trim()),
-      heartRate: int.tryParse(_heartRateController.text.trim()),
-      bodyFatPercentage: 0.0,
-      isFirstConsultation: widget.isFirstConsultation,
-     );   fuv                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           zZza
-
-    try {
-      await vitalsService.saveVitals(vitalToSave);
-      widget.onVitalsSaved();
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
+  // --- UI COMPONENTS ---
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F8), // Soft neutral background
-      body: Column(
-        children: [
-          _buildUltraPremiumHeader(),
-          Expanded(
-            child: AbsorbPointer(
-              absorbing: widget.isReadOnly,
+    return SafeArea(
+      child: Scaffold(
+        // 🎯 FIX 1: Disable scaffold resize because parent BottomSheet handles padding
+        resizeToAvoidBottomInset: false,
+        backgroundColor: const Color(0xFFF6F8FB),
+        body: Column(
+          children: [
+            _buildPremiumHeader(),
+            Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
-                    _buildSectionTitle("Body Composition"),
-                    _buildAnthroGrid(), // Premium 2x2 grid for Wt, Ht, BMI
-                    const SizedBox(height: 24),
-                    _buildSectionTitle("Clinical Vitals"),
-                    _buildVitalsCard(), // BP, Sugar, Heart Rate
-                    const SizedBox(height: 24),
-                    _buildSectionTitle("Biochemical Lab Results"),
-                    _buildLabList(),
-                    const SizedBox(height: 120), // Bottom padding
+                    _buildSectionHeader("Body Composition"),
+                    _buildAnthroGrid(),
+                    const SizedBox(height: 32),
+      
+                    _buildSectionHeader("Clinical Vitals"),
+                    _buildClinicalContainer(),
+                    const SizedBox(height: 32),
+      
+                    _buildSectionHeader("Biochemical Lab Results"),
+                    ref.watch(allLabTestsStreamProvider).when(
+                      data: (tests) => _buildLabResultsSection(tests),
+                      loading: () => const CircularProgressIndicator(),
+                      error: (err, stack) => Text("Error: $err"),
+                    ),
+      
+                    const SizedBox(height: 40),
+      
+                    // 🎯 FIX 2: Button moved INSIDE the scroll view
+                    // This ensures it doesn't float over the keyboard and block fields
+                    if (!widget.isReadOnly)
+                      _buildBottomSaveBar(),
+      
+                    const SizedBox(height: 40), // Bottom cushion
                   ],
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: _buildPremiumSaveButton(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-    );
-  }
-
-  Widget _buildMetricDisplayCard(String label, double value, String unit, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.6), // Subtle glass effect
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: Colors.blueGrey),
-              const SizedBox(width: 8),
-              Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blueGrey)),
-            ],
-          ),
-          const Spacer(),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                value == 0 ? "--" : value.toStringAsFixed(1),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF2D3142)),
-              ),
-              const SizedBox(width: 4),
-              Text(unit, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: Colors.indigo.withOpacity(0.8),
-          letterSpacing: 1.2,
+          ],
         ),
+        // 🎯 FIX 3: Removed bottomNavigationBar to prevent it from sitting on keyboard
       ),
     );
   }
 
-  Widget _buildStatusChip(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.2)),
+  Widget _buildBottomSaveBar() {
+    return ElevatedButton(
+      onPressed: _isLoading ? null : _handleFinalize,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.indigo,
+        minimumSize: const Size(double.infinity, 56),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 4,
+        shadowColor: Colors.indigo.withOpacity(0.4),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.5,
-        ),
-      ),
+      child: _isLoading
+          ? const CircularProgressIndicator(color: Colors.white)
+          : const Text("SAVE VITALS & CONTINUE",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
     );
   }
 
-  Widget _buildUltraPremiumHeader() {
+  Widget _buildPremiumHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 48, 24, 20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 24, 20), // Adjusted top padding
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, 10))
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15)],
       ),
       child: Row(
         children: [
-          _buildCircularBackButton(),
+          _buildCircleIcon(Icons.arrow_back_ios_new, () => Navigator.pop(context)),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.isReadOnly ? "Archived Session" : "Active Consultation",
-                  style: const TextStyle(fontSize: 14, color: Colors.indigo, fontWeight: FontWeight.w600, letterSpacing: 0.5),
-                ),
-                Text(
-                  widget.clientName,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF1A1C1E)),
-                ),
+                Text(widget.isReadOnly ? "ARCHIVED RECORD" : "VITAL ASSESSMENT",
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigo, letterSpacing: 1.2)),
+                Text(widget.clientName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF1A1C1E))),
               ],
             ),
           ),
-          if (widget.isReadOnly)
-            _buildStatusChip("ARCHIVED", Colors.blueGrey)
-          else
-            _buildStatusChip("LIVE", Colors.green),
+          _buildStatusBadge(),
         ],
       ),
     );
   }
 
-  Widget _buildCircularBackButton() {
-    return GestureDetector(
-      onTap: () => Navigator.pop(context),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: const Icon(Icons.arrow_back_ios_new, size: 16, color: Colors.black),
-      ),
+  // ... [Keep _buildStatusBadge, _buildAnthroGrid, _buildHeightCard, _buildCmInput, _buildFeetInchesInput, _updateCmFromFtIn, _unitToggle, _buildMetricCard, _buildClinicalContainer, _buildBPRow, _buildLargeBPInput, _buildAnthroCard, _buildCircleIcon, _buildSectionHeader, _buildTrendIndicator, _handleFinalize, _buildIconBox, _buildVitalRow, _buildLabResultsSection, _buildLabProfileGroup exactly as before] ...
+
+  Widget _buildStatusBadge() {
+    final bool isArchived = widget.isReadOnly;
+    final Color statusColor = isArchived ? Colors.blueGrey : Colors.green;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: statusColor.withOpacity(0.2))),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(isArchived ? Icons.lock_outline : Icons.sensors_rounded, size: 10, color: statusColor), const SizedBox(width: 4), Text(isArchived ? "LOCKED" : "ACTIVE", style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5))]),
     );
   }
+
   Widget _buildAnthroGrid() {
     return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.4,
+      shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.8,
       children: [
-        _buildPremiumInputCard("Weight", _weightController, "kg", Icons.monitor_weight_outlined),
-        _buildPremiumInputCard("Height", _heightController, "cm", Icons.height),
-        _buildMetricDisplayCard("BMI", _bmiValue, "kg/m²", Icons.speed),
-        _buildMetricDisplayCard("Fat %", _fatValue, "%", Icons.opacity),
+        _buildAnthroCard("Weight", _weightController, "kg", Icons.monitor_weight_outlined, widget.previousVital?.weightKg),
+        _buildHeightCard(),
+        _buildAnthroCard("Waist", _waistController, "cm", Icons.straighten, widget.previousVital?.waistCm),
+        _buildAnthroCard("Hip", _hipController, "cm", Icons.accessibility_new, widget.previousVital?.hipCm),
+        _buildMetricCard("Ideal Weight", _idealBodyWeight, "kg", Icons.star_outline, null),
+        _buildMetricCard("BMI", _bmiValue, "kg/m²", Icons.shutter_speed_outlined, widget.previousVital?.bmi),
       ],
     );
   }
 
-  Widget _buildPremiumInputCard(String label, TextEditingController controller, String unit, IconData icon) {
+  Widget _buildHeightCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.05), blurRadius: 15)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: Colors.indigo),
-              const SizedBox(width: 8),
-              Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
-            ],
-          ),
-          const Spacer(),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-                  decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                ),
-              ),
-              Text(unit, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey)),
-            ],
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("HEIGHT", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.blueGrey)), Container(decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)), padding: const EdgeInsets.all(2), child: Row(children: [_unitToggle("cm", isCm, () => setState(() => isCm = true)), _unitToggle("ft", !isCm, () => setState(() => isCm = false))]))]), const Spacer(), isCm ? _buildCmInput() : _buildFeetInchesInput()]),
     );
   }
 
-  Widget _buildPremiumSaveButton() {
-    if (widget.isReadOnly) return const SizedBox.shrink();
+  Widget _buildCmInput() => TextField(controller: _heightController, keyboardType: TextInputType.number, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900), decoration: const InputDecoration(border: InputBorder.none, isDense: true, suffixText: " cm"));
 
-    return Container(
-      width: MediaQuery.of(context).size.width * 0.8,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF4338CA), Color(0xFF6366F1)]),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(28),
-          onTap: _saveVitals,
-          child: const Center(
-            child: Text(
-              "Finalize Vitals",
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-  InputDecoration _inputDec(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon, size: 20),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-      contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
-      fillColor: Colors.grey.shade50,
-      filled: true,
-    );
-  }
-  Widget _buildAnthroSection() {
-    return _buildCard(
-      title: "Anthropometry",
-      icon: Icons.scale,
-      color: Colors.red,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: _buildField(_weightController, "Weight (kg)", Icons.line_weight, isNumber: true)),
-              const SizedBox(width: 15),
-              // Height Unit Switcher
-              Column(
-                children: [
-                  const Text("Unit", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                  Switch(
-                    value: _isHeightInCm,
-                    onChanged: (val) {
-                      setState(() => _isHeightInCm = val);
-                      _calculateAutoMetrics();
-                    },
-                  ),
-                  Text(_isHeightInCm ? "CM" : "FT/IN", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-
-          // Conditional Height Input Layout
-          if (_isHeightInCm)
-            _buildField(_heightController, "Height (cm)", Icons.height, isNumber: true)
-          else
-            Row(
-              children: [
-                Expanded(child: _buildField(_feetController, "Feet", Icons.height, isNumber: true)),
-                const SizedBox(width: 10),
-                Expanded(child: _buildField(_inchesController, "Inches", Icons.height, isNumber: true)),
-              ],
-            ),
-
-          const SizedBox(height: 15),
-          Row(
-            children: [
-              Expanded(child: _buildField(_waistController, "Waist (cm)", Icons.straighten, isNumber: true)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildField(_hipController, "Hip (cm)", Icons.straighten, isNumber: true)),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Row(
-            children: [
-              // Auto-calculated fields set to ReadOnly
-              Expanded(child: _buildField(_bmiController, "BMI (Auto)", Icons.calculate, isReadOnly: true)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildField(_ibwController, "Ideal Weight", Icons.star, isReadOnly: true)),
-            ],
-          ),
-        ],
-      ),
-    );
+  Widget _buildFeetInchesInput() {
+    final feet = (double.tryParse(_heightController.text) ?? 0) / 30.48;
+    final ft = feet.floor();
+    final inch = ((feet - ft) * 12).round();
+    return Row(children: [Expanded(child: TextField(textAlign: TextAlign.center, decoration: const InputDecoration(hintText: "ft", border: InputBorder.none, isDense: true), keyboardType: TextInputType.number, onChanged: (v) => _updateCmFromFtIn(v, null))), const Text("'"), Expanded(child: TextField(textAlign: TextAlign.center, decoration: const InputDecoration(hintText: "in", border: InputBorder.none, isDense: true), keyboardType: TextInputType.number, onChanged: (v) => _updateCmFromFtIn(null, v))), const Text('"')]);
   }
 
-  Widget _buildVitalsSection() => _buildCard(
-    title: "Cardio Metrics",
-    icon: Icons.monitor_heart,
-    color: Colors.pink,
-    child: Column(
-      children: [
-        Row(children: [
-          Expanded(child: _buildField(_systolicController, "BP Sys", Icons.arrow_upward, isNumber: true)),
-          const SizedBox(width: 10),
-          Expanded(child: _buildField(_diastolicController, "BP Dias", Icons.arrow_downward, isNumber: true)),
-        ]),
-        const SizedBox(height: 10),
-        _buildField(_heartRateController, "Heart Rate (BPM)", Icons.favorite, isNumber: true),
-      ],
-    ),
-  );
-
-  // --- Helpers ---
-  Widget _buildCard({required String title, required IconData icon, required Color color, required Widget child}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [Icon(icon, color: color, size: 20), const SizedBox(width: 10), Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
-          const Divider(height: 25),
-          child,
-        ],
-      ),
-    );
+  void _updateCmFromFtIn(String? ftStr, String? inStr) {
+    double currentCm = double.tryParse(_heightController.text) ?? 0;
+    double ft = (ftStr != null) ? (double.tryParse(ftStr) ?? 0) : (currentCm / 30.48).floorToDouble();
+    double inches = (inStr != null) ? (double.tryParse(inStr) ?? 0) : ((currentCm / 30.48) - (currentCm / 30.48).floor()) * 12;
+    double totalCm = (ft * 30.48) + (inches * 2.54);
+    _heightController.text = totalCm.toStringAsFixed(1);
   }
 
-  Widget _buildField(TextEditingController ctrl, String label, IconData icon, {bool isNumber = false, String? helperText, bool isReadOnly = false}) {
-    return TextFormField(
-      controller: ctrl,
-      readOnly: isReadOnly,
-      keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, size: 20),
-        helperText: helperText,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        filled: true,
-        fillColor: isReadOnly ? Colors.blueGrey.shade50 : Colors.grey.shade50,
-      ),
-      validator: (v) => (v!.isNotEmpty && isNumber && double.tryParse(v) == null) ? 'Invalid number' : null,
-    );
+  Widget _unitToggle(String label, bool isActive, VoidCallback onTap) {
+    return GestureDetector(onTap: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: isActive ? Colors.indigo : Colors.transparent, borderRadius: BorderRadius.circular(6)), child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: isActive ? Colors.white : Colors.blueGrey.shade300))));
   }
 
-  Widget _buildDateSection() => _buildCard(
-    title: "Record Date",
-    icon: Icons.calendar_today,
-    color: Colors.blue,
-    child: TextFormField(
-      controller: _dateController,
-      readOnly: true,
-      decoration: InputDecoration(
-        labelText: "Date",
-        prefixIcon: const Icon(Icons.calendar_today),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        filled: true,
-        fillColor: Colors.grey.shade50,
-      ),
-      onTap: () async {
-        final DateTime? picked = await showDatePicker(
-          context: context,
-          initialDate: _selectedDate,
-          firstDate: DateTime(2000),
-          lastDate: DateTime.now(),
-        );
-        if (picked != null) setState(() {
-          _selectedDate = picked;
-          _dateController.text = DateFormat('dd MMM yyyy').format(picked);
-        });
-      },
-    ),
-  );
+  Widget _buildMetricCard(String label, double value, String unit, IconData icon, double? prevValue) {
+    return Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.indigo.withOpacity(0.04), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.indigo.withOpacity(0.1))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo)), _buildTrendIndicator(value, prevValue)]), const Spacer(), Text(value == 0 ? "--" : value.toStringAsFixed(1), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.indigo)), Text(unit, style: const TextStyle(fontSize: 10, color: Colors.indigo, fontWeight: FontWeight.bold))]));
+  }
 
-  Widget _buildLabVitalsSection(List<LabTestConfigModel> labTests) {
-    final Map<String, List<LabTestConfigModel>> categorizedTests = {};
-    for (var config in labTests) {
-      categorizedTests.putIfAbsent(config.category, () => []).add(config);
+  Widget _buildClinicalContainer() {
+    return Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)), child: Column(children: [_buildBPRow(), const Divider(height: 32, thickness: 0.5), _buildVitalRow("Heart Rate", _hrController, "bpm", Icons.monitor_heart_outlined)]));
+  }
+
+  Widget _buildBPRow() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("BLOOD PRESSURE (mmHg)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.blueGrey)), const SizedBox(height: 12), Row(children: [_buildIconBox(Icons.favorite_outline, Colors.redAccent), const SizedBox(width: 16), _buildLargeBPInput(_sysController, "SYS"), const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text("/", style: TextStyle(fontSize: 24, color: Colors.grey, fontWeight: FontWeight.w200))), _buildLargeBPInput(_diaController, "DIA")])]);
+  }
+
+  Widget _buildLargeBPInput(TextEditingController controller, String hint) {
+    return Container(width: 150, padding: const EdgeInsets.symmetric(vertical: 4), decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)), child: TextField(controller: controller, textAlign: TextAlign.center, keyboardType: TextInputType.number, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: Colors.indigo), decoration: InputDecoration(hintText: hint, border: InputBorder.none, hintStyle: const TextStyle(fontSize: 14, color: Colors.grey))));
+  }
+
+  Widget _buildAnthroCard(String label, TextEditingController controller, String unit, IconData icon, double? prev) {
+    return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.blueGrey, letterSpacing: 0.5)), _buildTrendIndicator((double.tryParse(controller.text) ?? 0), prev)]), const Spacer(), TextField(controller: controller, keyboardType: TextInputType.number, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900), decoration: InputDecoration(border: InputBorder.none, isDense: true, suffixText: " $unit", suffixStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo)))]));
+  }
+
+  Widget _buildCircleIcon(IconData icon, VoidCallback onTap) {
+    return GestureDetector(onTap: onTap, child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade200)), child: Icon(icon, size: 16, color: Colors.black)));
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(padding: const EdgeInsets.only(bottom: 16, left: 4), child: Text(title.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.blueGrey, letterSpacing: 1.1)));
+  }
+
+  Widget _buildTrendIndicator(double current, double? previous) {
+    if (previous == null || previous == 0 || current == 0) return const SizedBox.shrink();
+    final diff = current - previous;
+    final isGood = diff < 0;
+    final icon = diff < 0 ? '↓' : '↑';
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (isGood ? Colors.green : Colors.red).withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text("$icon ${diff.abs().toStringAsFixed(1)}", style: TextStyle(color: isGood ? Colors.green : Colors.red, fontSize: 10, fontWeight: FontWeight.bold)));
+  }
+
+  Future<void> _handleFinalize() async {
+    if (_weightController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Weight is required to finalize assessment")));
+      return;
     }
-    return _buildCard(
-      title: "Lab Test Results",
-      icon: Icons.science,
-      color: Colors.indigo,
-      child: Column(
-        children: categorizedTests.keys.map((category) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(padding: const EdgeInsets.only(top: 15, bottom: 8), child: Text(category, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
-              Wrap(
-                spacing: 10, runSpacing: 10,
-                children: categorizedTests[category]!.map((config) {
-                  return SizedBox(
-                    width: 180,
-                    child: _buildField(_labControllers[config.id]!, config.displayName, Icons.numbers, isNumber: true, helperText: config.unit),
-                  );
-                }).toList(),
-              ),
-            ],
-          );
-        }).toList(),
-      ),
-    );
+    setState(() => _isLoading = true);
+    try {
+      final Map<String, double> labs = {};
+      _labControllers.forEach((id, controller) {
+        if (controller.text.isNotEmpty) labs[id] = double.tryParse(controller.text) ?? 0.0;
+      });
+
+      final data = VitalsModel(
+        id: widget.vitalToEdit?.id ?? '',
+        clientId: widget.clientId,
+        sessionId: widget.sessionId,
+        date: DateTime.now(),
+        weightKg: double.tryParse(_weightController.text) ?? 0,
+        heightCm: double.tryParse(_heightController.text) ?? 0,
+        waistCm: double.tryParse(_waistController.text) ?? 0,
+        hipCm: double.tryParse(_hipController.text) ?? 0,
+        bmi: _bmiValue,
+        bloodPressureSystolic: int.tryParse(_sysController.text),
+        bloodPressureDiastolic: int.tryParse(_diaController.text),
+        heartRate: int.tryParse(_hrController.text),
+        labResults: labs, idealBodyWeightKg: 0, bodyFatPercentage: 0, isFirstConsultation: false,
+      );
+
+      final vitalsService = ref.read(vitalsServiceProvider);
+      final savedVitalId = await vitalsService.saveVitals(data);
+
+      if (widget.sessionId != null) {
+        await ref.read(consultationServiceProvider).updateSessionLinks(widget.sessionId!, vitalsId: savedVitalId);
+
+        final firestore = ref.read(firestoreProvider);
+        await firestore.collection('consultation_sessions').doc(widget.sessionId).update({
+          'steps.vitals': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      widget.onVitalsSaved();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      debugPrint("Finalize Error: $e");
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error saving: $e")));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  Widget _buildErrorCard(String title, String message) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.red)),
-    child: Text("$title: $message", style: TextStyle(color: Colors.red.shade800)),
-  );
+  Widget _buildIconBox(IconData icon, Color color) {
+    return Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.05), borderRadius: BorderRadius.circular(10)), child: Icon(icon, size: 20, color: color));
+  }
+
+  Widget _buildVitalRow(String l, TextEditingController c, String u, IconData i) {
+    return Row(children: [_buildIconBox(i, Colors.indigo), const SizedBox(width: 16), Expanded(child: Text(l, style: const TextStyle(fontWeight: FontWeight.w600))), SizedBox(width: 120, child: TextField(controller: c, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18), decoration: const InputDecoration(border: InputBorder.none, hintText: "--"))), const SizedBox(width: 8), Text(u, style: const TextStyle(fontSize: 11, color: Colors.grey))]);
+  }
+
+  Widget _buildLabResultsSection(List<LabTestConfigModel> tests) {
+    if (tests.isEmpty) return const Center(child: Text("No configurations found."));
+    if (!_isLabControllersInitialized) _initializeLabControllers(tests);
+    final grouped = groupBy(tests, (LabTestConfigModel t) => t.category);
+    final sortedCategories = grouped.keys.toList()..sort();
+    return Column(children: sortedCategories.map((category) {
+      final categoryTests = grouped[category]!;
+      categoryTests.sort((a, b) => a.displayName.compareTo(b.displayName));
+      return _buildLabProfileGroup(category, categoryTests);
+    }).toList());
+  }
+
+  Widget _buildLabProfileGroup(String category, List<LabTestConfigModel> tests) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Padding(padding: const EdgeInsets.only(top: 24, bottom: 12, left: 4), child: Row(children: [Container(width: 4, height: 16, decoration: BoxDecoration(color: Colors.indigo, borderRadius: BorderRadius.circular(2))), const SizedBox(width: 8), Text(category.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.indigo, letterSpacing: 1))])), ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: tests.length, separatorBuilder: (_, __) => const SizedBox(height: 8), itemBuilder: (context, index) { final test = tests[index]; final controller = _labControllers[test.id]; return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(test.displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), Text(test.unit, style: const TextStyle(fontSize: 11, color: Colors.grey))])), SizedBox(width: 200, child: TextField(controller: controller, textAlign: TextAlign.right, keyboardType: TextInputType.number, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.indigo, fontSize: 16), decoration: const InputDecoration(border: InputBorder.none, hintText: "-", isDense: true)))])); })]);
+  }
 }

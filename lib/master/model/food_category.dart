@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Represents a simple food category (e.g., "Grain", "Protein", "Vegetable").
 class FoodCategory {
   final String id;
-  final String enName; // English name (e.g., "Grain")
+  final String name; // English name (e.g., "Grain")
   final Map<String, String> nameLocalized; // e.g., {'hi': 'अनाज'}
   final bool isDeleted;
   final int displayOrder;
@@ -13,7 +13,7 @@ class FoodCategory {
 
   const FoodCategory({
     required this.id,
-    required this.enName,
+    required this.name,
     this.nameLocalized = const {},
     this.isDeleted = false,
     this.displayOrder = 0,
@@ -31,7 +31,7 @@ class FoodCategory {
 
     return FoodCategory(
       id: doc.id,
-      enName: data['enName'] ?? '',
+      name: data['name'] ?? '',
       nameLocalized: localizedNames,
       isDeleted: data['isDeleted'] ?? false,
       displayOrder: (data['displayOrder'] as num?)?.toInt() ?? 0,
@@ -42,7 +42,7 @@ class FoodCategory {
   /// Convert FoodCategory object to a Map for storage in Firestore.
   Map<String, dynamic> toMap() {
     return {
-      'enName': enName,
+      'name': name,
       'nameLocalized': nameLocalized,
       'isDeleted': isDeleted,
       'displayOrder': displayOrder,

@@ -14,6 +14,7 @@ class PackageModel {
   final String id;
   final String name;
   final String description;
+  final bool isFinalized;
 
   // 💰 Pricing & Billing
   final double price;
@@ -24,6 +25,7 @@ class PackageModel {
   final int durationDays;
   final int consultationCount;
   final int freeSessions;
+  final int followUpIntervalDays;
 
   // 📋 Features & Filtering
   final List<String> inclusions;       // Stores Names (Snapshot for Display)
@@ -50,9 +52,11 @@ class PackageModel {
     this.inclusionIds = const [], // 🎯 Initialize
     this.programFeatureIds = const [],
     this.targetConditions = const [],
+    this.followUpIntervalDays = 7,
     this.isActive = true,
     this.category = PackageCategory.basic,
     this.colorCode,
+    this.isFinalized = false,
   });
 
   factory PackageModel.fromFirestore(DocumentSnapshot doc) {
@@ -75,6 +79,7 @@ class PackageModel {
       consultationCount: (data['consultationCount'] as num?)?.toInt() ?? 0,
       freeSessions: (data['freeSessions'] as num?)?.toInt() ?? 0,
 
+      followUpIntervalDays: (data['followUpIntervalDays'] as num?)?.toInt() ?? 7, // 🎯 Load or default to 7
       inclusions: List<String>.from(data['inclusions'] ?? []),
       inclusionIds: List<String>.from(data['inclusionIds'] ?? []), // 🎯 Load IDs
       programFeatureIds: List<String>.from(data['programFeatureIds'] ?? []),
@@ -83,6 +88,7 @@ class PackageModel {
       isActive: data['isActive'] ?? true,
       category: packageCategory,
       colorCode: data['colorCode'],
+      isFinalized: data['isFinalized'] ?? false,
     );
   }
 
@@ -104,6 +110,8 @@ class PackageModel {
       'category': category.name,
       'colorCode': colorCode,
       'updatedAt': FieldValue.serverTimestamp(),
+      'isFinalized': isFinalized,
+      'followUpIntervalDays': followUpIntervalDays,
     };
   }
 

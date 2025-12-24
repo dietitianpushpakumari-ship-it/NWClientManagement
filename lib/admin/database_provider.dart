@@ -2,7 +2,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/tenant_model.dart';
+import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 // import 'package:nutricare_client_management/firebase_options.dart'; // Default options if needed
 
 // 1. STATE: Store the Full Config, not just ID

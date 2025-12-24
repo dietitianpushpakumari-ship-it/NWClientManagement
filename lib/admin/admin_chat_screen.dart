@@ -83,7 +83,6 @@ class _AdminChatScreenState extends ConsumerState<AdminChatScreen> with SingleTi
           clientId: widget.clientId,
           clientName: widget.clientName,
           onVitalsSaved: () {},
-          isFirstConsultation: false,
         ),
       ),
     );

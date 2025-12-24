@@ -1,7 +1,9 @@
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/premium_habit_select_sheet.dart';
 import 'package:nutricare_client_management/admin/labvital/premium_master_select_sheet.dart';
@@ -24,12 +26,14 @@ class ClientDietPlanEntryPage extends ConsumerStatefulWidget {
   final String? planId;
   final ClientDietPlanModel? initialPlan;
   final VoidCallback onMealPlanSaved;
+  final String? sessionId;
 
   const ClientDietPlanEntryPage({
     super.key,
     this.planId,
     this.initialPlan,
-    required this.onMealPlanSaved
+    required this.onMealPlanSaved,
+    this.sessionId,
   });
 
   @override
@@ -279,6 +283,15 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
         isProvisional: _isProvisional,
       );
       await ref.read(clientDietPlanServiceProvider).savePlan(updatedPlan);
+     if (widget.sessionId != null) {
+        final firestore = ref.read(firestoreProvider);
+        final sessionRef = firestore.collection('consultation_sessions').doc(widget.sessionId);
+        await sessionRef.update({
+          'steps.plan': true,
+         // 'linkedDietPlanId': newDietPlanId, // Keep this if you link IDs
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
       widget.onMealPlanSaved();
       if (mounted) Navigator.pop(context);
     } catch (e) {

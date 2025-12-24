@@ -17,14 +17,25 @@ class ConsultationSessionService {
         toFirestore: (session, _) => session.toFirestore(),
       );
 
-  // 🎯 CREATE: Start a new session
-  Future<String> startSession(String clientId, String dietitianId) async {
+  // 🎯 UPDATED: Start Session with optional Parent Link
+  Future<String> startSession(
+      String clientId,
+      String dietitianId, {
+        String? parentId,
+        bool isFollowup = false,
+      }) async {
     final newSession = ConsultationSessionModel(
       clientId: clientId,
       dietitianId: dietitianId,
       startTime: Timestamp.now(),
-      status: 'Ongoing', sessionDate: Timestamp.now()
+      status: 'Ongoing',
+      sessionDate: Timestamp.now(),
+      steps: {},
+      // 🎯 Set Type and Link
+      consultationType: isFollowup ? 'Followup' : 'Initial',
+      parentId: parentId,
     );
+
     final doc = await _collection.add(newSession);
     return doc.id;
   }
@@ -42,7 +53,6 @@ class ConsultationSessionService {
     }
   }
 
-  // 🎯 READ: Get current active session for a client
   Future<ConsultationSessionModel?> getActiveSession(String clientId) async {
     final query = await _collection
         .where('clientId', isEqualTo: clientId)
@@ -54,29 +64,47 @@ class ConsultationSessionService {
     return query.docs.first.data();
   }
 
-  // 🎯 UPDATE: Link Vitals or Diet Plan to Session
-  Future<void> updateSessionLinks(String sessionId, {String? vitalsId, String? dietPlanId}) async {
-    final updates = <String, dynamic>{};
-    if (vitalsId != null) updates['linkedVitalsId'] = vitalsId;
-    if (dietPlanId != null) updates['linkedDietPlanId'] = dietPlanId;
+  Future<ConsultationSessionModel?> getLatestSession(String clientId) async {
+    try {
+      final query = await _collection
+          .where('clientId', isEqualTo: clientId)
+          .orderBy('startTime', descending: true)
+          .limit(1)
+          .get();
 
-    await _collection.doc(sessionId).update(updates);
+      if (query.docs.isEmpty) return null;
+      return query.docs.first.data();
+    } catch (e) {
+      print("Error fetching latest session: $e");
+      return null;
+    }
   }
 
-  // 🎯 CLOSE: Finalize session and lock data
+  Future<void> updateSessionLinks(String sessionId, {String? vitalsId, String? dietPlanId}) async {
+    try {
+      final Map<String, dynamic> updates = {};
+      if (vitalsId != null) updates['linkedVitalsId'] = vitalsId;
+      if (dietPlanId != null) updates['linkedDietPlanId'] = dietPlanId;
+
+      if (updates.isNotEmpty) {
+        await _collection.doc(sessionId).update(updates);
+      }
+    } catch (e) {
+      throw Exception("Failed to update session links: $e");
+    }
+  }
+
   Future<void> closeSession(String sessionId) async {
     await _collection.doc(sessionId).update({
-      'status': 'Closed',
+      'status': 'complete',
       'endTime': Timestamp.now(),
     });
   }
 
-  // 🎯 DELETE: Soft delete (if needed)
   Future<void> deleteSession(String sessionId) async {
     await _collection.doc(sessionId).delete();
   }
 
-  // STREAM: Get session history for a client
   Stream<List<ConsultationSessionModel>> streamSessionHistory(String clientId) {
     return _collection
         .where('clientId', isEqualTo: clientId)

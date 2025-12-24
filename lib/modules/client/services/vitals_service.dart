@@ -2,8 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
-import '../model/vitals_model.dart'; // Import your VitalsModel
-
+import '../model/vitals_model.dart';
 
 class VitalsService {
   final Ref _ref;
@@ -14,22 +13,19 @@ class VitalsService {
 
   CollectionReference get _vitalsCollection => _firestore.collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientVitals));
 
-
-  // -----------------------------------------------------------
-  // 2. FINAL VITALSSERVICE CODE
-  // -----------------------------------------------------------
-
   // SAVE VITALS (Create or Update)
-  Future<void> saveVitals(VitalsModel vitals) async {
+  Future<String> saveVitals(VitalsModel vitals) async {
     try {
       final data = vitals.toMap();
       data['updatedAt'] = FieldValue.serverTimestamp();
 
       if (vitals.id.isEmpty) {
         data['createdAt'] = FieldValue.serverTimestamp();
-        await _vitalsCollection.add(data);
+        final docRef = await _vitalsCollection.add(data);
+        return docRef.id;
       } else {
         await _vitalsCollection.doc(vitals.id).update(data);
+        return vitals.id;
       }
     } catch (e) {
       throw Exception("Failed to save vitals: $e");
@@ -64,7 +60,7 @@ class VitalsService {
       final snapshot = await _vitalsCollection
           .where('clientId', isEqualTo: clientId)
           .orderBy('date', descending: true)
-          .limit(1) // Only need the latest one
+          .limit(1)
           .get();
 
       if (snapshot.docs.isNotEmpty) {
@@ -76,7 +72,7 @@ class VitalsService {
     return null;
   }
 
-  // STREAM ALL VITALS FOR CLIENT (For History/Comparison UI)
+  // STREAM ALL VITALS FOR CLIENT
   Stream<List<VitalsModel>> streamAllVitalsForClient(String clientId) {
     return _vitalsCollection
         .where('clientId', isEqualTo: clientId)
@@ -86,7 +82,6 @@ class VitalsService {
         snapshot.docs.map((doc) => VitalsModel.fromFirestore(doc)).toList());
   }
 
-  // REINTRODUCED FUTURE METHOD (For existing FutureBuilders)
   Future<List<VitalsModel>> getClientVitals(String clientId) async {
     try {
       final list = await streamAllVitalsForClient(clientId).first;
@@ -97,9 +92,7 @@ class VitalsService {
     }
   }
 
-  // 🎯 CORRECTED METHOD: Update history fields on the latest record, or create a new one
-  // lib/modules/client/services/vitals_service.dart
-
+  // 🎯 CORRECTED METHOD: Prevents overwriting history on new sessions
   Future<void> updateHistoryData({
     required String clientId,
     required Map<String, dynamic> updateData,
@@ -108,23 +101,37 @@ class VitalsService {
     try {
       VitalsModel? vitalsToUpdate = existingVitals;
 
-      // Get latest if none provided
+      // 1. If explicit record not provided, try fetching latest
       if (vitalsToUpdate == null || vitalsToUpdate.id.isEmpty) {
         vitalsToUpdate = await getLatestVitals(clientId);
+
+        // 🎯 CRITICAL FIX: If we fetched the latest record, check Session ID match.
+        // If the 'updateData' has a sessionId (e.g. "Session B") but the fetched
+        // latest record belongs to "Session A", DO NOT UPDATE "Session A".
+        // Instead, allow creation of a NEW record for "Session B".
+        if (vitalsToUpdate != null &&
+            updateData.containsKey('sessionId') &&
+            updateData['sessionId'] != null &&
+            vitalsToUpdate.sessionId != updateData['sessionId']) {
+
+          // Mismatch detected: We are starting a NEW session but fetched an OLD one.
+          // Discard the old one so we fall into the "Create New" block below.
+          vitalsToUpdate = null;
+        }
       }
 
       // Clean up nulls
       updateData.removeWhere((key, value) => value == null);
 
       if (vitalsToUpdate != null && vitalsToUpdate.id.isNotEmpty) {
-        // Update the existing document
+        // Update the existing document (Same Session)
         await _vitalsCollection.doc(vitalsToUpdate.id).update(updateData);
       } else {
-        // Create a brand new document if none exists
+        // Create a brand new document (New Session)
         final Map<String, dynamic> newVitalsMap = {
           'clientId': clientId,
           'date': DateTime.now(),
-          'isFirstConsultation': true,
+          'isFirstConsultation': false,
           ...updateData,
         };
 
@@ -135,5 +142,4 @@ class VitalsService {
       throw Exception("Failed to update history data: $e");
     }
   }
-
 }

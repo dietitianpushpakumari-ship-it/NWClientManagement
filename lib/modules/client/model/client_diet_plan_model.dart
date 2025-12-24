@@ -36,6 +36,7 @@ class ClientDietPlanModel {
   final Timestamp? updatedAt;
   final Timestamp? assignedDate; //
   final double? targetWeightKg;
+  final String? sessionId;
 
   const ClientDietPlanModel({
     this.id = '',
@@ -70,6 +71,7 @@ class ClientDietPlanModel {
     this.updatedAt,
     this.assignedDate,
     this.targetWeightKg,
+    this.sessionId,
   });
 
   // For creating an editable copy
@@ -142,6 +144,7 @@ class ClientDietPlanModel {
       'targetWeightKg': targetWeightKg, // 🎯 Critical for your progress bars
       'dailyMindfulnessMinutes': dailyMindfulnessMinutes,
       'assignedHabitIds': assignedHabitIds,
+      'sessionId':sessionId,
     };
   }
   factory ClientDietPlanModel.fromFirestore(DocumentSnapshot doc) {
@@ -196,6 +199,7 @@ class ClientDietPlanModel {
       dailyStepGoal: (data['dailyStepGoal'] as num?)?.toInt() ?? 5000,
       dailyMindfulnessMinutes: (data['dailyMindfulnessMinutes'] as num?)?.toInt() ?? 10,
       assignedHabitIds: List<String>.from(data['assignedHabitIds'] ?? []),
+      sessionId: data['sessionId']
     );
   }
   Map<String, dynamic> toMap() {
@@ -204,6 +208,7 @@ class ClientDietPlanModel {
       'name': name,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      'assignedDate': assignedDate ?? FieldValue.serverTimestamp(),
       'suplimentIdsMap': suplimentIdsMap,
       'diagnosisIds': diagnosisIds,
       'guidelineIds': guidelineIds,
@@ -212,6 +217,8 @@ class ClientDietPlanModel {
       'dailySleepGoal': dailySleepGoal,
       'targetWeightKg': targetWeightKg,
       'isProvisional': isProvisional,
+      'isDeleted': isDeleted,
+      'sessionId':sessionId,
       'days': days.map((day) => day.toFirestore()).toList(), // Ensure your day models also have toMap() if they are objects
     };
   }
@@ -243,6 +250,7 @@ class ClientDietPlanModel {
       targetWeightKg: (map['targetWeightKg'] as num?)?.toDouble(),
       isProvisional: map['isProvisional'] ?? true,
       days: parsedDays,
+      sessionId: map['sessionId']
     );
   }
   // Required for the Duplication feature
@@ -278,6 +286,7 @@ class ClientDietPlanModel {
     String? complaints,
     String? instructions,
     int? followUpDays,
+    String? sessionId
   }) {
     return ClientDietPlanModel(
       id: id ?? this.id,
@@ -311,6 +320,7 @@ class ClientDietPlanModel {
       complaints: complaints ?? this.complaints,
       instructions: instructions ?? this.instructions,
       followUpDays: followUpDays ?? this.followUpDays,
+      sessionId: sessionId ?? this.sessionId
     );
   }
 }

@@ -270,7 +270,7 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
                                             value: _selectedCategoryId,
                                             isExpanded: true,
                                             decoration: _inputDec("Category", Icons.category),
-                                            items: categories.map((c) => DropdownMenuItem(value: c.id, child: Text(c.enName))).toList(),
+                                            items: categories.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
                                             onChanged: (v) => setState(() => _selectedCategoryId = v),
                                           ),
                                         ),

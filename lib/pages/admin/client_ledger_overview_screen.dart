@@ -36,7 +36,8 @@ class _ClientLedgerOverviewScreenState extends ConsumerState<ClientLedgerOvervie
   @override
   void initState() {
     super.initState();
-    _ledgerDataFuture = ref.watch(packagePaymentServiceProvider).getAllAssignmentsWithCollectedAmounts();
+    // 🎯 FIX: Changed ref.watch to ref.read here
+    _ledgerDataFuture = ref.read(packagePaymentServiceProvider).getAllAssignmentsWithCollectedAmounts();
   }
 
   void _calculateTotals(List<AssignedPackageData> data) {

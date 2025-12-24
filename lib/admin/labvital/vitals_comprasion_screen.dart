@@ -443,52 +443,54 @@ class VitalsComparisonScreen extends ConsumerWidget {
     final labConfigAsync = ref.watch(allLabTestsStreamProvider);
     final vitalsService = ref.watch(vitalsServiceProvider);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
+    return SafeArea(
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FE),
 
-      body: Column(
-        children: [
-          // 1. Custom Header (Non-collapsible, guaranteed not to overlap)
-          _buildCustomAppBar(context),
+        body: Column(
+          children: [
+            // 1. Custom Header (Non-collapsible, guaranteed not to overlap)
+            _buildCustomAppBar(context),
 
-          // 2. Expanded Body Content
-          Expanded(
-            child: labConfigAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Center(child: Text('Error loading lab configuration: $err')),
-              data: (labConfigList) {
-                final Map<String, LabTestConfigModel> labConfigMap = {
-                  for (var config in labConfigList) config.id: config
-                };
+            // 2. Expanded Body Content
+            Expanded(
+              child: labConfigAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, stack) => Center(child: Text('Error loading lab configuration: $err')),
+                data: (labConfigList) {
+                  final Map<String, LabTestConfigModel> labConfigMap = {
+                    for (var config in labConfigList) config.id: config
+                  };
 
-                final vitalsStream = vitalsService.streamAllVitalsForClient(clientId);
+                  final vitalsStream = vitalsService.streamAllVitalsForClient(clientId);
 
-                return StreamBuilder<List<VitalsModel>>(
-                  stream: vitalsStream,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(child: Text('Error loading vital data: ${snapshot.error}'));
-                    }
+                  return StreamBuilder<List<VitalsModel>>(
+                    stream: vitalsStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error loading vital data: ${snapshot.error}'));
+                      }
 
-                    final vitalsList = snapshot.data ?? [];
+                      final vitalsList = snapshot.data ?? [];
 
-                    if (vitalsList.isEmpty) {
-                      return const Center(child: Text('No historical vital records found for comparison.'));
-                    }
+                      if (vitalsList.isEmpty) {
+                        return const Center(child: Text('No historical vital records found for comparison.'));
+                      }
 
-                    vitalsList.sort((a, b) => b.date.compareTo(a.date));
+                      vitalsList.sort((a, b) => b.date.compareTo(a.date));
 
-                    // Return the fully built scrollable comparison view
-                    return _buildComparisonView(context, vitalsList, labConfigMap);
-                  },
-                );
-              },
+                      // Return the fully built scrollable comparison view
+                      return _buildComparisonView(context, vitalsList, labConfigMap);
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
