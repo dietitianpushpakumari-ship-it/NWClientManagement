@@ -67,6 +67,17 @@ class _PackageListPageState extends ConsumerState<PackageListPage> {
     }
   }
 
+  // 🎯 HELPER: Color Coding for Categories
+  Color _getCategoryColor(PackageCategory category) {
+    switch (category) {
+      case PackageCategory.premium: return Colors.deepPurple;
+      case PackageCategory.standard: return Colors.teal;
+      case PackageCategory.basic: return Colors.orange;
+      case PackageCategory.singleSession: return Colors.blue;
+      case PackageCategory.custom: return Colors.blueGrey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = ref.watch(packageServiceProvider);
@@ -76,21 +87,19 @@ class _PackageListPageState extends ConsumerState<PackageListPage> {
       backgroundColor: const Color(0xFFF8F9FE),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PackageEntryPage())),
-        backgroundColor: Colors.purple,
+        backgroundColor: Colors.deepPurple,
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text("Create Draft", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: Stack(
         children: [
-          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.purple.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
+          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.deepPurple.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
           SafeArea(
             child: Column(
               children: [
                 _buildHeader(context, "Service Packages"),
                 Expanded(
                   child: StreamBuilder<List<PackageModel>>(
-                    // 🎯 Note: Ensure streamPackages() returns both active AND inactive (drafts) if needed.
-                    // If streamPackages() filters by isActive=true, you might need a new method like `streamAllPackages()`
                     stream: service.streamPackages(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
@@ -98,97 +107,122 @@ class _PackageListPageState extends ConsumerState<PackageListPage> {
                       if (list.isEmpty) return const Center(child: Text("No packages found."));
 
                       return ListView.builder(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 80),
                         itemCount: list.length,
                         itemBuilder: (context, index) {
                           final pkg = list[index];
                           final bool isLocked = pkg.isFinalized;
+                          final Color categoryColor = _getCategoryColor(pkg.category);
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 16),
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
                               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
-                              border: isLocked ? null : Border.all(color: Colors.orange.withOpacity(0.5), width: 1), // Orange border for drafts
+                              // Show colored border for drafts, clean look for finalized
+                              border: isLocked ? Border(left: BorderSide(color: categoryColor, width: 4)) : Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
                             ),
                             child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Icon Box
+                                // 1. Category Icon Box
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                      color: isLocked ? Colors.purple.shade50 : Colors.orange.shade50,
+                                      color: categoryColor.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(12)
                                   ),
                                   child: Icon(
-                                      isLocked ? Icons.check_circle : Icons.edit_note,
-                                      color: isLocked ? Colors.purple : Colors.orange,
-                                      size: 28
+                                      isLocked ? Icons.verified : Icons.edit_note,
+                                      color: categoryColor,
+                                      size: 24
                                   ),
                                 ),
-                                const SizedBox(width: 16),
+                                const SizedBox(width: 14),
 
-                                // Details
+                                // 2. Details
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      // Name & Draft Badge
                                       Row(
                                         children: [
-                                          Flexible(child: Text(pkg.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                          Flexible(child: Text(pkg.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis)),
                                           if (!isLocked)
                                             Container(
                                               margin: const EdgeInsets.only(left: 8),
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                               decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(4)),
-                                              child: const Text("DRAFT", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                              child: const Text("DRAFT", style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
                                             )
                                         ],
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text("${pkg.durationDays} Days • ${pkg.category.displayName}", style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                                      const SizedBox(height: 6),
+
+                                      // 🎯 Category & Type Row
+                                      Wrap(
+                                        crossAxisAlignment: WrapCrossAlignment.center,
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: [
+                                          // Category Badge
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                                color: categoryColor.withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: categoryColor.withOpacity(0.2))
+                                            ),
+                                            child: Text(
+                                                pkg.category.displayName.toUpperCase(),
+                                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: categoryColor)
+                                            ),
+                                          ),
+
+                                          // Package Type (Firestore)
+                                          if (pkg.packageType.isNotEmpty) ...[
+                                            Text("•", style: TextStyle(color: Colors.grey.shade400, fontSize: 10)),
+                                            Text(pkg.packageType, style: TextStyle(color: Colors.grey.shade700, fontSize: 11, fontWeight: FontWeight.w600)),
+                                          ],
+
+                                          // Duration
+                                          Text("•", style: TextStyle(color: Colors.grey.shade400, fontSize: 10)),
+                                          Text("${pkg.durationDays} Days", style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
 
-                                // Price & Menu
+                                // 3. Price & Menu
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text(currency.format(pkg.price), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green)),
-                                    const SizedBox(height: 4),
+                                    Text(currency.format(pkg.price), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
 
-                                    // 🎯 ACTIONS MENU
                                     PopupMenuButton<String>(
-                                      icon: Icon(Icons.more_horiz, color: Colors.grey.shade400),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      icon: Icon(Icons.more_vert, color: Colors.grey.shade400, size: 20),
                                       onSelected: (val) {
                                         if (val == 'copy') _handleDuplicate(pkg);
-
-                                        // 🎯 Logic: If Edit/View is clicked
-                                        if (val == 'edit') {
-                                          Navigator.push(context, MaterialPageRoute(builder: (_) => PackageEntryPage(packageToEdit: pkg)));
-                                        }
-                                        if (val == 'view') {
-                                          // 🎯 Navigate to Detail Screen
-                                          Navigator.push(context, MaterialPageRoute(builder: (_) => PackageDetailScreen(package: pkg)));
-                                        }
-
+                                        if (val == 'edit') Navigator.push(context, MaterialPageRoute(builder: (_) => PackageEntryPage(packageToEdit: pkg)));
+                                        if (val == 'view') Navigator.push(context, MaterialPageRoute(builder: (_) => PackageDetailScreen(package: pkg)));
                                         if (val == 'delete') _handleDelete(pkg);
                                         if (val == 'finalize') _handleFinalize(pkg);
                                       },
                                       itemBuilder: (ctx) => [
                                         const PopupMenuItem(value: 'copy', child: Row(children: [Icon(Icons.copy, size: 18), SizedBox(width: 8), Text("Duplicate")])),
-
-                                        //if (!isLocked) ...[
+                                        if (!isLocked) ...[
                                           const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text("Edit Draft")])),
                                           const PopupMenuItem(value: 'finalize', child: Row(children: [Icon(Icons.lock_outline, size: 18, color: Colors.green), SizedBox(width: 8), Text("Finalize", style: TextStyle(color: Colors.green))])),
                                           const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, size: 18, color: Colors.red), SizedBox(width: 8), Text("Delete", style: TextStyle(color: Colors.red))])),
-                                      //  ] else ...[
-                                          // 🎯 For Finalized Packages: Show "View Details"
+                                        ] else ...[
                                           const PopupMenuItem(value: 'view', child: Row(children: [Icon(Icons.visibility, size: 18), SizedBox(width: 8), Text("View Details")])),
-                                        //]
+                                        ]
                                       ],
                                     )
                                   ],
@@ -210,7 +244,6 @@ class _PackageListPageState extends ConsumerState<PackageListPage> {
   }
 
   Widget _buildHeader(BuildContext context, String title) {
-    // ... same as before ...
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       child: Row(

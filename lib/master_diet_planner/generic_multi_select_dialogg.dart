@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class GenericMultiSelectDialog extends StatefulWidget {
   final String title;
   final List<String> items;
-  // 🎯 ADDED: Map of Name -> Document ID to correctly handle service data structure
+  // 🎯 ADDED: Map of Name -> Document ID to correctly handle services data structure
   final Map<String, String> itemNameIdMap;
   final List<String> initialSelectedItems;
   final VoidCallback onAddMaster;

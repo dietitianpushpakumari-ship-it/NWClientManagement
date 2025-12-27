@@ -187,7 +187,7 @@ class _ClientHistorySheetState extends ConsumerState<ClientHistorySheet> {
         'caffeineIntake': _finalCaffeine,
       };
 
-      // 🎯 FIX: Call the service with the aggregated data
+      // 🎯 FIX: Call the services with the aggregated data
       await ref.read(vitalsServiceProvider).updateHistoryData(
         clientId: widget.client.id,
         updateData: updateData,

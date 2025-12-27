@@ -148,7 +148,7 @@ class ClientService {
       return {'canDelete': true, 'message': 'Client soft deleted successfully. The client status is now Inactive.'};
     } catch (e) {
       _logger.e('Error soft deleting client $clientId: ${e.toString()}');
-      return {'canDelete': false, 'message': 'Failed to soft delete client due to a service error.'};
+      return {'canDelete': false, 'message': 'Failed to soft delete client due to a services error.'};
     }
   }
 
@@ -475,7 +475,7 @@ class ClientService {
       return ClientModel.fromFirestore(doc);
     } catch (e, stack) {
       _logger.e('Error fetching client by ID: ${e.toString()}', error: e, stackTrace: stack);
-      // Re-throw the original exception or a service-specific one
+      // Re-throw the original exception or a services-specific one
       rethrow;
     }
   }

@@ -54,5 +54,5 @@ class MasterDataService {
 }
 
 
-// Assuming the Riverpod provider for the service exists
+// Assuming the Riverpod provider for the services exists
 final masterDataServiceProvider = Provider((ref) => MasterDataService(ref));

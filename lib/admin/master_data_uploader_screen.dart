@@ -367,7 +367,7 @@ MasterEntity.entity_MealNames: const [
     {'en': 'Tele-consultation Access', 'hi': 'टेली परामर्श सुविधा', 'or': 'ଟେଲି ପରାମର୍ଶ'},
     {'en': 'Emergency Query Support', 'hi': 'आपात प्रश्न सहायता', 'or': 'ଆପାତକାଳୀନ ସହାୟତା'},
   ],
-  MasterEntity.entity_packageCategory: [
+  MasterEntity.entity_packageType: [
     {'en': 'Basic Care Package', 'hi': 'बेसिक केयर पैकेज', 'or': 'ବେସିକ୍ କେୟାର୍ ପ୍ୟାକେଜ୍'},
     {'en': 'Standard Wellness Package', 'hi': 'स्टैंडर्ड वेलनेस पैकेज', 'or': 'ଷ୍ଟାଣ୍ଡାର୍ଡ୍ ୱେଲନେସ୍'},
     {'en': 'Advanced Clinical Package', 'hi': 'एडवांस क्लिनिकल पैकेज', 'or': 'ଏଡଭାନ୍ସ୍ କ୍ଲିନିକାଲ୍'},

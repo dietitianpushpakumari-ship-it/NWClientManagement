@@ -14,7 +14,9 @@ import 'package:nutricare_client_management/admin/pending_client_list_screen.dar
 import 'package:nutricare_client_management/admin/staff_management_screen.dart';
 import 'package:nutricare_client_management/admin/scheduler/admin_scheduler_screen.dart';
 import 'package:nutricare_client_management/admin/feed_management_screen.dart';
+import 'package:nutricare_client_management/modules/appointment/screens/booking/service_selection_screen.dart';
 import 'package:nutricare_client_management/pages/admin/client_ledger_overview_screen.dart';
+import 'package:nutricare_client_management/screens/admin_book_for_client_screen.dart';
 import 'package:nutricare_client_management/screens/dash/master_Setup_page.dart';
 import 'package:nutricare_client_management/admin/admin_analytics_screen.dart';
 import 'package:nutricare_client_management/admin/admin_account_page.dart';
@@ -229,6 +231,17 @@ class AdminDashboardHomeScreen extends ConsumerWidget {
                   () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminSchedulerScreen())),
             ),
 
+          if (isSuperAdmin || isClinicAdmin || can('manage_schedule'))
+            _buildBentoAction(
+              context, "new", "Slots & Blocks", Icons.edit_calendar_rounded, Colors.deepPurple,
+                  () => Navigator.push(context, MaterialPageRoute(builder: (_) =>  ServiceSelectionScreen())),
+            ),
+
+          if (isSuperAdmin || isClinicAdmin || can('manage_schedule'))
+            _buildBentoAction(
+              context, "new1", "Slots & Blocks", Icons.edit_calendar_rounded, Colors.deepPurple,
+                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminBookForClientScreen())),
+            ),
           if (isSuperAdmin || isClinicAdmin || can('manage_content'))
             _buildBentoAction(
               context, "Content", "Feed & Library", Icons.dynamic_feed_rounded, Colors.deepOrange,

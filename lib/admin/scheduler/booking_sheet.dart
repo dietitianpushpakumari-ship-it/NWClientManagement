@@ -1,27 +1,34 @@
-import 'package:firebase_auth/firebase_auth.dart'; // 🎯 AUTH IMPORT
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart'; // Ensure correct provider import
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
-import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/services/client_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class BookingSheet extends ConsumerStatefulWidget {
-  final AppointmentSlot slot;
+  final AppointmentSlot? slot; // 🎯 UPDATED: Nullable
+  final DateTime? preSelectedDateTime; // 🎯 NEW: For Timeline taps
   final String coachId;
   final int initialDurationMinutes;
+  final ClientModel? preSelectedClient;
 
-  const BookingSheet({super.key, required this.slot, required this.coachId, required this.initialDurationMinutes});
+  const BookingSheet({
+    super.key,
+    this.slot, // Now optional
+    this.preSelectedDateTime, // Now optional
+    required this.coachId,
+    required this.initialDurationMinutes,
+    this.preSelectedClient,
+  }) : assert(slot != null || preSelectedDateTime != null, "Provide either slot or date");
 
   @override
   ConsumerState<BookingSheet> createState() => _BookingSheetState();
 }
 
 class _BookingSheetState extends ConsumerState<BookingSheet> {
-
-  //final ClientService _clientService = ClientService();
   final _formKey = GlobalKey<FormState>();
 
   bool _isGuest = false;
@@ -34,13 +41,25 @@ class _BookingSheetState extends ConsumerState<BookingSheet> {
   late int _selectedDuration;
   final List<int> _durationOptions = [15, 30, 45, 60];
 
+  // 🎯 Helper to safely get time
+  DateTime get _effectiveStartTime => widget.slot?.startTime ?? widget.preSelectedDateTime!;
+
   @override
   void initState() {
     super.initState();
     _selectedDuration = widget.initialDurationMinutes;
+
+    if (widget.preSelectedClient != null) {
+      _selectedClient = widget.preSelectedClient;
+      _nameController.text = widget.preSelectedClient!.name;
+      _phoneController.text = widget.preSelectedClient!.mobile;
+      _isGuest = false;
+    }
   }
 
   void _showClientPicker() async {
+    if (widget.preSelectedClient != null) return;
+
     final selected = await showModalBottomSheet<ClientModel>(
       context: context,
       isScrollControlled: true,
@@ -66,17 +85,17 @@ class _BookingSheetState extends ConsumerState<BookingSheet> {
     setState(() => _isBooking = true);
 
     try {
-      // ... (Existing Auth Logic) ...
       final currentUser = FirebaseAuth.instance.currentUser;
       final adminUid = currentUser?.uid ?? 'unknown_admin';
       final adminName = currentUser?.displayName ?? currentUser?.email ?? 'Admin';
 
+      // 🎯 UPDATED: Using meetingServiceProvider (New Service)
       await ref.read(meetingServiceProvider).bookSession(
         clientId: _isGuest ? null : _selectedClient!.id,
         clientName: _isGuest ? _nameController.text : _selectedClient!.name,
         guestPhone: _phoneController.text,
         coachId: widget.coachId,
-        startTime: widget.slot.startTime,
+        startTime: _effectiveStartTime, // Using helper
         durationMinutes: _selectedDuration,
         topic: _topicController.text,
         useFreeSession: false,
@@ -86,7 +105,6 @@ class _BookingSheetState extends ConsumerState<BookingSheet> {
       );
 
       if (mounted) {
-        // 🎯 FIX: Return 'true' to indicate success
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Booking Confirmed!"), backgroundColor: Colors.green));
       }
@@ -99,6 +117,8 @@ class _BookingSheetState extends ConsumerState<BookingSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isLocked = widget.preSelectedClient != null;
+
     return Container(
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
       decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -108,8 +128,20 @@ class _BookingSheetState extends ConsumerState<BookingSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Book Slot: ${DateFormat.jm().format(widget.slot.startTime)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Book Slot: ${DateFormat.jm().format(_effectiveStartTime)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                if (isLocked)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
+                    child: Text(widget.preSelectedClient!.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                  )
+              ],
+            ),
             const SizedBox(height: 20),
+
             const Text("Duration:", style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
             const SizedBox(height: 8),
             Row(
@@ -125,21 +157,32 @@ class _BookingSheetState extends ConsumerState<BookingSheet> {
               )).toList(),
             ),
             const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(child: _buildTypeBtn("Existing Client", !_isGuest, () => setState(() => _isGuest = false))),
-                const SizedBox(width: 10),
-                Expanded(child: _buildTypeBtn("New Guest", _isGuest, () => setState(() => _isGuest = true))),
-              ],
-            ),
-            const SizedBox(height: 20),
-            if (!_isGuest)
+
+            if (!isLocked) ...[
+              Row(
+                children: [
+                  Expanded(child: _buildTypeBtn("Existing Client", !_isGuest, () => setState(() => _isGuest = false))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildTypeBtn("New Guest", _isGuest, () => setState(() => _isGuest = true))),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            if (!_isGuest || isLocked)
               GestureDetector(
-                onTap: _showClientPicker,
+                onTap: isLocked ? null : _showClientPicker,
                 child: AbsorbPointer(
                   child: TextFormField(
                     controller: _nameController,
-                    decoration: const InputDecoration(labelText: "Select Client", border: OutlineInputBorder(), prefixIcon: Icon(Icons.search), suffixIcon: Icon(Icons.arrow_drop_down)),
+                    decoration: InputDecoration(
+                      labelText: "Select Client",
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: isLocked ? const Icon(Icons.lock, size: 16, color: Colors.grey) : const Icon(Icons.arrow_drop_down),
+                      filled: isLocked,
+                      fillColor: isLocked ? Colors.grey.shade100 : null,
+                    ),
                     validator: (v) => _selectedClient == null ? "Select a client" : null,
                   ),
                 ),
@@ -150,9 +193,11 @@ class _BookingSheetState extends ConsumerState<BookingSheet> {
                 const SizedBox(height: 10),
                 TextFormField(controller: _phoneController, decoration: const InputDecoration(labelText: "Mobile", border: OutlineInputBorder()), keyboardType: TextInputType.phone, validator: (v) => v!.isEmpty ? "Req" : null),
               ]),
+
             const SizedBox(height: 10),
             TextFormField(controller: _topicController, decoration: const InputDecoration(labelText: "Purpose / Topic", border: OutlineInputBorder()), validator: (v) => v!.isEmpty ? "Req" : null),
             const SizedBox(height: 20),
+
             SizedBox(
               width: double.infinity, height: 50,
               child: ElevatedButton(
@@ -187,7 +232,6 @@ class ClientPickerSheet extends ConsumerStatefulWidget {
 }
 
 class _ClientPickerSheetState extends ConsumerState<ClientPickerSheet> {
-
   List<ClientModel> _allClients = [];
   List<ClientModel> _filteredClients = [];
   bool _isLoading = true;

@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum PackageCategory {
+  singleSession,
   basic,
   standard,
   premium,
@@ -28,14 +29,15 @@ class PackageModel {
   final int followUpIntervalDays;
 
   // 📋 Features & Filtering
-  final List<String> inclusions;       // Stores Names (Snapshot for Display)
-  final List<String> inclusionIds;     // 🎯 NEW: Stores Master IDs (For Logic)
+  final List<String> inclusions;
+  final List<String> inclusionIds;
   final List<String> programFeatureIds;
   final List<String> targetConditions;
 
   // 🎨 UI & Status
   final bool isActive;
   final PackageCategory category;
+  final String packageType;
   final String? colorCode;
 
   PackageModel({
@@ -49,7 +51,7 @@ class PackageModel {
     this.consultationCount = 0,
     this.freeSessions = 0,
     this.inclusions = const [],
-    this.inclusionIds = const [], // 🎯 Initialize
+    this.inclusionIds = const [],
     this.programFeatureIds = const [],
     this.targetConditions = const [],
     this.followUpIntervalDays = 7,
@@ -57,14 +59,17 @@ class PackageModel {
     this.category = PackageCategory.basic,
     this.colorCode,
     this.isFinalized = false,
+    required this.packageType
   });
 
   factory PackageModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
-    final String categoryString = data['category'] ?? 'basic';
+    final String categoryString = (data['category'] ?? 'basic').toString();
+
+    // 🎯 FIX: Compare both sides in lowerCase to handle 'singleSession' vs 'singlesession'
     final PackageCategory packageCategory = PackageCategory.values.firstWhere(
-          (e) => e.name == categoryString.toLowerCase(),
+          (e) => e.name.toLowerCase() == categoryString.trim().toLowerCase(),
       orElse: () => PackageCategory.basic,
     );
 
@@ -72,6 +77,7 @@ class PackageModel {
       id: doc.id,
       name: data['name'] ?? '',
       description: data['description'] ?? '',
+      packageType: data['packageType'] ?? '',
       price: (data['price'] as num?)?.toDouble() ?? 0.0,
       originalPrice: (data['originalPrice'] as num?)?.toDouble(),
       isTaxInclusive: data['isTaxInclusive'] ?? true,
@@ -79,9 +85,9 @@ class PackageModel {
       consultationCount: (data['consultationCount'] as num?)?.toInt() ?? 0,
       freeSessions: (data['freeSessions'] as num?)?.toInt() ?? 0,
 
-      followUpIntervalDays: (data['followUpIntervalDays'] as num?)?.toInt() ?? 7, // 🎯 Load or default to 7
+      followUpIntervalDays: (data['followUpIntervalDays'] as num?)?.toInt() ?? 7,
       inclusions: List<String>.from(data['inclusions'] ?? []),
-      inclusionIds: List<String>.from(data['inclusionIds'] ?? []), // 🎯 Load IDs
+      inclusionIds: List<String>.from(data['inclusionIds'] ?? []),
       programFeatureIds: List<String>.from(data['programFeatureIds'] ?? []),
       targetConditions: List<String>.from(data['targetConditions'] ?? []),
 
@@ -96,6 +102,7 @@ class PackageModel {
     return {
       'name': name,
       'description': description,
+      'packageType': packageType,
       'price': price,
       'originalPrice': originalPrice,
       'isTaxInclusive': isTaxInclusive,
@@ -103,11 +110,11 @@ class PackageModel {
       'consultationCount': consultationCount,
       'freeSessions': freeSessions,
       'inclusions': inclusions,
-      'inclusionIds': inclusionIds, // 🎯 Save IDs
+      'inclusionIds': inclusionIds,
       'programFeatureIds': programFeatureIds,
       'targetConditions': targetConditions,
       'isActive': isActive,
-      'category': category.name,
+      'category': category.name, // Saves as 'singleSession', 'basic', etc.
       'colorCode': colorCode,
       'updatedAt': FieldValue.serverTimestamp(),
       'isFinalized': isFinalized,

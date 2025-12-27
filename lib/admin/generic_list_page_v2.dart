@@ -36,7 +36,7 @@ final genericMasterListProvider = FutureProvider.family
   // B. STANDARD HANDLING: Collection-based Masters
   else {
     final masterService = ref.watch(masterDataServiceProvider);
-    // Use the existing service to fetch collection stream (converted to Future for this example, or use StreamProvider)
+    // Use the existing services to fetch collection stream (converted to Future for this example, or use StreamProvider)
     final stream = masterService.fetchMasterStream(params.path);
     return await stream.first;
   }

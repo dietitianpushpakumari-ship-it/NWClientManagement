@@ -9,7 +9,7 @@ import 'package:nutricare_client_management/admin/admin_booking_session_screen.d
 import 'package:nutricare_client_management/admin/admin_provider.dart';
 import 'package:nutricare_client_management/admin/appointment_model.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
-import 'package:nutricare_client_management/admin/meeting_service.dart';
+import 'package:nutricare_client_management/admin/meeting_service_old.dart';
 import 'package:nutricare_client_management/admin/staff_management_service.dart'; // 🎯 Added import
 import 'package:url_launcher/url_launcher.dart';
 
@@ -24,7 +24,7 @@ class AllMeetingsScreen extends ConsumerStatefulWidget {
 
 class _AllMeetingsScreenState extends ConsumerState<AllMeetingsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-                    // 🎯 Added service
+                    // 🎯 Added services
 
   @override
   void initState() {
@@ -108,7 +108,7 @@ class _AllMeetingsScreenState extends ConsumerState<AllMeetingsScreen> with Sing
 
                       // Filter Data
                       final upcoming = docs.where((a) => a.status == AppointmentStatus.confirmed && a.startTime.isAfter(DateTime.now())).toList();
-                      final requests = docs.where((a) => a.status == AppointmentStatus.scheduled || a.status == AppointmentStatus.pending).toList();
+                      final requests = docs.where((a) => a.status == AppointmentStatus.scheduled || a.status == AppointmentStatus.pending || a.status == AppointmentStatus.payment_pending).toList();
                       final history = docs.where((a) => a.status == AppointmentStatus.completed || a.status == AppointmentStatus.cancelled || a.startTime.isBefore(DateTime.now())).toList();
 
                       return TabBarView(

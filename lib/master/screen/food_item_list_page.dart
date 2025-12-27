@@ -28,7 +28,7 @@ class _FoodItemListPageState extends ConsumerState<FoodItemListPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 🎯 FIX 3: Access the service via ref.watch()
+    // 🎯 FIX 3: Access the services via ref.watch()
     final service = ref.watch(foodItemServiceProvider);
 
     return SafeArea(

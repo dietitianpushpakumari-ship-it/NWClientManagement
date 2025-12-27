@@ -14,7 +14,7 @@ class MasterMealNameListPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 🎯 FIX 4: Access the service via ref.watch()
+    // 🎯 FIX 4: Access the services via ref.watch()
     final service = ref.watch(masterMealNameServiceProvider);
 
     return SafeArea(

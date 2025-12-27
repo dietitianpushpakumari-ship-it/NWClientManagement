@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/tenant_model.dart';
+import 'package:nutricare_client_management/core/adapters/nutricare_appointment_adapter.dart';
+import 'package:nutricare_client_management/modules/appointment/services/meeting_service.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 // import 'package:nutricare_client_management/firebase_options.dart'; // Default options if needed
 
@@ -52,3 +54,42 @@ final authProvider = Provider<FirebaseAuth>((ref) {
   }
   return FirebaseAuth.instance; // Default
 });
+
+final authStateProvider = StreamProvider<User?>((ref) {
+  // 1. Watch the dynamic, tenant-aware Auth instance
+  final auth = ref.watch(authProvider);
+
+  // 2. Listen to changes on the CORRECT instance
+  return auth.authStateChanges();
+});
+
+// 🎯 NEW PROVIDER DEFINITION
+final meetingServiceProvider = Provider<MeetingService>((ref) {
+  final firestore = ref.watch(firestoreProvider);
+  final currentUser = ref.watch(authProvider).currentUser;
+
+  // Create the Contract Implementation
+  final contract = NutricareAppointmentAdapter(
+      db: firestore,
+      currentUserId: currentUser?.uid ?? 'unknown'
+  );
+
+  // Return the Service
+  return MeetingService(contract, firestore);
+});
+final appointmentAdapterProvider = Provider<NutricareAppointmentAdapter>((ref) {
+  final db = ref.watch(firestoreProvider);
+
+  // Watch the Auth State. If it changes, this Adapter is re-created.
+  final authState = ref.watch(authStateProvider);
+
+  // Handle "Not Logged In" case gracefully
+  final user = authState.value;
+  if (user == null) {
+    throw Exception("Cannot create AppointmentAdapter: No User Logged In");
+  }
+    return NutricareAppointmentAdapter(
+      db: db,
+      currentUserId: user.uid, // 🎯 Injecting the ID from AuthWrapper/State
+    );
+  });

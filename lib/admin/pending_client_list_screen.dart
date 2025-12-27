@@ -2,23 +2,54 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 // 🎯 CRITICAL: Riverpod Imports
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/screens/dash/client_dashboard_screenv2.dart';
+import 'package:nutricare_client_management/modules/package/model/package_assignment_model.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/master/model/master_constants.dart';
 
-// 🎯 CRITICAL FIX: The centralized provider definition (Assuming clientServiceProvider is global)
-// This provider watches the ClientService, which ensures the dynamic _firestore is used.
+// 🎯 PROVIDER: Fetch Active Package for a Client from 'patient_subscription'
+final clientActivePackageProvider = StreamProvider.family.autoDispose<PackageAssignmentModel?, String>((ref, clientId) {
+  return ref.read(firestoreProvider)
+      .collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientSubscription))
+      .where('clientId', isEqualTo: clientId)
+      .where('status', isEqualTo: 'active') // Only fetch active ones
+      .snapshots()
+      .map((snapshot) {
+    if (snapshot.docs.isEmpty) return null;
+
+    // 1. Convert to Models
+    final packages = snapshot.docs.map((d) {
+      try {
+        return PackageAssignmentModel.fromFirestore(d);
+      } catch (e) {
+        return null;
+      }
+    }).whereType<PackageAssignmentModel>().toList();
+
+    final now = DateTime.now();
+
+    // 2. Filter: Must not be expired
+    final validPackages = packages.where((p) => p.expiryDate.isAfter(now)).toList();
+
+    if (validPackages.isEmpty) return null;
+
+    // 3. Sort: Get the one expiring last (longest remaining)
+    validPackages.sort((a, b) => b.expiryDate.compareTo(a.expiryDate));
+
+    return validPackages.first;
+  });
+});
+
 final allActiveClientsStreamProvider = StreamProvider.autoDispose<List<ClientModel>>((ref) {
-  // Watching the service forces a restart of the stream when the tenant context changes.
   final clientService = ref.watch(clientServiceProvider);
-  // Assuming this method uses the dynamic _firestore instance in ClientService.
   return clientService.streamAllClientsForReporting();
 });
 
-
-// 🎯 CONVERSION TO CONSUMERSTATEFUL
 class PendingClientListScreen extends ConsumerStatefulWidget {
   const PendingClientListScreen({super.key});
 
@@ -46,17 +77,15 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
 
   @override
   Widget build(BuildContext context) {
-    // 🎯 FIX: Watch the centralized Riverpod stream provider
     final clientsAsync = ref.watch(allActiveClientsStreamProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) =>  ClientConsultationChecklistScreen(client: null)),
+            MaterialPageRoute(builder: (_) => ClientConsultationChecklistScreen(client: null)),
           );
         },
         backgroundColor: Theme.of(context).colorScheme.primary,
@@ -64,7 +93,6 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
         label: const Text("Add Client", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         elevation: 4,
       ),
-
       body: Stack(
         children: [
           // 1. AMBIENT GLOW
@@ -82,34 +110,24 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
           SafeArea(
             child: Column(
               children: [
-                // 2. CUSTOM HEADER
                 _buildHeader(),
-
-                // 3. SEARCH BAR
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _buildSearchBar(),
                 ),
                 const SizedBox(height: 20),
-
-                // 4. PILL TABS
                 _buildTabBar(),
                 const SizedBox(height: 16),
-
-                // 5. TAB VIEWS (Use clientsAsync)
                 Expanded(
                   child: clientsAsync.when(
                     loading: () => const Center(child: CircularProgressIndicator()),
                     error: (err, stack) => Center(child: Text("Error loading clients: ${err.toString()}")),
                     data: (allClients) {
-
-                      // Filter by Search
                       final filtered = allClients.where((c) =>
                       c.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
                           c.mobile.contains(_searchQuery)
                       ).toList();
 
-                      // 🎯 SEGMENTATION LOGIC
                       final newLeads = filtered.where((c) => c.clientType == 'new' || c.clientType.isEmpty).toList();
                       final activeClients = filtered.where((c) => c.clientType == 'active').toList();
                       final historyClients = filtered.where((c) => c.clientType == 'one_time' || c.clientType == 'expired').toList();
@@ -118,6 +136,7 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
                         controller: _tabController,
                         children: [
                           _buildClientList(newLeads, "Waiting for assignment", Colors.blueGrey, isNew: true),
+                          // 🎯 Active List with Nudges
                           _buildClientList(activeClients, "Currently on plan", Colors.green, isActive: true),
                           _buildClientList(historyClients, "Past consultations", Colors.orange, isHistory: true),
                         ],
@@ -133,7 +152,8 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
     );
   }
 
-  // --- HEADER ---
+  // --- WIDGETS ---
+
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
@@ -154,7 +174,6 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
               const Text("Client Directory", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
             ],
           ),
-          // Filter Icon (Visual only for now)
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(.1), shape: BoxShape.circle),
@@ -165,7 +184,6 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
     );
   }
 
-  // --- SEARCH BAR ---
   Widget _buildSearchBar() {
     return Container(
       decoration: BoxDecoration(
@@ -187,15 +205,11 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
     );
   }
 
-  // --- TABS ---
   Widget _buildTabBar() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       height: 40,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(20),
-      ),
+      decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(20)),
       child: TabBar(
         controller: _tabController,
         indicator: BoxDecoration(
@@ -215,7 +229,6 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
     );
   }
 
-  // --- LIST BUILDER ---
   Widget _buildClientList(List<ClientModel> clients, String emptyMsg, Color accentColor, {bool isNew = false, bool isActive = false, bool isHistory = false}) {
     if (clients.isEmpty) {
       return Center(
@@ -224,7 +237,7 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
           children: [
             Icon(Icons.folder_open, size: 60, color: Colors.grey.shade300),
             const SizedBox(height: 16),
-            Text("No clients here", style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+            Text(emptyMsg, style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
           ],
         ),
       );
@@ -239,7 +252,6 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
     );
   }
 
-  // --- CLIENT CARD ---
   Widget _buildClientCard(ClientModel client, Color color, bool isNew, bool isActive, bool isHistory) {
     return GestureDetector(
       onTap: () {
@@ -262,7 +274,6 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
           children: [
             Row(
               children: [
-                // Avatar
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: color.withOpacity(0.1),
@@ -270,8 +281,6 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
                   child: client.photoUrl == null ? Text(client.name.isNotEmpty ? client.name[0] : '?', style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 18)) : null,
                 ),
                 const SizedBox(width: 16),
-
-                // Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,17 +303,18 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
                     ],
                   ),
                 ),
-
-                // Status Chip
                 _buildStatusChip(client.clientType, color),
               ],
             ),
+
+            // 🎯 NEW: Insert Smart Nudge Widget
+            if (isActive)
+              ClientPackageNudge(clientId: client.id),
 
             const SizedBox(height: 16),
             const Divider(height: 1, color: Color(0xFFF0F0F0)),
             const SizedBox(height: 12),
 
-            // 🎯 ACTION FOOTER
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -340,10 +350,7 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
     if (type.isEmpty) label = "NEW";
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
       child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
     );
   }
@@ -354,10 +361,7 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-        ),
+        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
         child: Row(
           children: [
             Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
@@ -366,6 +370,98 @@ class _PendingClientListScreenState extends ConsumerState<PendingClientListScree
           ],
         ),
       ),
+    );
+  }
+}
+
+// 🎯 NEW WIDGET: Smart Nudge for Package Info
+class ClientPackageNudge extends ConsumerWidget {
+  final String clientId;
+  const ClientPackageNudge({super.key, required this.clientId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final packageAsync = ref.watch(clientActivePackageProvider(clientId));
+
+    return packageAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, s) => const SizedBox.shrink(),
+      data: (activeAssignment) {
+        if (activeAssignment == null) return const SizedBox.shrink();
+
+        final durationDays = activeAssignment.expiryDate.difference(activeAssignment.purchaseDate).inDays;
+
+        // 🎯 RULE: Must be minimum 1 month (~28 days) duration
+        if (durationDays < 28) return const SizedBox.shrink();
+
+        final now = DateTime.now();
+        final daysLeft = activeAssignment.expiryDate.difference(now).inDays;
+
+        // 🎯 FIX: Use explicit Category, Type & Color logic
+        String categoryName = activeAssignment.category ?? '';
+        String typeName = activeAssignment.type ?? ''; // Get Type
+
+        // Build Label: "PREMIUM MEMBER • WEIGHT LOSS"
+        String labelPart1 = categoryName.isEmpty ? "MEMBER" : "${categoryName.toUpperCase()} MEMBER";
+        String label = typeName.isNotEmpty ? "$labelPart1 • ${typeName.toUpperCase()}" : labelPart1;
+
+        // Ensure color logic respects saved preference or falls back safely
+        Color color = Colors.blue;
+        if (activeAssignment.colorCode != null) {
+          try {
+            color = Color(int.parse(activeAssignment.colorCode!));
+          } catch (_) {}
+        } else {
+          // Fallback logic
+          final catLower = categoryName.toLowerCase();
+          if (catLower.contains('premium')) color = Colors.deepPurple;
+          else if (catLower.contains('standard')) color = Colors.teal;
+          else if (catLower.contains('basic')) color = Colors.orange;
+        }
+
+        // 🎯 RULE: End date notification
+        bool isExpiringSoon = daysLeft <= 7;
+
+        return Container(
+          margin: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withOpacity(0.2)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.workspace_premium, size: 16, color: color),
+              const SizedBox(width: 8),
+              // Expanded to avoid overflow with long Type names
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color, letterSpacing: 0.5),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (isExpiringSoon)
+                Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    const Icon(Icons.access_time_filled, size: 14, color: Colors.red),
+                    const SizedBox(width: 4),
+                    Text("Expiring in $daysLeft days", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red)),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    Text("Active • $daysLeft days left", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

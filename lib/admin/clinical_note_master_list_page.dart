@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:ui';
-// 🎯 Using correct service
+// 🎯 Using correct services
 import 'package:nutricare_client_management/admin/generic_clinical_master_entry_screen.dart';
 import 'package:nutricare_client_management/admin/simple_item_master_model.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
@@ -42,7 +42,7 @@ class _ClinicalNotesMasterListPageState extends ConsumerState<ClinicalNotesMaste
 
   @override
   Widget build(BuildContext context) {
-    // 🎯 FIX: Reading the correct service provider
+    // 🎯 FIX: Reading the correct services provider
     final service = ref.read(clinicalNotesMasterServiceProvider);
 
     return Scaffold(

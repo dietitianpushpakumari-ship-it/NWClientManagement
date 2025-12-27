@@ -18,7 +18,7 @@ final mapper = MasterCollectionMapper.getPath;
 
 // Providers for fetching required master lists (Map<Name, ID>)
 final masterDietPlansProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  // Assuming a service method exists to get {Plan Name: Plan ID}
+  // Assuming a services method exists to get {Plan Name: Plan ID}
   return ref.watch(masterDietPlanServiceProvider).fetchMasterPlanNamesMap();
 });
 

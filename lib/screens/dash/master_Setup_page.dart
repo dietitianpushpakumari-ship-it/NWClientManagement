@@ -58,7 +58,7 @@ final List<MasterModule> _masterModules = const [
       },
       {
         'title': 'Package Categories',
-        'entity': MasterEntity.entity_packageCategory,
+        'entity': MasterEntity.entity_packageType,
         'icon': Icons.category_sharp,
         'color': Colors.teal,
       },

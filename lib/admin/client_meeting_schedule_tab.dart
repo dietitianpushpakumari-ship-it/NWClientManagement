@@ -1,12 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:nutricare_client_management/admin/admin_provider.dart';
-import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
-import 'package:nutricare_client_management/admin/meeting_service.dart';
 import 'package:intl/intl.dart';
-import 'package:nutricare_client_management/admin/schedule_meeting_utils.dart';
+import 'package:nutricare_client_management/admin/admin_profile_model.dart';
+import 'package:nutricare_client_management/admin/appointment_model.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/admin/scheduler/scheduler_timeline_view.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
+import 'package:nutricare_client_management/admin/meeting_service_old.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ClientMeetingScheduleTab extends ConsumerStatefulWidget {
@@ -17,216 +19,178 @@ class ClientMeetingScheduleTab extends ConsumerStatefulWidget {
   ConsumerState<ClientMeetingScheduleTab> createState() => _ClientMeetingScheduleTabState();
 }
 
-class _ClientMeetingScheduleTabState extends ConsumerState<ClientMeetingScheduleTab> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+class _ClientMeetingScheduleTabState extends ConsumerState<ClientMeetingScheduleTab> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
-  DateTime? _selectedDate;
-  TimeOfDay? _selectedTime;
-  String _selectedMeetingType = 'Video Call';
-  final TextEditingController _purposeCtrl = TextEditingController();
-  final TextEditingController _linkCtrl = TextEditingController();
-  bool _isScheduling = false;
-
-  late Future<List<MeetingModel>> _meetingsFuture;
+  DateTime _selectedDate = DateTime.now();
+  List<String> _selectedCoachIds = [];
+  List<AdminProfileModel> _allStaff = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // 🎯 FIX: Use ref.read instead of ref.watch in initState
-    _meetingsFuture = ref.read(meetingServiceProvider).getClientMeetings(widget.client.id);
+    _tabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchStaffAndInitialize());
   }
 
-  // 🎯 FIX: Use ref.read here as well (it's an event/callback)
-  void _refresh() => setState(() => _meetingsFuture = ref.read(meetingServiceProvider).getClientMeetings(widget.client.id));
+  Future<void> _fetchStaffAndInitialize() async {
+    try {
+      final firestore = ref.read(firestoreProvider);
+      final snap = await firestore.collection('admins').where('role', whereIn: ['dietitian', 'clinicAdmin', 'owner', 'admin']).get();
+      final staff = snap.docs.map((d) => AdminProfileModel.fromFirestore(d)).toList();
+      if (mounted) setState(() { _allStaff = staff; _selectedCoachIds = staff.map((e) => e.id).toList(); _isLoading = false; });
+    } catch (e) { if(mounted) setState(() => _isLoading = false); }
+  }
 
-  Future<void> _schedule() async {
-    if (!_formKey.currentState!.validate() || _selectedDate == null || _selectedTime == null) return;
-    setState(() => _isScheduling = true);
+  // 🎯 WhatsApp Call Logic
+  Future<void> _launchWhatsAppCall() async {
+    String phone = widget.client.whatsappNumber ?? widget.client.mobile;
+    phone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (!phone.startsWith('91') && phone.length == 10) phone = '91$phone';
+
+    // Try direct call (Android specific often), fallback to chat
+    final Uri callUrl = Uri.parse("whatsapp://call?phone=$phone");
+    final Uri chatUrl = Uri.parse("https://wa.me/$phone");
 
     try {
-      final dt = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, _selectedTime!.hour, _selectedTime!.minute);
-
-      // 🎯 FIX: Use ref.read for async actions
-      await ref.read(meetingServiceProvider).scheduleMeeting(
-          clientId: widget.client.id, startTime: dt, meetingType: _selectedMeetingType, purpose: _purposeCtrl.text.trim(), meetLink: _linkCtrl.text.trim()
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Meeting Scheduled!")));
-        _purposeCtrl.clear(); _linkCtrl.clear(); _selectedDate = null; _selectedTime = null;
-        _refresh();
+      if (await canLaunchUrl(callUrl)) {
+        await launchUrl(callUrl);
+      } else {
+        await launchUrl(chatUrl, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-    } finally {
-      if (mounted) setState(() => _isScheduling = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not launch WhatsApp")));
     }
   }
 
-  // --- UI ---
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Quick Actions Card
-          _buildPremiumCard(
-              title: "Quick Connect",
-              icon: Icons.bolt,
-              color: Colors.orange,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildQuickBtn(Icons.phone, "Call", Colors.blue, () => launchUrl(Uri(scheme: 'tel', path: widget.client.mobile))),
-                  _buildQuickBtn(FontAwesomeIcons.whatsapp, "WhatsApp", Colors.green, () => launchUrl(Uri.parse("https://wa.me/${widget.client.whatsappNumber ?? widget.client.mobile}"))),
-                  _buildQuickBtn(FontAwesomeIcons.video, "Meet", Colors.red, () => launchUrl(Uri.parse("https://meet.google.com/new"))),
-                ],
-              )
-          ),
-          const SizedBox(height: 20),
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
 
-          // 2. Schedule Form
-          _buildPremiumCard(
-              title: "Schedule New Meeting",
-              icon: Icons.calendar_today,
-              color: Theme.of(context).colorScheme.primary,
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    Row(children: [
-                      Expanded(child: _buildPicker("Date", _selectedDate != null ? DateFormat('dd MMM').format(_selectedDate!) : null, Icons.event, () async {
-                        final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)));
-                        if (d != null) setState(() => _selectedDate = d);
-                      })),
-                      const SizedBox(width: 10),
-                      Expanded(child: _buildPicker("Time", _selectedTime?.format(context), Icons.access_time, () async {
-                        final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                        if (t != null) setState(() => _selectedTime = t);
-                      })),
-                    ]),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField(
-                      value: _selectedMeetingType,
-                      decoration: _inputDec("Type"),
-                      items: ['Video Call', 'Voice Call', 'In-Person'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                      onChanged: (v) => setState(() => _selectedMeetingType = v!),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(controller: _purposeCtrl, decoration: _inputDec("Purpose"), validator: (v) => v!.isEmpty ? "Required" : null),
-                    if (_selectedMeetingType == 'Video Call') ...[
-                      const SizedBox(height: 12),
-                      TextFormField(controller: _linkCtrl, decoration: _inputDec("Meet Link")),
-                    ],
-                    const SizedBox(height: 16),
-                    SizedBox(width: double.infinity, child: ElevatedButton(
-                      onPressed: _isScheduling ? null : _schedule,
-                      style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14)),
-                      child: _isScheduling ? const CircularProgressIndicator(color: Colors.white) : const Text("SCHEDULE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ))
-                  ],
-                ),
-              )
-          ),
-          const SizedBox(height: 24),
-
-          // 3. Timeline
-          const Text("Upcoming Meetings", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-          const SizedBox(height: 12),
-          FutureBuilder<List<MeetingModel>>(
-            future: _meetingsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              final meetings = snapshot.data ?? [];
-              final upcoming = meetings.where((m) => m.status == MeetingStatus.scheduled).toList();
-
-              if (upcoming.isEmpty) return const Center(child: Text("No upcoming meetings.", style: TextStyle(color: Colors.grey)));
-
-              return Column(
-                children: upcoming.map((m) => Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: const Offset(0, 3))]),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12)),
-                        child: Column(
-                          children: [
-                            Text(DateFormat('dd').format(m.startTime), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
-                            Text(DateFormat('MMM').format(m.startTime), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(m.purpose, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            Text("${DateFormat.jm().format(m.startTime)} • ${m.meetingType}", style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-                          ],
-                        ),
-                      ),
-                      IconButton(icon: const Icon(Icons.more_vert, color: Colors.grey), onPressed: () {})
-                    ],
-                  ),
-                )).toList(),
-              );
-            },
-          )
-        ],
-      ),
-    );
-  }
-
-  // --- HELPERS ---
-  Widget _buildPremiumCard({required String title, required IconData icon, required Color color, required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))]),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [Icon(icon, color: color, size: 20), const SizedBox(width: 10), Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color))]),
-          const SizedBox(height: 16),
-          child
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickBtn(IconData icon, String label, Color color, VoidCallback onTap) {
     return Column(
       children: [
-        InkWell(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-            child: Icon(icon, color: color, size: 24),
+        // HEADER & QUICK ACTIONS
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.person, color: Colors.indigo),
+                  const SizedBox(width: 8),
+                  Text(widget.client.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // 🎯 QUICK ACTION BUTTONS
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildQuickBtn(Icons.phone, "Call", Colors.blue, () => launchUrl(Uri.parse("tel:${widget.client.mobile}"))),
+                  _buildQuickBtn(FontAwesomeIcons.whatsapp, "Chat", Colors.green, () => launchUrl(Uri.parse("https://wa.me/${widget.client.whatsappNumber ?? widget.client.mobile}"))),
+                  // 🎯 NEW: WhatsApp Call Button
+                  _buildQuickBtn(Icons.video_call, "WA Call", Colors.teal, _launchWhatsAppCall),
+                  _buildQuickBtn(Icons.video_camera_front, "Meet", Colors.red, () => launchUrl(Uri.parse("https://meet.google.com/new"))),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TabBar(
+                controller: _tabController,
+                labelColor: Colors.indigo,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Colors.indigo,
+                tabs: const [Tab(text: "Scheduler"), Tab(text: "History")],
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 6),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))
+
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              // TAB 1: Scheduler Timeline
+              SchedulerTimelineView(
+                allStaff: _allStaff,
+                selectedCoachIds: _selectedCoachIds,
+                selectedDay: _selectedDate,
+                isSuperAdmin: false,
+                onDateChanged: (d) => setState(() => _selectedDate = d),
+                onFilterChanged: (ids) => setState(() => _selectedCoachIds = ids),
+                preSelectedClient: widget.client, // 🎯 Context
+              ),
+
+              // TAB 2: History List
+              _buildHistoryTab(),
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildPicker(String hint, String? value, IconData icon, VoidCallback onTap) {
+  Widget _buildQuickBtn(IconData icon, String label, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      child: Container(
-        height: 50,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
-        child: Row(children: [Icon(icon, size: 18, color: Colors.grey), const SizedBox(width: 8), Text(value ?? hint, style: TextStyle(color: value == null ? Colors.grey : Colors.black87, fontWeight: FontWeight.w600))]),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
 
-  InputDecoration _inputDec(String label) => InputDecoration(labelText: label, filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16));
+  // ... (Keep _buildHistoryTab and _buildAppointmentCard from previous response) ...
+  Widget _buildHistoryTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: ref.watch(firestoreProvider).collection('appointments')
+          .where('clientId', isEqualTo: widget.client.id).orderBy('startTime', descending: true).snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final docs = snapshot.data!.docs.map((d) => AppointmentModel.fromFirestore(d)).toList();
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          separatorBuilder: (_,__) => const SizedBox(height: 10),
+          itemBuilder: (ctx, i) => _buildAppointmentCard(docs[i]),
+        );
+      },
+    );
+  }
+
+  Widget _buildAppointmentCard(AppointmentModel appt) {
+    return Card(
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Text(DateFormat('dd\nMMM').format(appt.startTime), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+        ),
+        title: Text(appt.topic.isEmpty ? "Session" : appt.topic, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("${DateFormat.jm().format(appt.startTime)} - ${DateFormat.jm().format(appt.endTime)}"),
+            if (appt.meetLink != null && appt.meetLink!.isNotEmpty)
+              GestureDetector(
+                onTap: () => launchUrl(Uri.parse(appt.meetLink!), mode: LaunchMode.externalApplication),
+                child: Text(appt.meetLink!, style: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline)),
+              )
+          ],
+        ),
+        trailing: Icon(
+          appt.status == AppointmentStatus.cancelled ? Icons.cancel : Icons.check_circle,
+          color: appt.status == AppointmentStatus.cancelled ? Colors.red : Colors.green,
+        ),
+      ),
+    );
+  }
 }

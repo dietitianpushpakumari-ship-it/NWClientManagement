@@ -39,7 +39,7 @@ class _VitalsPickerSheetState extends ConsumerState<VitalsPickerSheet> {
     // 🎯 FIX 1: Access VitalsService via Riverpod and use the correct method name
     final vitalsService = ref.read(vitalsServiceProvider);
 
-    // Assuming getClientVitals was added back to the service definition
+    // Assuming getClientVitals was added back to the services definition
     _vitalsFuture = vitalsService.getClientVitals(widget.clientId);
   }
 

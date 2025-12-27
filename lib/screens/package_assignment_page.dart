@@ -24,10 +24,10 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
   DateTime _startDate = DateTime.now();
   bool _isLoading = false;
 
-  // Filter State
-  String _selectedConditionFilter = 'All';
+  // 🎯 FILTERS
+  String _selectedTypeFilter = 'All';
+  String _selectedCategoryFilter = 'All';
 
-  // 🎯 Offer State & Controllers
   int _offerExtraDays = 0;
   int _offerExtraSessions = 0;
   late TextEditingController _extraDaysCtrl;
@@ -47,8 +47,6 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
     super.dispose();
   }
 
-  // --- ACTIONS ---
-
   void _updateExtraDays(int newValue) {
     if (newValue < 0) return;
     setState(() {
@@ -66,21 +64,23 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
       _extraSessionsCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _extraSessionsCtrl.text.length));
     });
   }
+// ... imports ...
+
+// ... imports ...
 
   Future<void> _assignPackage() async {
-    if (_selectedPackage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a package")));
-      return;
-    }
-
+    if (_selectedPackage == null) return;
     setState(() => _isLoading = true);
 
     try {
+      final firestore = ref.read(firestoreProvider);
+
+      // 1. Calculate Data
       final finalDuration = _selectedPackage!.durationDays + _offerExtraDays;
       final finalFreeSessions = _selectedPackage!.freeSessions + _offerExtraSessions;
-
       final endDate = _startDate.add(Duration(days: finalDuration));
 
+      // 2. Prepare Subscription Data
       final subscriptionData = {
         'clientId': widget.client.id,
         'clientName': widget.client.name,
@@ -88,43 +88,69 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
         'packageName': _selectedPackage!.name,
         'startDate': Timestamp.fromDate(_startDate),
         'endDate': Timestamp.fromDate(endDate),
-        'price': _selectedPackage!.price,
         'status': 'active',
-        // 🎯 LINKING THE SESSION
-        'sessionId': widget.sessionId,
 
+        // Counts for Calculation
         'sessionsTotal': _selectedPackage!.consultationCount,
-        'sessionsRemaining': _selectedPackage!.consultationCount,
-
-        // 🎯 Save Offer Data
-        'offerExtraDays': _offerExtraDays,
-        'offerExtraSessions': _offerExtraSessions,
-
         'freeSessionsTotal': finalFreeSessions,
-        'freeSessionsRemaining': finalFreeSessions,
 
-        'inclusions': _selectedPackage!.inclusions,
+        // Metadata
+        'category': _selectedPackage!.category.name,
+        'type': _selectedPackage!.packageType,
+        'price': _selectedPackage!.price,
+        'sessionId': widget.sessionId,
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-      await ref.read(firestoreProvider).collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientSubscription)).add(subscriptionData);
+      WriteBatch batch = firestore.batch();
 
-      await ref.read(firestoreProvider).collection('clients').doc(widget.client.id).update({
+      // A. Create Subscription (This is the "Income" for the calculator)
+      DocumentReference subRef = firestore.collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientSubscription)).doc();
+      batch.set(subRef, subscriptionData);
+
+      // B. Update Client Metadata (Only plan info, NO WALLET BALANCE)
+      DocumentReference clientRef = firestore.collection('clients').doc(widget.client.id);
+      batch.update(clientRef, {
         'currentPlan': _selectedPackage!.name,
         'planExpiry': Timestamp.fromDate(endDate),
-        'freeSessionsRemaining': finalFreeSessions,
+        'onboarding_step_subscription': true,
+        // ❌ REMOVED: 'wallet.available': FieldValue.increment(...)
+        // ❌ REMOVED: 'wallet.batches': ...
       });
 
+      // C. Ledger (Audit Only)
+      DocumentReference ledgerRef = firestore.collection('wallet_ledger').doc();
+      batch.set(ledgerRef, {
+        'clientId': widget.client.id,
+        'type': 'credit',
+        'category': 'package_purchase',
+        'amount': (_selectedPackage!.consultationCount + finalFreeSessions),
+        'description': 'Assigned Package: ${_selectedPackage!.name}',
+        'referenceId': subRef.id,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // D. Session Update
+      if (widget.sessionId != null) {
+        batch.update(firestore.collection('consultation_sessions').doc(widget.sessionId), {
+          'steps.subscription': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Package Assigned Successfully!")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Package Assigned! Balance will update automatically."), backgroundColor: Colors.green));
         Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if(mounted) setState(() => _isLoading = false);
     }
   }
+
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -135,8 +161,6 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
     );
     if (picked != null) setState(() => _startDate = picked);
   }
-
-  // --- UI BUILDER ---
 
   @override
   Widget build(BuildContext context) {
@@ -154,15 +178,13 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
             const SizedBox(height: 20),
 
             const Text("Select Package", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
             StreamBuilder<List<PackageModel>>(
               stream: packageService.streamPackages(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const LinearProgressIndicator();
 
-                // 🎯 CRITICAL FIX: Filter by 'isFinalized' instead of 'isActive'
-                // This ensures ALL finalized plans show up (even if inactive), and NO drafts show up.
                 final allPackages = snapshot.data!.where((p) => p.isFinalized).toList();
 
                 if (allPackages.isEmpty) {
@@ -172,26 +194,42 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
                   );
                 }
 
-                // Collect Conditions for Filter Tabs
-                final Set<String> conditions = {'All'};
+                // 🎯 1. COLLECT UNIQUE VALUES
+                final Set<String> types = {'All'};
+                final Set<String> categories = {'All'};
+
                 for (var p in allPackages) {
-                  conditions.addAll(p.targetConditions);
+                  if(p.packageType.isNotEmpty) types.add(p.packageType);
+                  categories.add(p.category.displayName);
                 }
 
-                // Apply UI Filter (Tabs)
-                final filteredPackages = _selectedConditionFilter == 'All'
-                    ? allPackages
-                    : allPackages.where((p) => p.targetConditions.contains(_selectedConditionFilter)).toList();
+                // Sorted Lists
+                final sortedTypes = ['All', ...types.where((t) => t != 'All').toList()..sort()];
+                final sortedCategories = ['All', ...categories.where((c) => c != 'All').toList()];
+                // Note: Categories usually follow Enum order, or we can sort them. Let's keep Enum order logic if possible, or just insert.
+                // For simplicity here, sticking to insertion order or basic sort.
 
-                // Reset Selection if filtered out
-                if (_selectedPackage != null && !filteredPackages.any((p) => p.id == _selectedPackage!.id)) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) => setState(() {
-                    _selectedPackage = null;
-                    _updateExtraDays(0);
-                    _updateExtraSessions(0);
-                  }));
-                } else if (_selectedPackage != null) {
-                  // Keep selection updated
+                // 🎯 2. APPLY DUAL FILTERS
+                final filteredPackages = allPackages.where((p) {
+                  final matchType = _selectedTypeFilter == 'All' || p.packageType == _selectedTypeFilter;
+                  final matchCategory = _selectedCategoryFilter == 'All' || p.category.displayName == _selectedCategoryFilter;
+                  return matchType && matchCategory;
+                }).toList();
+
+                // 🎯 3. VALIDATE SELECTION
+                final bool isValueInList = _selectedPackage != null && filteredPackages.any((p) => p.id == _selectedPackage!.id);
+
+                if (_selectedPackage != null && !isValueInList) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _selectedPackage = null;
+                        _updateExtraDays(0);
+                        _updateExtraSessions(0);
+                      });
+                    }
+                  });
+                } else if (_selectedPackage != null && isValueInList) {
                   try {
                     _selectedPackage = filteredPackages.firstWhere((p) => p.id == _selectedPackage!.id);
                   } catch (_) {}
@@ -200,50 +238,97 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Condition Filter Chips
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: conditions.map((cond) {
-                          final isSelected = _selectedConditionFilter == cond;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8.0, bottom: 8.0),
-                            child: ChoiceChip(
-                              label: Text(cond),
-                              selected: isSelected,
-                              selectedColor: Colors.indigo.shade100,
-                              labelStyle: TextStyle(
-                                  color: isSelected ? Colors.indigo : Colors.black87,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
-                              ),
-                              onSelected: (selected) {
-                                if (selected) setState(() => _selectedConditionFilter = cond);
-                              },
-                            ),
-                          );
-                        }).toList(),
+                    // 🎯 FILTER 1: BY TYPE (LARGE LIST -> DROPDOWN)
+                    if (sortedTypes.length > 2) ...[
+                      const Text("Filter by Type:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: sortedTypes.contains(_selectedTypeFilter) ? _selectedTypeFilter : 'All',
+                            isExpanded: true,
+                            icon: const Icon(Icons.category, size: 20, color: Colors.indigo),
+                            items: sortedTypes.map((type) => DropdownMenuItem(
+                              value: type,
+                              child: Text(type, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87)),
+                            )).toList(),
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedTypeFilter = val);
+                            },
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
+
+                    const SizedBox(height: 12),
+
+                    // 🎯 FILTER 2: BY TIER/CATEGORY (SMALL LIST -> CHIPS)
+                    if (sortedCategories.length > 2) ...[
+                      const Text("Filter by Tier:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                      const SizedBox(height: 4),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: sortedCategories.map((cat) {
+                            final isSelected = _selectedCategoryFilter == cat;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8.0, bottom: 8.0),
+                              child: ChoiceChip(
+                                label: Text(cat),
+                                selected: isSelected,
+                                selectedColor: Colors.purple.shade100,
+                                labelStyle: TextStyle(
+                                    color: isSelected ? Colors.purple : Colors.black87,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
+                                ),
+                                onSelected: (selected) {
+                                  if (selected) setState(() => _selectedCategoryFilter = cat);
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
 
-                    // Dropdown
+                    // 🎯 PACKAGE SELECTION DROPDOWN
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
-                          value: _selectedPackage?.id,
-                          hint: Text("Select from ${filteredPackages.length} finalized plans..."),
+                          value: isValueInList ? _selectedPackage?.id : null,
+                          hint: Text(
+                              filteredPackages.isEmpty ? "No packages match filters" : "Select from ${filteredPackages.length} plans...",
+                              style: TextStyle(color: filteredPackages.isEmpty ? Colors.red : Colors.grey.shade600)
+                          ),
                           isExpanded: true,
+                          itemHeight: 60,
                           items: filteredPackages.map((pkg) => DropdownMenuItem(
                             value: pkg.id,
-                            child: Row(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                if(pkg.colorCode != null)
-                                  Container(width: 8, height: 8, margin: const EdgeInsets.only(right: 8), decoration: BoxDecoration(color: Color(int.parse(pkg.colorCode!)), shape: BoxShape.circle)),
-                                Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                if(!pkg.isActive) // Optional: Visual indicator for inactive finalized plans
-                                  const Text(" (Archived)", style: TextStyle(color: Colors.red, fontSize: 10)),
+                                Row(
+                                  children: [
+                                    if(pkg.colorCode != null)
+                                      Container(width: 8, height: 8, margin: const EdgeInsets.only(right: 8), decoration: BoxDecoration(color: Color(int.parse(pkg.colorCode!)), shape: BoxShape.circle)),
+                                    Expanded(child: Text(pkg.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, overflow: TextOverflow.ellipsis))),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                    "${pkg.category.displayName} • ${pkg.packageType}",
+                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600, overflow: TextOverflow.ellipsis)
+                                ),
                               ],
                             ),
                           )).toList(),
@@ -307,8 +392,6 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
       ),
     );
   }
-
-  // ... [Keep _buildOfferSection, _buildNumberInput, _buildCounterBtn, _buildClientSummary, _buildPackagePreview, _buildDetailItem EXACTLY as they were] ...
 
   Widget _buildOfferSection(PackageModel pkg) {
     return Container(
@@ -468,6 +551,22 @@ class _PackageAssignmentPageState extends ConsumerState<PackageAssignmentPage> {
               _buildDetailItem(Icons.card_giftcard, "$totalFree Free", "Total Bonus"),
             ],
           ),
+
+          // 🎯 KEY FEATURES
+          if (pkg.programFeatureIds.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text("Key Features:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8, runSpacing: 8,
+              children: pkg.programFeatureIds.map((feat) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+                child: Text(feat, style: TextStyle(fontSize: 11, color: Colors.blue.shade800)),
+              )).toList(),
+            ),
+          ],
+
           const SizedBox(height: 16),
           const Text("Inclusions:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           const SizedBox(height: 8),

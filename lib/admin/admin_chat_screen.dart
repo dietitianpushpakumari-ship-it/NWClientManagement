@@ -250,7 +250,7 @@ class _AdminChatScreenState extends ConsumerState<AdminChatScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
-    // 3️⃣ Get the correct service instance from Riverpod
+    // 3️⃣ Get the correct services instance from Riverpod
     final service = ref.watch(adminChatServiceProvider);
 
     return Scaffold(
@@ -365,7 +365,7 @@ class _AdminChatScreenState extends ConsumerState<AdminChatScreen> with SingleTi
           isDashboardView: true,
           clientId: widget.clientId,
           clientName: widget.clientName,
-          service: service, // 🎯 Passing correct service
+          service: service, // 🎯 Passing correct services
           onReplyTap: (id) => _scrollToMessage(id),
           parent: this,
         )).toList(),
@@ -467,7 +467,7 @@ class _AdminChatScreenState extends ConsumerState<AdminChatScreen> with SingleTi
   }
 }
 
-// 4️⃣ Updated Message Bubble to use the passed service
+// 4️⃣ Updated Message Bubble to use the passed services
 class AdminMessageBubble extends StatefulWidget {
   final ChatMessageModel msg;
   final bool isDashboardView;
@@ -497,7 +497,7 @@ class _AdminMessageBubbleState extends State<AdminMessageBubble> with AutomaticK
   bool get wantKeepAlive => true;
 
   // 🚫 REMOVED: AdminChatService _service = AdminChatService();
-  // We will use widget.service instead!
+  // We will use widget.services instead!
 
   @override
   Widget build(BuildContext context) {

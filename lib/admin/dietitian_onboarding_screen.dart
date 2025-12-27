@@ -113,7 +113,7 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
 
     if (val.isNotEmpty) {
       try {
-        // 1. Check for local duplicates before calling the service
+        // 1. Check for local duplicates before calling the services
         // This prevents unnecessary network calls if the item is already selected
         if (_selectedDesignation == val) {
           _desigInputCtrl.clear();
@@ -121,7 +121,7 @@ class _DietitianOnboardingScreenState extends ConsumerState<DietitianOnboardingS
           return;
         }
 
-        // 2. Call the service to add to the Firestore master array
+        // 2. Call the services to add to the Firestore master array
         await ref.read(staffManagementProvider).addDesignationToMaster(val);
 
         // 3. Update the local state immediately

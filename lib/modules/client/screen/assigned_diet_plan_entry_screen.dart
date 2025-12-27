@@ -307,8 +307,8 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
     final _guidelineService = ref.read(guidelineServiceProvider);
     final _investigationService = ref.read(investigationMasterServiceProvider);
     final _supplementationService = ref.read(supplimentMasterServiceProvider);
-    final _clinicalService = ref.read(clinicalMasterServiceProvider); // Added clinical service
-    final _habitService = ref.read(habitMasterServiceProvider); // Added habit service
+    final _clinicalService = ref.read(clinicalMasterServiceProvider); // Added clinical services
+    final _habitService = ref.read(habitMasterServiceProvider); // Added habit services
 
     showModalBottomSheet(
       context: context,
@@ -504,7 +504,7 @@ class _ClientDietPlanEntryPageState extends ConsumerState<ClientDietPlanEntryPag
   }
   Widget _buildMultiSelectWithChips<T>(
       BuildContext context, {
-        required dynamic service, // Placeholder for service instance
+        required dynamic service, // Placeholder for services instance
         required String title,
         required List<String> selectedIds,
         required Stream<List<T>> stream,

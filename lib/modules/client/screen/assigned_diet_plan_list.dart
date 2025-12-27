@@ -736,7 +736,7 @@ class _AssignedDietPlanListScreenState
 
     if (confirm == true) {
       try {
-        // 🎯 Hard delete from service to clear the session slot
+        // 🎯 Hard delete from services to clear the session slot
         await ref.read(clientDietPlanServiceProvider).deletePlan(plan.id);
 
         // Invalidate stream to show Empty State (Create Custom/Use Template)

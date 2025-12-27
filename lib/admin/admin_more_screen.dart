@@ -1,20 +1,100 @@
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 🎯 Import Auth
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nutricare_client_management/admin/admin_account_page.dart';
+import 'package:nutricare_client_management/admin/configuration/company_module_settings_screen.dart';
+import 'package:nutricare_client_management/admin/configuration/role_policy_manager_Screen.dart';
 import 'package:nutricare_client_management/admin/staff_management_screen.dart';
-import 'package:nutricare_client_management/login_screen.dart'; // 🎯 Import Login Screen
-
-
-import 'package:nutricare_client_management/scheduler/content_library_screen.dart';
+import 'package:nutricare_client_management/login_screen.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/modules/appointment/screens/admin/flexible_availability_screen.dart';
+// 🎯 New Import
 
 import 'feed_management_screen.dart';
 
-class AdminMoreScreen extends StatelessWidget {
+class AdminMoreScreen extends ConsumerStatefulWidget {
   const AdminMoreScreen({super.key});
 
-  // 🎯 LOGOUT FUNCTION
+  @override
+  ConsumerState<AdminMoreScreen> createState() => _AdminMoreScreenState();
+}
+
+class _AdminMoreScreenState extends ConsumerState<AdminMoreScreen> {
+  bool _isLoadingConfig = false;
+
+  // 🛠️ Helper: Resolve Tenant ID for the current user
+  Future<Map<String, String>?> _resolveTenantContext() async {
+    // 1. Check if Super Admin context is active (Impersonation)
+    final superAdminConfig = ref.read(currentTenantConfigProvider);
+    if (superAdminConfig != null) {
+      return {'id': superAdminConfig.id, 'name': superAdminConfig.name};
+    }
+
+    // 2. Fetch Tenant ID for actual logged-in admin
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) throw "User not authenticated";
+
+    // Check User Directory
+    final dirDoc = await FirebaseFirestore.instance.collection('user_directory').doc(user.email).get();
+
+    if (!dirDoc.exists) {
+      // Fallback: Check if they are a staff member in 'admins' collection
+      final staffDoc = await FirebaseFirestore.instance.collection('admins').doc(user.uid).get();
+      if(staffDoc.exists) {
+        // Assuming staff doc has tenant_id, or we handle staff logic differently.
+        // For now, let's assume only Owners/Clinic Admins access this menu.
+        throw "Access Restricted: Staff configuration not found.";
+      }
+      throw "Admin record not found.";
+    }
+
+    final tenantId = dirDoc.data()?['tenant_id'] ?? '';
+    if (tenantId.isEmpty) throw "Tenant ID missing for this user";
+
+    // Fetch Company Name for UI
+    final tenantDoc = await FirebaseFirestore.instance.collection('tenants').doc(tenantId).get();
+    final companyName = tenantDoc.data()?['name'] ?? 'Company Settings';
+
+    return {'id': tenantId, 'name': companyName};
+  }
+
+  // 🎯 Navigate to Module Settings
+  Future<void> _navigateToModuleConfig() async {
+    setState(() => _isLoadingConfig = true);
+    try {
+      final contextData = await _resolveTenantContext();
+      if (contextData != null && mounted) {
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => CompanyModuleSettingsScreen(tenantId: contextData['id']!, companyName: contextData['name']!),
+        ));
+      }
+    } catch (e) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
+    } finally {
+      if(mounted) setState(() => _isLoadingConfig = false);
+    }
+  }
+
+  // 🎯 Navigate to Role Policies
+  Future<void> _navigateToRolePolicy() async {
+    setState(() => _isLoadingConfig = true);
+    try {
+      final contextData = await _resolveTenantContext();
+      if (contextData != null && mounted) {
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => RolePolicyManagerScreen(tenantId: contextData['id']!),
+        ));
+      }
+    } catch (e) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
+    } finally {
+      if(mounted) setState(() => _isLoadingConfig = false);
+    }
+  }
+
   Future<void> _logout(BuildContext context) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -58,10 +138,7 @@ class AdminMoreScreen extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                // 2. Header
                 _buildHeader(),
-
-                // 3. Options List
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
@@ -78,12 +155,18 @@ class AdminMoreScreen extends StatelessWidget {
                                   () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminAccountPage())),
                             ),
                             _buildDivider(),
-                            // 🎯 Staff Management Link
                             _buildOptionTile(
                               context,
                               "Manage Team", "Staff & Roles",
                               Icons.groups, Colors.cyan,
                                   () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffManagementScreen())),
+                            ),
+                            _buildDivider(),
+                            _buildOptionTile(
+                              context,
+                              "My Work Hours", "Set weekly availability",
+                              Icons.arrow_forward_ios, Colors.indigo,
+                                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FlexibleAvailabilityScreen())),
                             ),
                           ],
                         ),
@@ -94,28 +177,49 @@ class AdminMoreScreen extends StatelessWidget {
                         _buildSectionLabel("Application"),
                         _buildSectionContainer(
                           children: [
+                            // 1. Module Config
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                              onTap: _isLoadingConfig ? null : _navigateToModuleConfig,
+                              leading: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(color: Colors.purple.withOpacity(0.1), shape: BoxShape.circle),
+                                child: _isLoadingConfig
+                                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Icon(Icons.extension, color: Colors.purple, size: 22),
+                              ),
+                              title: const Text("Module Configuration", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87)),
+                              subtitle: const Text("Enable/Disable Features", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              trailing: Icon(Icons.chevron_right, size: 20, color: Colors.grey.shade300),
+                            ),
+                            _buildDivider(),
+
+                            // 2. Role Permissions (🎯 New Entry)
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                              onTap: _isLoadingConfig ? null : _navigateToRolePolicy,
+                              leading: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(color: Colors.indigo.withOpacity(0.1), shape: BoxShape.circle),
+                                child: const Icon(Icons.shield_outlined, color: Colors.indigo, size: 22),
+                              ),
+                              title: const Text("Access Policies", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87)),
+                              subtitle: const Text("Map Roles to Modules", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              trailing: Icon(Icons.chevron_right, size: 20, color: Colors.grey.shade300),
+                            ),
+                            _buildDivider(),
+
                             _buildOptionTile(
                               context,
                               "Content & Marketing", "Feed & Library",
                               Icons.campaign, Colors.orange,
-                                  () {
-                                // Example linking to feed manager from settings too
-                                Navigator.push(context, MaterialPageRoute(builder: (_) =>  FeedManagementScreen()));
-                              },
-                            ),
-                            _buildDivider(),
-                            _buildOptionTile(
-                              context,
-                              "App Appearance", "Theme & Layout",
-                              Icons.palette_outlined, Colors.teal,
-                                  () {}, // Future: Link to AppAppearanceScreen
+                                  () => Navigator.push(context, MaterialPageRoute(builder: (_) =>  FeedManagementScreen())),
                             ),
                           ],
                         ),
 
                         const SizedBox(height: 40),
 
-                        // 🎯 LOGOUT BUTTON (WIRED UP)
                         SizedBox(
                           width: double.infinity,
                           height: 56,

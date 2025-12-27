@@ -8,7 +8,7 @@ import 'package:nutricare_client_management/master/model/master_constants.dart';
 import '../../../master/model/ServingUnit.dart';
 
 
-/// A service class to manage CRUD operations for the ServingUnit master data.
+/// A services class to manage CRUD operations for the ServingUnit master data.
 class ServingUnitService {
 
   final Ref _ref; // Store Ref to access dynamic providers

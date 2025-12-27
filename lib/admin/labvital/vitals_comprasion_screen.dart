@@ -9,7 +9,7 @@ import 'package:nutricare_client_management/modules/client/model/vitals_model.da
 import 'package:nutricare_client_management/modules/client/services/vitals_service.dart';
 
 
-// Placeholder for global service provider if needed, though most logic is local now
+// Placeholder for global services provider if needed, though most logic is local now
 import 'global_service_provider.dart';
 
 

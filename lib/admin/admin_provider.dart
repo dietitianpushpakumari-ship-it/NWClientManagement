@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart'; // Keep this import for Type 
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
 import 'package:nutricare_client_management/admin/admin_profile_service.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart'; // 🎯 Import Database Provider
-import 'package:nutricare_client_management/admin/meeting_service.dart';
+import 'package:nutricare_client_management/admin/meeting_service_old.dart';
 import 'package:nutricare_client_management/admin/staff_management_service.dart';
 
 // =============================================================================
@@ -31,7 +31,7 @@ final currentAdminProvider = FutureProvider<AdminProfileModel?>((ref) async {
 
   if (user == null) return null;
 
-  // Use the service which is already connected to the correct DB
+  // Use the services which is already connected to the correct DB
   final service = ref.watch(adminProfileServiceProvider);
   return service.fetchAdminProfile();
 });

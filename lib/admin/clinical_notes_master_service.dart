@@ -1,4 +1,4 @@
-// lib/master/service/clinical_notes_master_service.dart
+// lib/master/services/clinical_notes_master_service.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

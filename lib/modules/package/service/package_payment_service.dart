@@ -225,4 +225,55 @@ class PackagePaymentService {
 
     await batch.commit();
   }
+
+  Future<void> cancelPackageAndRevokeCredits(String clientId, String subscriptionId) async {
+    final clientRef = _firestore.collection('clients').doc(clientId);
+    final subRef = _firestore.collection('patient_subscriptions').doc(subscriptionId); // Adjust collection path
+    final ledgerRef = _firestore.collection('wallet_ledger').doc();
+
+    await _firestore.runTransaction((t) async {
+      final clientSnap = await t.get(clientRef);
+      if (!clientSnap.exists) throw Exception("Client not found");
+
+      final wallet = clientSnap.data()!['wallet'] as Map<String, dynamic>;
+      final batches = wallet['batches'] as Map<String, dynamic>? ?? {};
+
+      // 1. Check if batch exists
+      if (!batches.containsKey(subscriptionId)) {
+        throw Exception("No active credits found for this package subscription.");
+      }
+
+      final batch = batches[subscriptionId] as Map<String, dynamic>;
+      final int creditsToRevoke = (batch['balance'] as num).toInt();
+
+      if (creditsToRevoke <= 0) {
+        // Package has 0 balance, just marking subscription as cancelled is enough
+      }
+
+      // 2. Update Client Wallet
+      t.update(clientRef, {
+        // Reduce global available count
+        'wallet.available': FieldValue.increment(-creditsToRevoke),
+        // Remove the specific batch entirely
+        'wallet.batches.$subscriptionId': FieldValue.delete(),
+      });
+
+      // 3. Update Subscription Status
+      t.update(subRef, {
+        'status': 'cancelled',
+        'cancelledAt': FieldValue.serverTimestamp(),
+      });
+
+      // 4. Ledger Entry
+      t.set(ledgerRef, {
+        'clientId': clientId,
+        'type': 'debit', // Reducing balance
+        'category': 'package_cancellation',
+        'amount': -creditsToRevoke,
+        'description': 'Revoked remaining credits from cancelled package',
+        'referenceId': subscriptionId,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    });
+  }
 }

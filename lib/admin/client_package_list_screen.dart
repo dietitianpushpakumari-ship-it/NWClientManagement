@@ -351,23 +351,97 @@ class _ClientPackageListScreenState extends ConsumerState<ClientPackageListScree
       inclusions: List<String>.from(subData['inclusions'] ?? []),
       isFinalized: true,
       isActive: false,
-      colorCode: null,
+      colorCode: null, packageType: subData['type'] ?? '',
     );
     Navigator.push(context, MaterialPageRoute(builder: (_) => PackageDetailScreen(package: fallbackPackage)));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Original plan deleted. Showing archived details."), backgroundColor: Colors.orange));
   }
 
   Future<void> _deleteSubscription(String subId, String packageName, bool wasActive) async {
-    final confirm = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text("Delete Record?"), content: Text("Are you sure you want to remove '$packageName'?\n\nThis action cannot be undone."), actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), onPressed: () => Navigator.pop(ctx, true), child: const Text("Delete Forever"))]));
-    if (confirm == true) {
-      await ref.read(firestoreProvider).collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientSubscription)).doc(subId).delete();
-      if (wasActive) {
-        await ref.read(firestoreProvider).collection('clients').doc(widget.client.id).update({'currentPlan': FieldValue.delete(), 'planExpiry': FieldValue.delete(), 'clientType': 'lead', 'freeSessionsRemaining': 0});
-      }
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record deleted.")));
+    final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+            title: const Text("Delete Record & Revoke Credits?"),
+            content: Text("Are you sure you want to remove '$packageName'?\n\n⚠️ This will remove any remaining credits associated with this package from the client's wallet.\n\nThis action cannot be undone."),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+              ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text("Delete & Revoke")
+              )
+            ]
+        )
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final firestore = ref.read(firestoreProvider);
+      final clientRef = firestore.collection('clients').doc(widget.client.id);
+      final subRef = firestore.collection(MasterCollectionMapper.getPath(TransactionEntity.entity_patientSubscription)).doc(subId);
+      final ledgerRef = firestore.collection('wallet_ledger').doc();
+
+      await firestore.runTransaction((t) async {
+        // 1. Fetch Client Data to calculate credits to remove
+        final clientSnap = await t.get(clientRef);
+        if (!clientSnap.exists) throw Exception("Client not found");
+
+        final wallet = clientSnap.data()!['wallet'] as Map<String, dynamic>? ?? {};
+        final batches = wallet['batches'] as Map<String, dynamic>? ?? {};
+
+        int creditsToRevoke = 0;
+
+        // 2. Check if a credit batch exists for this subscription
+        if (batches.containsKey(subId)) {
+          final batchData = batches[subId] as Map<String, dynamic>;
+          creditsToRevoke = (batchData['balance'] as num?)?.toInt() ?? 0;
+        }
+
+        // 3. Delete Subscription Document
+        t.delete(subRef);
+
+        // 4. Update Client Document
+        Map<String, dynamic> clientUpdates = {};
+
+        // A. Remove Metadata if it was the active plan
+        if (wasActive) {
+          clientUpdates['currentPlan'] = FieldValue.delete();
+          clientUpdates['planExpiry'] = FieldValue.delete();
+          // Optional: Revert to 'lead' or check if other packages exist
+          // clientUpdates['clientType'] = 'lead';
+        }
+
+        // B. Remove Credits & Batch
+        if (creditsToRevoke > 0) {
+          clientUpdates['wallet.available'] = FieldValue.increment(-creditsToRevoke);
+        }
+        // Always remove the batch entry
+        clientUpdates['wallet.batches.$subId'] = FieldValue.delete();
+
+        t.update(clientRef, clientUpdates);
+
+        // 5. Create Ledger Entry (Audit Trail)
+        // Only log if we actually removed credits
+        if (creditsToRevoke > 0) {
+          t.set(ledgerRef, {
+            'clientId': widget.client.id,
+            'type': 'debit', // Reducing balance
+            'category': 'package_deletion',
+            'amount': -creditsToRevoke,
+            'description': 'Revoked credits due to deletion of: $packageName',
+            'referenceId': subId,
+            'timestamp': FieldValue.serverTimestamp(),
+            'performedBy': 'Admin', // Replace with actual Admin ID if available
+          });
+        }
+      });
+
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Record deleted and credits revoked.")));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
     }
   }
-
   Future<void> _editSubscription(DocumentSnapshot doc) async {
     final data = doc.data() as Map<String, dynamic>;
     final sessionCtrl = TextEditingController(text: (data['sessionsRemaining'] ?? 0).toString());

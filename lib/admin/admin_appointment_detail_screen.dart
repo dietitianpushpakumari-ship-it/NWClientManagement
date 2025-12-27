@@ -13,7 +13,7 @@ import 'package:nutricare_client_management/admin/appointment_model.dart';
 import 'package:nutricare_client_management/modules/client/services/client_service.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/screens/dash/client_dashboard_screenv2.dart';
-import 'package:nutricare_client_management/admin/meeting_service.dart';
+import 'package:nutricare_client_management/admin/meeting_service_old.dart';
 import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart'; // Ensure this import exists
 
 class AdminAppointmentDetailsScreen extends ConsumerStatefulWidget {
@@ -120,7 +120,7 @@ class _AdminAppointmentDetailsScreenState extends ConsumerState<AdminAppointment
     if (confirm == true) {
       setState(() => _isLoading = true);
       try {
-        await ref.read(meetingServiceProvider).updateAppointmentStatus(_appt.id, status);
+        await ref.read(meetingServiceOldProvider).updateAppointmentStatus(_appt.id, status);
         await _refresh();
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Status updated to $actionLabel")));
       } catch (e) {
@@ -183,7 +183,7 @@ class _AdminAppointmentDetailsScreenState extends ConsumerState<AdminAppointment
   }
 
   Future<void> _saveNote() async {
-    await ref.read(meetingServiceProvider).updateAppointmentNote(_appt.id, _noteCtrl.text);
+    await ref.read(meetingServiceOldProvider).updateAppointmentNote(_appt.id, _noteCtrl.text);
     if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Clinical note saved.")));
   }
 

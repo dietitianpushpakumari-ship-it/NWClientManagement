@@ -8,13 +8,15 @@ import 'package:nutricare_client_management/admin/feed_service.dart';
 import 'package:nutricare_client_management/admin/habit_master_service.dart';
 import 'package:nutricare_client_management/admin/inclusion_master_service.dart';
 import 'package:nutricare_client_management/admin/labvital/clinical_master_service.dart';
-import 'package:nutricare_client_management/admin/meeting_service.dart';
+import 'package:nutricare_client_management/admin/meeting_service_old.dart';
 import 'package:nutricare_client_management/admin/patient_service.dart';
 import 'package:nutricare_client_management/admin/services/master_data_service.dart';
 import 'package:nutricare_client_management/admin/staff_management_service.dart';
+import 'package:nutricare_client_management/core/adapters/nutricare_appointment_adapter.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/master/service/disease_master_service.dart';
 import 'package:nutricare_client_management/meal_planner/service/Dependancy_service.dart';
+import 'package:nutricare_client_management/modules/appointment/services/meeting_service.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/screen/Suppliment_master_service.dart';
 import 'package:nutricare_client_management/modules/client/screen/investigation_master_service.dart';
@@ -90,7 +92,7 @@ final supplimentMasterServiceProvider = Provider<SupplimentMasterService>((ref) 
 final investigationMasterServiceProvider = Provider<InvestigationMasterService>((ref) => InvestigationMasterService(ref));
 final vitalsServiceProvider = Provider<VitalsService>((ref) => VitalsService(ref));
 final inclusionMasterServiceProvider = Provider<InclusionMasterService>((ref) => InclusionMasterService(ref));
-final meetingServiceProvider = Provider<MeetingService>((ref) => MeetingService(ref));
+final meetingServiceOldProvider = Provider<MeetingServiceOld>((ref) => MeetingServiceOld(ref));
 final consultationDataServiceProvider = Provider<ConsultationDataService>((ref) => ConsultationDataService(ref));
 final diseaseMasterServiceProvider = Provider<DiseaseMasterService>((ref) => DiseaseMasterService(ref));
 final dependencyServiceProvider = Provider<DependencyService>((ref) => DependencyService(ref));
@@ -124,7 +126,7 @@ final designationsProvider = StreamProvider<List<String>>((ref) {
 final clinicalComplaintsDataProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
   final service = ref.watch(masterDataServiceProvider);
   final mapper = MasterCollectionMapper.getPath;
-  // Use the master service to fetch the list based on the entity
+  // Use the master services to fetch the list based on the entity
   return await service.fetchMasterList(mapper(MasterEntity.entity_Complaint));
 });
 

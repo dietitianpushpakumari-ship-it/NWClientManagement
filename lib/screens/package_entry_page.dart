@@ -13,7 +13,6 @@ import 'package:nutricare_client_management/modules/package/service/package_Serv
 import 'package:nutricare_client_management/master_diet_planner/generic_multi_select_dialogg.dart';
 import 'package:nutricare_client_management/admin/generic_clinical_master_entry_screen.dart';
 
-// --- Nested Model for Duration Variants ---
 class PackageDurationOption {
   String? id;
   String durationLabel;
@@ -58,8 +57,8 @@ class PackageDurationOption {
 final masterServiceProvider = masterDataServiceProvider;
 final mapper = MasterCollectionMapper.getPath;
 
-final packageCategoryMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
-  return ref.watch(masterServiceProvider).fetchMasterList(mapper(MasterEntity.entity_packageCategory));
+final packageTypeMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
+  return ref.watch(masterServiceProvider).fetchMasterList(mapper(MasterEntity.entity_packageType));
 });
 final packageInclusionMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
   return ref.watch(masterServiceProvider).fetchMasterList(mapper(MasterEntity.entity_packageInclusion));
@@ -88,18 +87,13 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
   List<String> _selectedTargetConditions = [];
   bool _isActive = true;
   bool _isTaxInclusive = true;
-  String? _selectedCategoryName;
-  String? _selectedColorCode;
+
+  PackageCategory _selectedCategory = PackageCategory.basic;
+  String? _selectedPackageType;
+
   bool _isLoading = false;
-  bool _isReadOnly = false; // 🎯 NEW
+  bool _isReadOnly = false;
 
-  final Map<String, Color> _colorOptions = {
-    'Teal': Colors.teal, 'Blue': Colors.blue, 'Indigo': Colors.indigo,
-    'Purple': Colors.purple, 'Pink': Colors.pink, 'Orange': Colors.orange,
-    'Green': Colors.green,
-  };
-
-  // 🎯 UPDATED: Expanded Quick Add Options
   final List<DurationPreset> _durationPresets = [
     DurationPreset(label: "3 Days", days: 3),
     DurationPreset(label: "5 Days", days: 5),
@@ -111,23 +105,16 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
     DurationPreset(label: "1 Year", days: 365),
   ];
 
-  String _colorToHexString(Color color) {
-    return '0x${color.value.toRadixString(16).toUpperCase()}';
-  }
-
   @override
   void initState() {
     super.initState();
-    _selectedCategoryName = null;
-    _selectedColorCode = _colorToHexString(Colors.teal);
 
     if (widget.packageToEdit != null) {
       _initializeForEdit(widget.packageToEdit!);
     } else {
-      // 🎯 FIX: Initialize with EMPTY fields for new package
       _durationOptions.add(PackageDurationOption(
-        durationLabel: "", // Empty Name
-        durationDays: 0,   // 0 (Controller will show empty)
+        durationLabel: "",
+        durationDays: 0,
         price: 0.0,
       ));
     }
@@ -136,11 +123,11 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
   void _initializeForEdit(PackageModel package) {
     _nameController.text = package.name;
     _descController.text = package.description;
-    _selectedCategoryName = package.category.displayName;
+    _selectedCategory = package.category;
+    _selectedPackageType = package.packageType.isNotEmpty ? package.packageType : null;
     _selectedTargetConditions = List.from(package.targetConditions);
     _isActive = package.isActive;
     _isTaxInclusive = package.isTaxInclusive;
-    _selectedColorCode = package.colorCode;
     if (package.isFinalized) {
       _isReadOnly = true;
     }
@@ -174,8 +161,8 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
   void _addEmptyOption() {
     setState(() {
       _durationOptions.add(PackageDurationOption(
-        durationLabel: "", // Blank
-        durationDays: 0,   // Blank
+        durationLabel: "",
+        durationDays: 0,
         price: 0.0,
       ));
     });
@@ -187,7 +174,7 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
     });
   }
 
-  // --- UI DIALOGS --- (Kept same as before)
+  // --- UI DIALOGS ---
   void _openMultiSelectDialog({required AutoDisposeFutureProvider<Map<String, String>> provider, required List<String> currentKeys, required String title, required Function(List<String>) onResult, required String entityName, bool singleSelect = false}) async {
     final masterDataAsync = ref.read(provider);
     if (masterDataAsync.hasValue) {
@@ -203,17 +190,38 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
     }
   }
 
-  void _openCategorySelector() {
-    _openMultiSelectDialog(provider: packageCategoryMasterProvider, currentKeys: _selectedCategoryName != null ? [_selectedCategoryName!] : [], title: "Select Package Category", entityName: MasterEntity.entity_packageCategory, singleSelect: true, onResult: (r) => setState(() => _selectedCategoryName = r.isNotEmpty ? r.first : null));
+  void _openPackageTypeSelector() {
+    _openMultiSelectDialog(
+        provider: packageTypeMasterProvider,
+        currentKeys: _selectedPackageType != null ? [_selectedPackageType!] : [],
+        title: "Select Package Type",
+        entityName: MasterEntity.entity_packageType,
+        singleSelect: true,
+        onResult: (r) => setState(() => _selectedPackageType = r.isNotEmpty ? r.first : null)
+    );
   }
+
   void _openTargetConditionSelector() {
     _openMultiSelectDialog(provider: targetConditionMasterProvider, currentKeys: _selectedTargetConditions, title: "Target Health Conditions", entityName: MasterEntity.entity_packageTargetCondition, onResult: (r) => setState(() => _selectedTargetConditions = r));
   }
 
+  // 🎯 Auto-Assign Color based on Category
+  String _getCategoryColorHex(PackageCategory category) {
+    Color color;
+    switch (category) {
+      case PackageCategory.premium: color = Colors.deepPurple; break;
+      case PackageCategory.standard: color = Colors.teal; break;
+      case PackageCategory.basic: color = Colors.orange; break;
+      case PackageCategory.singleSession: color = Colors.blue; break;
+      case PackageCategory.custom: color = Colors.blueGrey; break;
+    }
+    return '0x${color.value.toRadixString(16).toUpperCase()}';
+  }
+
   Future<void> _savePackage() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedCategoryName == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a Package Category.")));
+    if (_selectedPackageType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a Package Type (from Master).")));
       return;
     }
     if (_durationOptions.isEmpty) {
@@ -223,13 +231,14 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
 
     setState(() => _isLoading = true);
     final packageService = ref.read(packageServiceProvider);
-    final categoryEnum = PackageCategory.values.firstWhere((e) => e.displayName == _selectedCategoryName, orElse: () => PackageCategory.basic);
     final firstOption = _durationOptions.first;
 
     final newPackage = PackageModel(
       id: widget.packageToEdit?.id ?? '',
       name: _nameController.text.trim(),
       description: _descController.text.trim(),
+      category: _selectedCategory,
+      packageType: _selectedPackageType!,
       price: firstOption.price,
       originalPrice: firstOption.originalPrice,
       durationDays: firstOption.durationDays,
@@ -240,9 +249,12 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
       programFeatureIds: firstOption.featureNames,
       targetConditions: _selectedTargetConditions,
       isActive: _isActive,
-      category: categoryEnum,
-      colorCode: _selectedColorCode,
+
+      // 🎯 Auto-calculated color
+      colorCode: _getCategoryColorHex(_selectedCategory),
+
       followUpIntervalDays: firstOption.followUpIntervalDays,
+      isTaxInclusive: _isTaxInclusive,
     );
 
     try {
@@ -265,12 +277,12 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.packageToEdit != null;
-    final categoryAsync = ref.watch(packageCategoryMasterProvider);
+    final typeAsync = ref.watch(packageTypeMasterProvider);
     final inclusionAsync = ref.watch(packageInclusionMasterProvider);
     final featureAsync = ref.watch(programFeatureMasterProvider);
     final targetConditionAsync = ref.watch(targetConditionMasterProvider);
 
-    if (categoryAsync.isLoading || inclusionAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (typeAsync.isLoading || inclusionAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
@@ -284,51 +296,65 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
                     isEdit ? (_isReadOnly ? 'View Package' : 'Edit Package') : 'New Package',
                     onSave: _savePackage,
                     isLoading: _isLoading,
-                    isReadOnly: _isReadOnly // Pass this
+                    isReadOnly: _isReadOnly
                 ),
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20.0),
-                    child: AbsorbPointer(
-                      absorbing: _isReadOnly,
-                      child: Opacity(
-                        opacity: _isReadOnly ? 0.7 : 1.0,
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          // BASIC INFO
-                          _buildSectionTitle("Presentation"),
-                          Container(
-                              padding: const EdgeInsets.all(20), decoration: _cardDeco(),
-                              child: Column(
-                                children: [
-                                  _buildField("Package Name",_nameController,  Icons.label),
-                                  const SizedBox(height: 12),
-                                  Row(children: [Expanded(child: _buildCategorySelector()), const SizedBox(width: 12), Expanded(child: DropdownButtonFormField<String>(value: _selectedColorCode, decoration: _inputDec("Color Theme", Icons.color_lens), items: _colorOptions.keys.map((name) => DropdownMenuItem(value: _colorToHexString(_colorOptions[name]!), child: Row(children: [CircleAvatar(backgroundColor: _colorOptions[name], radius: 6), const SizedBox(width: 8), Text(name)]))).toList(), onChanged: (val) => setState(() => _selectedColorCode = val)))]),
-                                  const SizedBox(height: 12),
-                                  _buildField("Description (Marketing)",_descController,  Icons.description, maxLines: 3),
-                                  const SizedBox(height: 12),
-                                  _buildTargetConditionsSection(),
-                                ],
-                              )
-                          ),
+                      padding: const EdgeInsets.all(20.0),
+                      child: AbsorbPointer(
+                        absorbing: _isReadOnly,
+                        child: Opacity(
+                          opacity: _isReadOnly ? 0.7 : 1.0,
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                // BASIC INFO
+                                _buildSectionTitle("Presentation"),
+                                Container(
+                                    padding: const EdgeInsets.all(20), decoration: _cardDeco(),
+                                    child: Column(
+                                      children: [
+                                        _buildField("Package Name",_nameController,  Icons.label),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                                flex: 2,
+                                                child: DropdownButtonFormField<PackageCategory>(
+                                                  value: _selectedCategory,
+                                                  decoration: _inputDec("Category", Icons.category),
+                                                  items: PackageCategory.values.map((e) => DropdownMenuItem(value: e, child: Text(e.displayName))).toList(),
+                                                  onChanged: (val) => setState(() => _selectedCategory = val!),
+                                                )
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(flex: 2, child: _buildTypeSelector()),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _buildField("Description (Marketing)",_descController,  Icons.description, maxLines: 3),
+                                        const SizedBox(height: 12),
+                                        _buildTargetConditionsSection(),
+                                      ],
+                                    )
+                                ),
 
-                          // DURATION & PRICING
-                          _buildSectionTitle("Duration, Pricing & Components"),
-                          _buildDurationOptionsEditor(inclusionAsync.value ?? {}, featureAsync.value ?? {}),
+                                // DURATION & PRICING
+                                _buildSectionTitle("Duration, Pricing & Components"),
+                                _buildDurationOptionsEditor(inclusionAsync.value ?? {}, featureAsync.value ?? {}),
 
-                          // STATUS
-                          _buildSectionTitle("Status"),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), decoration: _cardDeco(),
-                            child: SwitchListTile(title: const Text("Package Active", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(_isActive ? "Visible in sales lists" : "Archived / Hidden"), value: _isActive, onChanged: (v) => setState(() => _isActive = v), activeColor: Colors.green, contentPadding: EdgeInsets.zero),
-                          ),
-                          const SizedBox(height: 40),
-                        ],
-                      ),
-                    ),),)
+                                // STATUS
+                                _buildSectionTitle("Status"),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), decoration: _cardDeco(),
+                                  child: SwitchListTile(title: const Text("Package Active", style: TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(_isActive ? "Visible in sales lists" : "Archived / Hidden"), value: _isActive, onChanged: (v) => setState(() => _isActive = v), activeColor: Colors.green, contentPadding: EdgeInsets.zero),
+                                ),
+                                const SizedBox(height: 40),
+                              ],
+                            ),
+                          ),),)
                   ),
                 ),
               ],
@@ -350,11 +376,9 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
           SwitchListTile(title: const Text("Price includes Taxes (GST)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), value: _isTaxInclusive, onChanged: (v) => setState(() => _isTaxInclusive = v), activeColor: Colors.green, contentPadding: EdgeInsets.zero),
           const Divider(),
 
-          // List of Options
           ..._durationOptions.asMap().entries.map((entry) => _buildSingleDurationOption(entry.key, entry.value, allInclusions, allFeatures)).toList(),
           const SizedBox(height: 16),
 
-          // 🎯 UPDATED: Quick Add Chips
           Text("Quick Add:", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           const SizedBox(height: 8),
           Wrap(
@@ -371,7 +395,6 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
           ),
           const SizedBox(height: 16),
 
-          // 🎯 UPDATED: "Add Custom" Button
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -397,7 +420,6 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
             const SizedBox(width: 16),
             Expanded(child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
 
-            // Hide save button if read only
             if (!isReadOnly)
               IconButton(onPressed: isLoading ? null : onSave, icon: isLoading ? const CircularProgressIndicator() : const Icon(Icons.check_circle, color: Colors.deepPurple, size: 28))
           ]),
@@ -407,7 +429,6 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
   }
 
   Widget _buildSingleDurationOption(int index, PackageDurationOption option, Map<String, String> allInclusions, Map<String, String> allFeatures) {
-    // 🎯 Use the Updated Controller that handles blank/0 logic
     final DurationControllers controllers = DurationControllers(option);
 
     return Container(
@@ -435,7 +456,6 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
             children: [
               Expanded(child: _buildField("Validity (Days)", controllers.durationDays, Icons.calendar_today, isNumber: true, validator: (v) { option.durationDays = int.tryParse(v ?? '0') ?? 0; return v!.isEmpty ? "Required" : null; })),
               const SizedBox(width: 8),
-              // 🎯 NEW FIELD: Follow-up Interval
               Expanded(child: _buildField("Follow-up (Days)", controllers.followUpInterval, Icons.update, isNumber: true, validator: (v) {
                 option.followUpIntervalDays = int.tryParse(v ?? '7') ?? 7;
                 return null;
@@ -467,7 +487,7 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
     );
   }
 
-  // --- HELPERS (Copied from previous Context) ---
+  // --- HELPERS ---
   Widget _buildVariantComponentSelector({required String title, required List<String> currentNames, required Map<String, String> allMasterMap, required String entityName, required ValueChanged<List<String>> onUpdate}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,13 +503,31 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
   }
 
   InputDecoration _inputDec(String label, IconData icon) => InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18, color: Colors.grey), filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14));
-  Widget _buildCategorySelector() { return GestureDetector(onTap: _openCategorySelector, child: Container(height: 50, padding: const EdgeInsets.symmetric(horizontal: 12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: _selectedCategoryName == null ? Colors.red : Colors.transparent)), alignment: Alignment.centerLeft, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(_selectedCategoryName ?? "Select Category", style: TextStyle(color: _selectedCategoryName == null ? Colors.red : Colors.black, fontWeight: _selectedCategoryName == null ? FontWeight.w500 : FontWeight.normal)), const Icon(Icons.arrow_drop_down, color: Colors.grey)]))); }
+
+  Widget _buildTypeSelector() {
+    return GestureDetector(
+        onTap: _openPackageTypeSelector,
+        child: Container(
+            height: 50,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: _selectedPackageType == null ? Colors.red : Colors.transparent)),
+            alignment: Alignment.centerLeft,
+            child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(_selectedPackageType ?? "Select Type", style: TextStyle(color: _selectedPackageType == null ? Colors.red : Colors.black, fontWeight: _selectedPackageType == null ? FontWeight.w500 : FontWeight.normal)),
+                  const Icon(Icons.arrow_drop_down, color: Colors.grey)
+                ]
+            )
+        )
+    );
+  }
+
   Widget _buildTargetConditionsSection() { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Target Conditions", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)), TextButton(onPressed: _openTargetConditionSelector, child: Text(_selectedTargetConditions.isEmpty ? "Select Conditions" : "Edit (${_selectedTargetConditions.length})"))]), if (_selectedTargetConditions.isNotEmpty) Wrap(spacing: 8, runSpacing: 8, children: _selectedTargetConditions.map((conditionName) => Chip(label: Text(conditionName), backgroundColor: Colors.blue.shade50, onDeleted: () => setState(() => _selectedTargetConditions.remove(conditionName)))).toList())]); }
   BoxDecoration _cardDeco() => BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))]);
   Widget _buildSectionTitle(String title) { return Padding(padding: const EdgeInsets.fromLTRB(4, 24, 0, 8), child: Text(title.toUpperCase(), style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1))); }
 }
 
-// 🎯 UPDATED: Handles Blank Logic
 class DurationControllers {
   late TextEditingController label;
   late TextEditingController durationDays;
@@ -497,19 +535,16 @@ class DurationControllers {
   late TextEditingController originalPrice;
   late TextEditingController consultationCount;
   late TextEditingController freeSessions;
-      late TextEditingController followUpInterval;
+  late TextEditingController followUpInterval;
 
   DurationControllers(PackageDurationOption option) {
     label = TextEditingController(text: option.durationLabel);
-
-    // 🎯 FIX: Show blank if 0, else show number
     durationDays = TextEditingController(text: option.durationDays == 0 ? '' : option.durationDays.toString());
-
     price = TextEditingController(text: option.price.toString());
     originalPrice = TextEditingController(text: option.originalPrice?.toString() ?? '');
     consultationCount = TextEditingController(text: option.consultationCount.toString());
     freeSessions = TextEditingController(text: option.freeSessions.toString());
-    followUpInterval = TextEditingController(text: option.followUpIntervalDays.toString()); // 🎯 Init
+    followUpInterval = TextEditingController(text: option.followUpIntervalDays.toString());
   }
 
   void dispose() {

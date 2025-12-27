@@ -30,7 +30,7 @@ abstract class MasterEntity {
   static const String entity_foodHabitsOptions = 'entity_foodHabitsOptions';
   static const String entity_packagefeature = 'entity_packageFeature';
   static const String entity_packageInclusion = 'entity_packageInclusion';
-  static const String entity_packageCategory = 'entity_packageCategory';
+  static const String entity_packageType = 'entity_packageType';
   static const String entity_packageTargetCondition = 'entity_packageTargetCondition';
   static const String entity_packages = 'entity_packages';
   static const String entity_mealTemplates = 'entity_mealTemplates';
@@ -85,7 +85,7 @@ abstract class FirestoreCollection {
 
   static const String collection_packagefeature = 'master_packageFeature';
   static const String collection_packageInclusion = 'master_packageInclusion';
-  static const String collection_packageCategory = 'master_packageCategory';
+  static const String collection_packageType = 'master_packageType';
   static const String collection_packageTargetCondition = 'master_packageTargetCondition';
   static const String collection_packages = 'master_packages';
   static const String collection_mealTemplates = 'master_mealTemplates';
@@ -146,7 +146,7 @@ class MasterCollectionMapper {
     MasterEntity.entity_packages :FirestoreCollection.collection_packages,
     MasterEntity.entity_packageInclusion: FirestoreCollection.collection_packageInclusion,
     MasterEntity.entity_packageTargetCondition : FirestoreCollection.collection_packageTargetCondition,
-    MasterEntity.entity_packageCategory : FirestoreCollection.collection_packageCategory,
+    MasterEntity.entity_packageType : FirestoreCollection.collection_packageType,
     MasterEntity.entity_labTestCategory: FirestoreCollection.collection_labTestCategory,
     MasterEntity.entity_labTestConfig : FirestoreCollection.collection_labTestConfig,
     TransactionEntity.entity_patientVitals: FirestoreCollection.collection_patientVitals,

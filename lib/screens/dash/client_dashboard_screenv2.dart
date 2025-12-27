@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/client_consultataion_history_tab.dart';
+import 'package:nutricare_client_management/admin/dashboard/client_profile_tab.dart';
 import 'package:nutricare_client_management/admin/labvital/client_profile_edit_screen.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/admin/labvital/vitals_comprasion_screen.dart';
@@ -20,6 +21,8 @@ import 'package:nutricare_client_management/modules/client/screen/assigned_diet_
 import 'package:nutricare_client_management/screens/package_assignment_page.dart';
 import 'package:nutricare_client_management/admin/client_consultation_checlist_screen.dart';
 
+// 🎯 NEW IMPORT
+
 class ClientDashboardScreen extends ConsumerStatefulWidget {
   final ClientModel client;
 
@@ -34,20 +37,6 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
 
   late TabController _tabController;
   bool _isLoading = false;
-
-  // ... (omitted sheet opening methods) ...
-
-  void _openPersonalInfoSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => ClientPersonalInfoSheet(
-        client: _currentClient,
-        onSave: (updated) => setState(() => _currentClient = updated),
-      ),
-    );
-  }
 
   void _openClientTypeSheet() {
     showModalBottomSheet(
@@ -75,10 +64,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
   void initState() {
     super.initState();
     _currentClient = widget.client;
-    // 🎯 FIX: Increase tab count from 6 to 7
     _tabController = TabController(length: 7, vsync: this);
-
-    // 🎯 FIX 1: Explicitly call refresh on initial load
     _refreshClientData();
   }
 
@@ -89,25 +75,20 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
   }
 
   Future<void> _refreshClientData() async {
-    setState(() => _isLoading = true); // Sets loading to true
+    setState(() => _isLoading = true);
     try {
       final clientService = ref.read(clientServiceProvider);
-      // Calls clientService.getClientById()
       final updatedClient = await clientService.getClientById(_currentClient.id);
-      if (mounted) setState(() => _currentClient = updatedClient); // Updates state on success
+      if (mounted) setState(() => _currentClient = updatedClient);
     } catch (e) {
-      // 🎯 FIX 2: Log the error to diagnose the issue, but guarantee loading state reset
       print("Error refreshing client data: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to refresh data: $e')));
       }
     } finally {
-      // Guarantees loading state is reset, preventing infinite spinner
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  // --- ACTIONS ---
 
   void _navigateToEdit() async {
     await Navigator.of(context).push(
@@ -118,60 +99,24 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
     _refreshClientData();
   }
 
-  // 🎯 NEW: Method to start a NEW, unsaved consultation session for the existing patient
   void _startNewConsultation() {
-    // Navigate to the single session checklist screen.
-    // The NULL consultationRecordId signals a BRAND NEW SESSION/RECORD.
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ClientConsultationChecklistScreen(
           client: _currentClient,
-          latestVitals: null, // Let the checklist screen fetch the latest vitals for context
-          activePackage: null, // Let the checklist screen fetch the active package for context
-          // consultationRecordId is NULL, signaling a BRAND NEW SESSION/RECORD
+          latestVitals: null,
+          activePackage: null,
         ),
       ),
-    ).then((_) => _refreshClientData()); // Refresh dashboard after consultation finishes
+    ).then((_) => _refreshClientData());
   }
-
-  // 🎯 Placeholder Screen for Consultation History (User must create this dedicated list screen)
-  Widget ClientConsultationHistoryScreenPlaceholder({required ClientModel client}) {
-    // NOTE: This widget needs to be replaced by a dedicated screen that streams/fetches
-    // and displays the list of ConsultationModel records, as discussed in the previous step.
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text("Consultation History View", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              Text("This is where the chronological list of past consultation records for ${client.name} will be displayed.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
-              const SizedBox(height: 20),
-              const Text("Ensure you implement the dedicated list screen.", textAlign: TextAlign.center, style: TextStyle(color: Colors.red)),
-            ],
-          )
-      ),
-      // Allows starting a new session directly from the history tab
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _startNewConsultation,
-        label: const Text("Start New Consultation"),
-        icon: const Icon(Icons.add),
-        backgroundColor: Colors.teal,
-      ),
-    );
-  }
-
-
-  // --- UI BUILDERS ---
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE), // Premium Light Background
+      backgroundColor: const Color(0xFFF8F9FE),
       body: Stack(
         children: [
-          // 1. Ambient Glow
           Positioned(
             top: -100, right: -100,
             child: Container(
@@ -185,28 +130,26 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
 
           Column(
             children: [
-              // 2. Custom Glass Header
               _buildCustomHeader(),
-
-              // 3. Floating Tab Bar
               _buildPremiumTabBar(),
-
-              // 4. Tab Views
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : TabBarView(
                   controller: _tabController,
                   physics: const BouncingScrollPhysics(),
-                  // 🎯 FIX: Add the new Consultation History Placeholder
                   children: [
-                    _buildProfileTab(),
+                    // 🎯 NEW: Use the extracted Tab Widget
+                    ClientProfileTab(
+                        client: _currentClient,
+                        onRefresh: _refreshClientData
+                    ),
                     ClientMeetingScheduleTab(client: _currentClient),
                     ClientContentSchedulerTab(client: _currentClient),
                     _buildActionsGrid(),
                     VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name),
                     ClientPackageListScreen(client: _currentClient),
-                    ClientConsultationHistoryTab(client: _currentClient), // 🎯 NEW TAB CONTENT
+                    ClientConsultationHistoryTab(client: _currentClient),
                   ],
                 ),
               ),
@@ -217,10 +160,7 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
     );
   }
 
-  // ... (omitted _buildCustomHeader for brevity)
-
   Widget _buildCustomHeader() {
-    // Status Logic
     Color statusColor = Colors.grey;
     String statusText = "Pending";
     IconData statusIcon = Icons.timelapse;
@@ -255,7 +195,6 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
                   ),
                   Row(
                     children: [
-                      // Status Chip
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
@@ -268,7 +207,6 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
                         ),
                       ),
                       const SizedBox(width: 10),
-                      // Edit Button
                       InkWell(
                         onTap: () => _navigateToEdit(),
                         child: CircleAvatar(backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.1), radius: 18, child: Icon(Icons.edit, size: 16, color: Theme.of(context).colorScheme.primary)),
@@ -280,7 +218,6 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
               const SizedBox(height: 20),
               Row(
                 children: [
-                  // Header Avatar (Small - shows initial if no photo)
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: Theme.of(context).colorScheme.primary,
@@ -309,7 +246,6 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
     );
   }
 
-  // 🎯 MODIFIED: TabBar labels to include the new 'Consultations' tab
   Widget _buildPremiumTabBar() {
     return Container(
       height: 60,
@@ -328,7 +264,6 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
         labelColor: Colors.white,
         unselectedLabelColor: Colors.grey.shade600,
         labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-        // 🎯 FIX: Add the new tab
         tabs: const [
           Tab(text: "Profile"),
           Tab(text: "Schedule"),
@@ -336,149 +271,26 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
           Tab(text: "Actions"),
           Tab(text: "Vitals"),
           Tab(text: "Billing"),
-          Tab(text: "Consultations"), // 🎯 NEW TAB
+          Tab(text: "Consultations"),
         ],
       ),
     );
   }
 
-  // --- TAB 1: PROFILE (Revamped) ---
-  Widget _buildProfileTab() {
-    final ageStr = _currentClient.age != null && _currentClient.age! > 0 ? "${_currentClient.age} Yrs" : "Age N/A";
-    final dobStr = _currentClient.dob != null ? DateFormat('dd MMM yyyy').format(_currentClient.dob) : "Not Set";
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          // 1. Identity Card
-          Stack(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 8))]),
-                child: Column(
-                  children: [
-                    CircleAvatar(radius: 50, backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.1), backgroundImage: _currentClient.photoUrl != null ? NetworkImage(_currentClient.photoUrl!) : null, child: _currentClient.photoUrl == null ? Text(_currentClient.name[0], style: const TextStyle(fontSize: 40)) : null),
-                    const SizedBox(height: 16),
-                    Text(_currentClient.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                    Text("PID: ${_currentClient.patientId ?? 'N/A'}", style: TextStyle(color: Colors.grey.shade600)),
-                  ],
-                ),
-              ),
-              Positioned(top: 10, right: 10, child: IconButton(icon:  Icon(Icons.edit, color: Theme.of(context).colorScheme.primary), onPressed: _openPersonalInfoSheet)),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // 2. Personal & Contact (Merged for simplicity in edit, split in view if desired)
-          _buildInfoCard(
-            title: "Personal & Contact",
-            icon: Icons.person,
-            color: Colors.purple,
-            children: [
-              _buildInfoRow(Icons.male, "Gender", _currentClient.gender),
-              _buildInfoRow(Icons.cake, "DOB", _currentClient.dob != null ? DateFormat('dd MMM yyyy').format(_currentClient.dob) : "N/A"),
-              _buildInfoRow(Icons.phone, "Mobile", _currentClient.mobile),
-              _buildInfoRow(FontAwesomeIcons.whatsapp, "WhatsApp", _currentClient.whatsappNumber ?? "N/A"),
-              _buildInfoRow(Icons.email, "Email", _currentClient.email),
-              _buildInfoRow(Icons.location_on, "Address", _currentClient.address ?? "N/A", maxLines: 2),
-            ],
-            action: IconButton(icon: const Icon(Icons.edit, color: Colors.purple), onPressed: _openPersonalInfoSheet),
-          ),
-          const SizedBox(height: 20),
-
-          // 3. Client Status
-          _buildInfoCard(
-            title: "Account Status",
-            icon: Icons.verified_user,
-            color: Colors.blue,
-            children: [
-              _buildInfoRow(Icons.category, "Client Type", _currentClient.clientType.toUpperCase()),
-            ],
-            action: TextButton(onPressed: _openClientTypeSheet, child: const Text("Change")),
-          ),
-          const SizedBox(height: 20),
-
-          // 4. Security
-          _buildInfoCard(
-            title: "Security",
-            icon: Icons.lock,
-            color: Colors.orange,
-            children: [
-              _buildInfoRow(Icons.vpn_key, "Login ID", _currentClient.loginId),
-              _buildInfoRow(Icons.shield, "Access", _currentClient.status == 'Active' ? "Granted" : "Blocked", isSecure: false),
-            ],
-            action: IconButton(icon: const Icon(Icons.settings, color: Colors.orange), onPressed: _openSecuritySheet),
-          ),
-
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-
-  }
-
-  // --- TAB 4: ACTIONS (Grid Layout) ---
-  // 🎯 MODIFIED: _buildActionsGrid to include the navigation to the new tab
   Widget _buildActionsGrid() {
     return GridView.count(
       crossAxisCount: 2,
       padding: const EdgeInsets.all(20),
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childAspectRatio: 1.1, // Square-ish cards
+      childAspectRatio: 1.1,
       children: [
-        // 🎯 NEW: Start New Consultation Action Card
-        _buildActionCard(
-          "New Consultation",
-          "Start New Follow-up Session",
-          Icons.note_add,
-          Colors.teal,
-          _startNewConsultation, // 🎯 Call the new method
-        ),
-
-        // 1. Vitals Log
-        _buildActionCard(
-          "Vitals Log", "Log Measurements", Icons.monitor_heart, Colors.red,
-              () => Navigator.push(context, MaterialPageRoute(builder: (_) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name,))),
-        ),
-
-        // 🎯 2. Vitals Comparison/Progress Analysis
-        _buildActionCard(
-          "Vitals Progress",
-          "Compare Labs Side-by-Side",
-          Icons.show_chart,
-          Colors.blue, // Use a distinct color
-              () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => VitalsComparisonScreen( // Assuming this class is ready
-                      clientId: _currentClient.id,
-                      clientName: _currentClient.name
-                  )
-              )
-          ),
-        ),
-
-        // 3. New Package
-        _buildActionCard(
-          "New Package", "Assign Service", Icons.card_giftcard, Colors.deepPurple,
-              () => Navigator.push(context, MaterialPageRoute(builder: (_) => PackageAssignmentPage(client: _currentClient))).then((_) => _refreshClientData()),
-        ),
-
-        // 4. Diet Template
-        _buildActionCard(
-            "Diet Template", "Assign Master", Icons.restaurant_menu, Theme.of(context).colorScheme.primary,
-                (){}// => Navigator.push(context, MaterialPageRoute(builder: (_) => MasterPlanSelectionPage(client: _currentClient, onMasterPlanAssigned: _refreshClientData))),
-        ),
-
-        // 5. Custom Plan (Link to Plan Management Hub)
-        _buildActionCard(
-          "Plan Management", "Manage Drafts and History", Icons.edit_note, Colors.orange,
-              () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssignedDietPlanListScreen(clientId: _currentClient.id, clientName: _currentClient.name,client: _currentClient,isReadOnly: true,))),
-        ),
+        _buildActionCard("New Consultation", "Start New Follow-up Session", Icons.note_add, Colors.teal, _startNewConsultation),
+        _buildActionCard("Vitals Log", "Log Measurements", Icons.monitor_heart, Colors.red, () => Navigator.push(context, MaterialPageRoute(builder: (_) => VitalsHistoryPage(clientId: _currentClient.id, clientName: _currentClient.name,)))),
+        _buildActionCard("Vitals Progress", "Compare Labs Side-by-Side", Icons.show_chart, Colors.blue, () => Navigator.push(context, MaterialPageRoute(builder: (_) => VitalsComparisonScreen(clientId: _currentClient.id, clientName: _currentClient.name)))),
+        _buildActionCard("New Package", "Assign Service", Icons.card_giftcard, Colors.deepPurple, () => Navigator.push(context, MaterialPageRoute(builder: (_) => PackageAssignmentPage(client: _currentClient))).then((_) => _refreshClientData())),
+        _buildActionCard("Diet Template", "Assign Master", Icons.restaurant_menu, Theme.of(context).colorScheme.primary, (){}),
+        _buildActionCard("Plan Management", "Manage Drafts and History", Icons.edit_note, Colors.orange, () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssignedDietPlanListScreen(clientId: _currentClient.id, clientName: _currentClient.name,client: _currentClient,isReadOnly: true,)))),
       ],
     );
   }
@@ -487,65 +299,17 @@ class _ClientDashboardScreenState extends ConsumerState<ClientDashboardScreen> w
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))],
-        ),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))]),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-              child: Icon(icon, color: color, size: 28),
-            ),
+            Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 28)),
             const SizedBox(height: 12),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 4),
             Text(subtitle, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({required String title, required IconData icon, required Color color, required List<Widget> children, Widget? action}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(children: [Icon(icon, color: color, size: 20), const SizedBox(width: 10), Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87))]),
-              if (action != null) action,
-            ],
-          ),
-          const Divider(height: 24),
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value, {bool isSecure = false, int maxLines = 1}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 24, child: Icon(icon, size: 16, color: Colors.grey.shade400)),
-          const SizedBox(width: 12),
-          Text("$label: ", style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87), maxLines: maxLines, overflow: TextOverflow.ellipsis)),
-        ],
       ),
     );
   }

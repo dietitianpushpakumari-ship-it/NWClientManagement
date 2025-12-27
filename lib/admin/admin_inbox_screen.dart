@@ -34,7 +34,7 @@ class _AdminInboxScreenState extends ConsumerState<AdminInboxScreen> with Single
 
   @override
   Widget build(BuildContext context) {
-    // 🎯 CRITICAL FIX: Get the service instance that is connected to the Tenant DB
+    // 🎯 CRITICAL FIX: Get the services instance that is connected to the Tenant DB
     final chatService = ref.watch(adminChatServiceProvider);
 
     return Scaffold(

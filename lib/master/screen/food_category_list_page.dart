@@ -37,16 +37,16 @@ class _FoodCategoryListPageState extends ConsumerState<FoodCategoryListPage> {
       final item = _categories.removeAt(oldIndex);
       _categories.insert(newIndex, item);
 
-      // TODO: Implement actual service call here:
-      // final service = ref.read(foodCategoryServiceProvider);
-      // service.updateOrder(_categories.map((c) => c.id).toList());
+      // TODO: Implement actual services call here:
+      // final services = ref.read(foodCategoryServiceProvider);
+      // services.updateOrder(_categories.map((c) => c.id).toList());
     });
   }
 
 
   @override
   Widget build(BuildContext context) {
-    // 🎯 FIX 4: Access the service via ref.watch()
+    // 🎯 FIX 4: Access the services via ref.watch()
     final service = ref.watch(foodCategoryServiceProvider);
 
     return SafeArea(

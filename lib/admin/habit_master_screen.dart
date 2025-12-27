@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🎯 FIX 1: Import Riverpod
 import 'package:nutricare_client_management/admin/ai_translation_service.dart';
 import 'package:nutricare_client_management/admin/habit_master_model.dart';
-import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart'; // 🎯 Import service provider
+import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart'; // 🎯 Import services provider
 import 'package:nutricare_client_management/core/localization/language_config.dart';
 
 class HabitMasterScreen extends ConsumerStatefulWidget {
@@ -129,7 +129,7 @@ class _HabitMasterScreenState extends ConsumerState<HabitMasterScreen> {
   Future<void> _saveHabit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    // 🎯 FIX 4: Access service via ref.read()
+    // 🎯 FIX 4: Access services via ref.read()
     final service = ref.read(habitMasterServiceProvider);
 
     // Gather localized maps
@@ -164,7 +164,7 @@ class _HabitMasterScreenState extends ConsumerState<HabitMasterScreen> {
   }
 
   Future<void> _deleteHabit(HabitMasterModel habit) async {
-    // 🎯 FIX 5: Access service via ref.read()
+    // 🎯 FIX 5: Access services via ref.read()
     final service = ref.read(habitMasterServiceProvider);
     await service.delete(habit.id);
   }

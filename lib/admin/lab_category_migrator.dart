@@ -39,7 +39,7 @@ class LabCategoryMigrator {
     // Get the target collection path: 'config_labTestCategory'
     final collectionPath = MasterCollectionMapper.getPath(entity);
 
-    // Call the service method to upload all configured categories
+    // Call the services method to upload all configured categories
     await service.bulkUploadItems(collectionPath, itemsToUpload);
 
     // Invalidate the category provider to force UI refresh across the app

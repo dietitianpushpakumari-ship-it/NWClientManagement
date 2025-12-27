@@ -14,7 +14,7 @@ class AuthService {
   AuthService(this._ref);
 
   // 🎯 4. Dynamic Getter for Multi-Tenancy
-  // This ensures the service uses the correct FirebaseAuth instance for the active tenant.
+  // This ensures the services uses the correct FirebaseAuth instance for the active tenant.
   FirebaseAuth get _auth => _ref.read(authProvider);
 
   User? get currentUser => _auth.currentUser;

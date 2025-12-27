@@ -1,79 +1,128 @@
-// lib/models/package_assignment_model.dart (UPDATED)
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PackageAssignmentModel {
   final String id;
   final String packageId;
   final String packageName;
+  final String? description;
   final DateTime purchaseDate;
   final DateTime expiryDate;
   final bool isActive;
   final bool isLocked;
   final String clientId;
-  // NEW FIELDS
-  final String? diagnosis; // Reason for package availment
-  final double discount; // Discount amount or percentage (captured as an absolute value for simplicity)
+
+  final String? diagnosis;
+  final double discount;
   final double bookedAmount;
-  final String? category; // The final amount client paid/booked for
+  final String? category;
+  final String? type;
+
+  // 🎯 UI & Logic Fields
+  final String? colorCode;
+  final int followUpIntervalDays;
+  final bool isTaxInclusive;
+  final double? originalPrice;
+
+  final String? sessionId;
+  final int sessionsTotal;
+  final int sessionsRemaining;
+  final int offerExtraDays;
+  final int offerExtraSessions;
+  final int freeSessionsTotal;
+  final int freeSessionsRemaining;
+
+  // 🎯 Content Lists
+  final List<String> inclusions;
+  final List<String> inclusionIds;
+  final List<String> programFeatureIds;
+  final List<String> targetConditions;
 
   PackageAssignmentModel({
     required this.id,
     required this.packageId,
     required this.packageName,
+    this.description,
     required this.purchaseDate,
     required this.expiryDate,
     required this.isActive,
     required this.clientId,
-    // NEW FIELDS REQUIRED
     this.diagnosis,
     this.discount = 0.0,
     required this.bookedAmount,
-    required this.category,
+    this.category,
+    this.type,
     required this.isLocked,
+    this.colorCode,
+    this.followUpIntervalDays = 7,
+    this.isTaxInclusive = true,
+    this.originalPrice,
+    this.sessionId,
+    this.sessionsTotal = 0,
+    this.sessionsRemaining = 0,
+    this.offerExtraDays = 0,
+    this.offerExtraSessions = 0,
+    this.freeSessionsTotal = 0,
+    this.freeSessionsRemaining = 0,
+    this.inclusions = const [],
+    this.inclusionIds = const [],
+    this.programFeatureIds = const [],
+    this.targetConditions = const [],
   });
 
+  // 🎯 RESTORED: fromMap Factory (Required for ClientModel)
   factory PackageAssignmentModel.fromMap(Map<String, dynamic> data) {
-    return PackageAssignmentModel(
-      id: '',
-      packageId: data['packageId'] ?? '',
-      packageName: data['packageName'] ?? 'Unknown Package',
-      purchaseDate: (data['purchaseDate'] as Timestamp).toDate(),
-      expiryDate: (data['expiryDate'] as Timestamp).toDate(),
-      isActive: data['isActive'] ?? false,
+    DateTime parseDate(dynamic timestamp) {
+      if (timestamp is Timestamp) return timestamp.toDate();
+      if (timestamp is String) return DateTime.tryParse(timestamp) ?? DateTime.now();
+      return DateTime.now();
+    }
 
-      // Parsing NEW FIELDS
-      diagnosis: data['diagnosis'] ??  '',
+    final startDate = parseDate(data['startDate'] ?? data['purchaseDate']);
+    final endDate = parseDate(data['endDate'] ?? data['expiryDate']);
+
+    final String status = (data['status'] ?? '').toString().toLowerCase();
+    final bool isActive = (status == 'active' || data['isActive'] == true) && endDate.isAfter(DateTime.now().subtract(const Duration(days: 1)));
+
+    return PackageAssignmentModel(
+      id: data['id'] as String? ?? '', // Embedded objects might not have ID
+      packageId: data['packageId'] as String? ?? '',
+      packageName: data['packageName'] as String? ?? 'Unknown',
+      description: data['description'] as String?,
+
+      purchaseDate: startDate,
+      expiryDate: endDate,
+      isActive: isActive,
+
+      clientId: data['clientId'] as String? ?? '',
+      diagnosis: data['diagnosis'] as String?,
+      type: data['type'] as String?,
       discount: (data['discount'] as num?)?.toDouble() ?? 0.0,
-      bookedAmount: (data['bookedAmount'] as num?)?.toDouble() ?? 0.0,
-      category: data['category'] ?? '',
-      isLocked: data['isLocked'] ?? false,
-      clientId: data['clientId'] ?? ''
+
+      bookedAmount: (data['bookedAmount'] as num?)?.toDouble() ?? (data['price'] as num?)?.toDouble() ?? 0.0,
+
+      category: data['category'] as String?,
+      colorCode: data['colorCode'] as String?,
+      followUpIntervalDays: (data['followUpIntervalDays'] as num?)?.toInt() ?? 7,
+      isTaxInclusive: data['isTaxInclusive'] as bool? ?? true,
+      originalPrice: (data['originalPrice'] as num?)?.toDouble(),
+
+      isLocked: data['isLocked'] as bool? ?? false,
+      sessionId: data['sessionId'] as String?,
+      sessionsTotal: (data['sessionsTotal'] as num?)?.toInt() ?? 0,
+      sessionsRemaining: (data['sessionsRemaining'] as num?)?.toInt() ?? 0,
+      offerExtraDays: (data['offerExtraDays'] as num?)?.toInt() ?? 0,
+      offerExtraSessions: (data['offerExtraSessions'] as num?)?.toInt() ?? 0,
+      freeSessionsTotal: (data['freeSessionsTotal'] as num?)?.toInt() ?? 0,
+      freeSessionsRemaining: (data['freeSessionsRemaining'] as num?)?.toInt() ?? 0,
+
+      inclusions: List<String>.from(data['inclusions'] ?? []),
+      inclusionIds: List<String>.from(data['inclusionIds'] ?? []),
+      programFeatureIds: List<String>.from(data['programFeatureIds'] ?? []),
+      targetConditions: List<String>.from(data['targetConditions'] ?? []),
     );
   }
 
-  Map<String, dynamic> toMap() {
-    return {
-      // The 'id' field is usually NOT stored inside the document,
-      // but managed as the document key. Include it here just for completeness
-      // if you sometimes need to convert to Map outside of a save context.
-      'id': id,
-      'packageId': packageId,
-      'packageName': packageName,
-      'purchaseDate': purchaseDate,
-      'expiryDate': expiryDate,
-      'isActive': isActive,
-
-      // Mapping NEW FIELDS
-      'diagnosis': diagnosis,
-      'discount': discount,
-      'bookedAmount': bookedAmount,
-      'category': category,
-      'isLocked': isLocked,
-      'clientId': clientId
-    };
-  }
-
-  // 🎯 FIX: ADD THIS FACTORY CONSTRUCTOR
+  // 🎯 fromFirestore Factory
   factory PackageAssignmentModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
 
@@ -81,62 +130,73 @@ class PackageAssignmentModel {
       throw StateError('Cannot create PackageAssignmentModel from null data.');
     }
 
-    // Safely cast Timestamps to DateTime
-    DateTime parseDate(dynamic timestamp) {
-      if (timestamp is Timestamp) {
-        return timestamp.toDate();
-      }
-      // Assuming a standard DateTime if not a Timestamp (e.g., in tests)
-      return timestamp is DateTime ? timestamp : DateTime.now();
-    }
+    // Reuse fromMap logic, but inject the document ID
+    final model = PackageAssignmentModel.fromMap(data);
 
-    // Determine isActive status
-    final expiryDate = parseDate(data['expiryDate']);
-
+    // Return a copy with the correct Document ID
     return PackageAssignmentModel(
       id: doc.id,
-      // Always use the document ID for the models's ID
-      packageId: data['packageId'] as String,
-      packageName: data['packageName'] as String,
-      diagnosis: data['diagnosis'] as String?,
-      discount: (data['discount'] ?? 0 as num).toDouble(),
-      // Safely handle int/double from Firestore
-      bookedAmount: (data['bookedAmount'] ?? 0 as num).toDouble(),
-      purchaseDate: parseDate(data['purchaseDate']),
-      expiryDate: expiryDate,
-      category: data['category'] as String?,
-      isActive: data['isActive'] as bool? ?? expiryDate.isAfter(DateTime.now()),
-      isLocked: data['isLocked']  as bool? ?? false,
-      clientId: data['clientID'] as String? ?? ''
+      packageId: model.packageId,
+      packageName: model.packageName,
+      description: model.description,
+      purchaseDate: model.purchaseDate,
+      expiryDate: model.expiryDate,
+      isActive: model.isActive,
+      clientId: model.clientId,
+      diagnosis: model.diagnosis,
+      discount: model.discount,
+      bookedAmount: model.bookedAmount,
+      category: model.category,
+      colorCode: model.colorCode,
+      followUpIntervalDays: model.followUpIntervalDays,
+      isTaxInclusive: model.isTaxInclusive,
+      originalPrice: model.originalPrice,
+      type: model.type,
+      isLocked: model.isLocked,
+      sessionId: model.sessionId,
+      sessionsTotal: model.sessionsTotal,
+      sessionsRemaining: model.sessionsRemaining,
+      offerExtraDays: model.offerExtraDays,
+      offerExtraSessions: model.offerExtraSessions,
+      freeSessionsTotal: model.freeSessionsTotal,
+      freeSessionsRemaining: model.freeSessionsRemaining,
+      inclusions: model.inclusions,
+      inclusionIds: model.inclusionIds,
+      programFeatureIds: model.programFeatureIds,
+      targetConditions: model.targetConditions,
     );
   }
 
-  PackageAssignmentModel copyWith({
-    String? id,
-    String? clientId,
-    String? packageName,
-    DateTime? purchaseDate,
-    bool? isActive,
-    bool? isLocked,
-    DateTime? expiryDate,
-    double? bookedAmount,
-    String? category,
-    // Include new field in copyWith
-  }) {
-    return PackageAssignmentModel(
-      id: id ?? this.id,
-      clientId: clientId ?? this.clientId,
-      packageName: packageName ?? this.packageName,
-      isActive: isActive ?? this.isActive,
-      isLocked: isLocked ?? this.isLocked,
-      packageId: '',
-      purchaseDate: purchaseDate ?? this.purchaseDate,
-      expiryDate: expiryDate ?? this.expiryDate,
-      bookedAmount: bookedAmount ?? this.bookedAmount,
-      category: category ?? this.category,
-
-    );
+  Map<String, dynamic> toMap() {
+    return {
+      'packageId': packageId,
+      'packageName': packageName,
+      'description': description,
+      'startDate': Timestamp.fromDate(purchaseDate),
+      'endDate': Timestamp.fromDate(expiryDate),
+      'status': isActive ? 'active' : 'expired',
+      'clientId': clientId,
+      'diagnosis': diagnosis,
+      'discount': discount,
+      'price': bookedAmount,
+      'type': type,
+      'category': category,
+      'colorCode': colorCode,
+      'followUpIntervalDays': followUpIntervalDays,
+      'isTaxInclusive': isTaxInclusive,
+      'originalPrice': originalPrice,
+      'isLocked': isLocked,
+      'sessionId': sessionId,
+      'sessionsTotal': sessionsTotal,
+      'sessionsRemaining': sessionsRemaining,
+      'offerExtraDays': offerExtraDays,
+      'offerExtraSessions': offerExtraSessions,
+      'freeSessionsTotal': freeSessionsTotal,
+      'freeSessionsRemaining': freeSessionsRemaining,
+      'inclusions': inclusions,
+      'inclusionIds': inclusionIds,
+      'programFeatureIds': programFeatureIds,
+      'targetConditions': targetConditions,
+    };
   }
-
-  // Add the toMap method for saving data back to Firestore (optional but recommended)
 }

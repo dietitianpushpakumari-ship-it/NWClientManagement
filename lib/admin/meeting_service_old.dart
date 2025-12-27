@@ -11,12 +11,13 @@ import 'database_provider.dart';
 
 final Logger _logger = Logger();
 
-class MeetingService {
+class MeetingServiceOld {
 
   final Ref _ref; // Store Ref to access dynamic providers
 
-  MeetingService(this._ref);
+  MeetingServiceOld(this._ref);
   FirebaseFirestore get _firestore => _ref.read(firestoreProvider);
+  FirebaseAuth get _auth => _ref.read(authProvider);
 
   final String _scheduleCollection = 'schedules';
   final String _appointmentsCollection = 'appointments';
@@ -381,29 +382,7 @@ class MeetingService {
     return const Stream.empty();
   }
 
-  Future<List<MeetingModel>> getClientMeetings(String clientId) async {
-    try {
-      final snap = await _firestore.collection(_appointmentsCollection)
-          .where('clientId', isEqualTo: clientId)
-          .orderBy('startTime', descending: true)
-          .get();
 
-      return snap.docs.map((doc) {
-        final d = doc.data();
-        return MeetingModel(
-            id: doc.id,
-            clientId: d['clientId'] ?? '',
-            startTime: (d['startTime'] as Timestamp).toDate(),
-            meetingType: d['type'] ?? 'Video Call',
-            purpose: d['topic'] ?? 'Consultation',
-            status: stringToMeetingStatus(d['status'] ?? 'scheduled'),
-            clinicalNotes: d['adminNote'],
-            createdAt: d['createdAt'] ?? Timestamp.now(),
-            updatedAt: d['createdAt'] ?? Timestamp.now()
-        );
-      }).toList();
-    } catch (e) { return []; }
-  }
   Future<void> scheduleMeeting({
     required String clientId,
     required DateTime startTime,
@@ -413,7 +392,7 @@ class MeetingService {
     String? clinicalNotes
   }) async {
     // 1. Get Current User (Coach)
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
     final String coachId = user?.uid ?? 'system_admin';
     final String adminName = user?.displayName ?? user?.email ?? 'Admin';
 
@@ -816,5 +795,47 @@ class MeetingService {
           a.status != AppointmentStatus.completed
       ).toList();
     });
+  }
+  // 🎯 NEW: Stream for Client Schedule Tab (Real-time)
+  Stream<List<AppointmentModel>> streamClientAppointments(String clientId) {
+    return _firestore.collection(_appointmentsCollection)
+        .where('clientId', isEqualTo: clientId)
+        .orderBy('startTime', descending: false)
+        .snapshots()
+        .map((snap) => snap.docs
+        .map((doc) => AppointmentModel.fromFirestore(doc))
+        .toList());
+  }
+  // 🔄 UPDATE: Return AppointmentModel instead of MeetingModel
+  Future<List<AppointmentModel>> getClientMeetings(String clientId) async {
+    try {
+      final snap = await _firestore.collection(_appointmentsCollection)
+          .where('clientId', isEqualTo: clientId)
+          .orderBy('startTime', descending: true)
+          .get();
+
+      return snap.docs.map((doc) => AppointmentModel.fromFirestore(doc)).toList();
+    } catch (e) {
+      _logger.e("Error fetching client meetings: $e");
+      return [];
+    }
+  }
+  Future<void> updateAppointmentDetails({
+    required String appointmentId,
+    String? topic,
+    String? meetLink,
+    String? paymentRef,
+  }) async {
+    final Map<String, dynamic> updates = {
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (topic != null) updates['topic'] = topic;
+    if (meetLink != null) updates['meetLink'] = meetLink;
+    if (paymentRef != null) {
+      updates['paymentRef'] = paymentRef;
+      // If adding payment ref, set to verification pending if it was pending
+      updates['status'] = AppointmentStatus.verification_pending.name;
+    }
+    await _firestore.collection(_appointmentsCollection).doc(appointmentId).update(updates);
   }
 }

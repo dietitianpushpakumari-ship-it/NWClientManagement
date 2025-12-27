@@ -30,7 +30,7 @@ class LabVitalsMigrator {
     final testsToUpload = _mapHardcodedData();
     final service = ref.read(labTestConfigServiceProvider);
 
-    // Call the service method to upload all configured tests
+    // Call the services method to upload all configured tests
     await service.bulkUploadTests(testsToUpload);
 
     // Invalidate the provider that streams the tests to force UI refresh

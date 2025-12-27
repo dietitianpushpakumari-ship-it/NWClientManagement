@@ -18,7 +18,6 @@ class ClientModel {
   final String status; // 'Active', 'Inactive'
   final bool isSoftDeleted;
   final bool hasPasswordSet;
-  final Map<String, PackageAssignmentModel> packageAssignments;
   final String? agreementUrl;
   final String? patientId;
   final Timestamp? createdAt;
@@ -51,7 +50,6 @@ class ClientModel {
     this.status = 'Inactive',
     this.isSoftDeleted = false,
     this.hasPasswordSet = false,
-    this.packageAssignments = const {},
     this.tag,
     this.address,
     this.altMobile,
@@ -95,7 +93,6 @@ class ClientModel {
       status: data['status'] ?? 'Inactive',
       isSoftDeleted: data['isSoftDeleted'] ?? false,
       hasPasswordSet: data['hasPasswordSet'] ?? false,
-      packageAssignments: packages,
       address: data['address'] as String?,
       altMobile: data['altMobile'] as String?,
       agreementUrl: data['agreementUrl'] as String?,
@@ -129,7 +126,6 @@ class ClientModel {
       'status': status,
       'isSoftDeleted': isSoftDeleted,
       'hasPasswordSet': hasPasswordSet,
-      'activePackages': packageAssignments.map((key, value) => MapEntry(key, value.toMap())),
       'address': address,
       'altMobile': altMobile,
       'agreementUrl': agreementUrl,
