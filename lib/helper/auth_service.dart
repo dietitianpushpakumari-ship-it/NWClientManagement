@@ -57,4 +57,5 @@ class AuthService {
     // 🎯 Uses the dynamic Auth instance
     await _auth.signOut();
   }
+
 }

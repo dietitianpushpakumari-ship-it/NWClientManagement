@@ -17,86 +17,116 @@ class CompanyDetailScreen extends StatefulWidget {
 class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
   bool _isLoading = false;
 
-  // 📧 FEATURE: Fetch Password & Open Email
-  Future<void> _resendActivationLink() async {
+  // 📧 FEATURE: Send Welcome Email (Invite to Sign Up)
+// 📧 FEATURE: Send Welcome Email (With Password Fetch)
+  Future<void> _sendWelcomeEmail() async {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Fetch stored credentials from user_directory
+      // 1. 🔍 Fetch the stored temp_password from user_directory
       final doc = await FirebaseFirestore.instance
           .collection('user_directory')
           .doc(widget.tenant.ownerEmail)
           .get();
 
-      final data = doc.data();
-      final String? storedPassword = data?['temp_password'];
+      String passwordLine = "4. Please use 'Forgot Password' to set your initial password.\n";
 
-      if (storedPassword == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("⚠️ Original temp password not found. Please reset password manually in Firebase Console."),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 4),
-          ));
+      // 2. Check if temp_password exists
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null && data.containsKey('temp_password')) {
+          final tempPass = data['temp_password'];
+          // Only show if it's not null/empty
+          if (tempPass != null && tempPass.toString().isNotEmpty) {
+            passwordLine = "4. Temporary Password: $tempPass\n   (You will be asked to change this upon login)\n";
+          }
         }
-        return;
       }
 
-      // 2. Prepare Email Content
-      final String subject = Uri.encodeComponent("Login Credentials for ${widget.tenant.name}");
+      // 3. Compose Email
+      final String subject = Uri.encodeComponent("Welcome to NutriCare Wellness - Your Clinic is Ready!");
       final String body = Uri.encodeComponent(
           "Hello ${widget.tenant.ownerName},\n\n"
-              "Here are your login details for NutriCare Wellness:\n\n"
+              "Your clinic '${widget.tenant.name}' has been successfully onboarded to the NutriCare platform.\n\n"
+              "You can now access your dashboard.\n"
               "--------------------------------\n"
-              "Email: ${widget.tenant.ownerEmail}\n"
-              "Password: $storedPassword\n"
+              "1. Download the Admin App.\n"
+              "2. Click 'Login'.\n"
+              "3. Email: ${widget.tenant.ownerEmail}\n"
+              "$passwordLine"
               "--------------------------------\n\n"
-              "Please log in and change your password immediately.\n\n"
               "Regards,\nNutriCare Admin Team"
       );
 
-      // 3. Launch Gmail
+      // 4. Launch Email App
       final Uri emailUri = Uri.parse("mailto:${widget.tenant.ownerEmail}?subject=$subject&body=$body");
 
       try {
         await launchUrl(emailUri);
       } catch (e) {
-        // Fallback if mail app doesn't open
-        if (mounted) _showManualCopyDialog(storedPassword);
+        if (mounted) {
+          // Fallback if no mail app is found
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not open email app.")));
+        }
       }
 
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error fetching credentials: $e")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showManualCopyDialog(String password) {
-    showDialog(
+  // 🔴 FEATURE: Suspend Tenant
+  Future<void> _toggleSuspendStatus() async {
+    final bool isCurrentlyActive = widget.tenant.status == 'active';
+    final String newStatus = isCurrentlyActive ? 'suspended' : 'active';
+
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Share Credentials"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Could not open email app. Please copy manually:"),
-            const SizedBox(height: 16),
-            _buildInfoRow("Email", widget.tenant.ownerEmail, copyable: true),
-            const SizedBox(height: 10),
-            _buildInfoRow("Password", password, copyable: true),
-          ],
+        title: Text(isCurrentlyActive ? "Suspend Clinic?" : "Activate Clinic?"),
+        content: Text(isCurrentlyActive
+            ? "This will prevent ${widget.tenant.name} staff from logging in."
+            : "Access will be restored for ${widget.tenant.name}."
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Close"))],
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: isCurrentlyActive ? Colors.red : Colors.green),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isCurrentlyActive ? "Suspend" : "Activate"),
+          )
+        ],
       ),
     );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseFirestore.instance.collection('tenants').doc(widget.tenant.id).update({
+        'status': newStatus,
+      });
+      if (mounted) {
+        Navigator.pop(context); // Close screen to refresh list
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("Clinic marked as $newStatus"),
+            backgroundColor: isCurrentlyActive ? Colors.orange : Colors.green
+        ));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Determine status color
-    Color statusColor = widget.tenant.status == TenantStatus.active ? Colors.green : Colors.orange;
+    // 🎨 Determine status color (Handle String status)
+    final bool isActive = widget.tenant.status == 'active';
+    final Color statusColor = isActive ? Colors.green : Colors.red;
+    final String statusLabel = isActive ? "ACTIVE" : "SUSPENDED";
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
@@ -107,7 +137,6 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
             icon: const Icon(Icons.edit),
             tooltip: "Edit Details",
             onPressed: () {
-              // Navigate to Edit Screen
               Navigator.push(context, MaterialPageRoute(
                 builder: (_) => AddCompanyScreen(draftTenant: widget.tenant),
               ));
@@ -143,7 +172,7 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                              child: Text(widget.tenant.status.name.toUpperCase(), style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10)),
+                              child: Text(statusLabel, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10)),
                             ),
                             const SizedBox(width: 8),
                             Text("ID: ${widget.tenant.id}", style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
@@ -165,22 +194,25 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _resendActivationLink,
-                    icon: _isLoading ? const SizedBox(width:16, height:16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded),
-                    label: const Text("Resend Invite"),
+                    onPressed: _isLoading ? null : _sendWelcomeEmail,
+                    icon: _isLoading
+                        ? const SizedBox(width:16, height:16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.email_rounded),
+                    label: const Text("Send Invite"),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      // Placeholder for future feature
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Suspend feature coming soon!")));
-                    },
-                    icon: const Icon(Icons.block),
-                    label: const Text("Suspend"),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red), padding: const EdgeInsets.symmetric(vertical: 12)),
+                    onPressed: _isLoading ? null : _toggleSuspendStatus,
+                    icon: Icon(isActive ? Icons.block : Icons.check_circle_outline),
+                    label: Text(isActive ? "Suspend" : "Activate"),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: isActive ? Colors.red : Colors.green,
+                        side: BorderSide(color: isActive ? Colors.red : Colors.green),
+                        padding: const EdgeInsets.symmetric(vertical: 12)
+                    ),
                   ),
                 ),
               ],
@@ -202,29 +234,13 @@ class _CompanyDetailScreenState extends State<CompanyDetailScreen> {
                   const Divider(),
                   _buildInfoRow("Phone", widget.tenant.ownerPhone),
                   const Divider(),
-                  _buildInfoRow("Onboarded On", widget.tenant.invitedAt != null ? DateFormat.yMMMd().format(widget.tenant.invitedAt!) : "N/A"),
+                  _buildInfoRow("Created On",
+                      widget.tenant.createdAt != null // Handle Timestamp correctly
+                          ? DateFormat.yMMMd().format(widget.tenant.createdAt!)
+                          : "N/A"
+                  ),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ⚙️ TECHNICAL CONFIG
-            ExpansionTile(
-              title: const Text("Technical Configuration", style: TextStyle(fontWeight: FontWeight.bold)),
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  color: Colors.white,
-                  child: Column(
-                    children: [
-                      _buildInfoRow("Project ID", widget.tenant.projectId, copyable: true),
-                      const SizedBox(height: 10),
-                      _buildInfoRow("API Key", widget.tenant.apiKey, copyable: true),
-                    ],
-                  ),
-                )
-              ],
             ),
           ],
         ),

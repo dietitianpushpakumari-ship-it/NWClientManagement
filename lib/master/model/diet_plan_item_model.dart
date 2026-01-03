@@ -13,13 +13,16 @@ extension IterableExtensions<T> on Iterable<T> {
 
 // --- CORE MODELS ---
 
-
 class FoodItemAlternative {
   final String id;
   final String foodItemId;
   final String foodItemName;
   final double quantity;
   final String unit;
+  final double calories;
+  final double protein;
+  final double carbs;
+  final double fat;
 
   @override bool operator ==(Object other) => other is FoodItemAlternative && other.id == id;
   @override int get hashCode => id.hashCode;
@@ -27,7 +30,10 @@ class FoodItemAlternative {
 
   const FoodItemAlternative({
     required this.id, required this.foodItemId, required this.foodItemName,
-    required this.quantity, required this.unit
+    required this.quantity, required this.unit,required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
   });
 
   // TO FIREBASE
@@ -36,7 +42,12 @@ class FoodItemAlternative {
     'foodItemName': foodItemName,
     'quantity': quantity,
     'unit': unit,
+    'calories': calories,
+    'protein': protein,
+    'carbs': carbs,
+    'fat': fat
   };
+
   // FROM FIREBASE
   factory FoodItemAlternative.fromFirestore(Map<String, dynamic> data, String altId) => FoodItemAlternative(
     id: altId,
@@ -44,6 +55,11 @@ class FoodItemAlternative {
     foodItemName: data['foodItemName'] as String? ?? '',
     quantity: (data['quantity'] as num?)?.toDouble() ?? 0.0,
     unit: data['unit'] as String? ?? '',
+    // 🎯 FIX: Safely handle nulls for macros
+    calories: (data['calories'] as num?)?.toDouble() ?? 0.0,
+    protein: (data['protein'] as num?)?.toDouble() ?? 0.0,
+    carbs: (data['carbs'] as num?)?.toDouble() ?? 0.0,
+    fat: (data['fat'] as num?)?.toDouble() ?? 0.0,
   );
 }
 
@@ -55,17 +71,31 @@ class DietPlanItemModel {
   final String unit;
   final String notes;
   final List<FoodItemAlternative> alternatives;
+  final double calories;
+  final double protein;
+  final double carbs;
+  final double fat;
+  final String? alternativeGroupId;
 
   const DietPlanItemModel({
     required this.id, required this.foodItemId, required this.foodItemName,
     required this.quantity, required this.unit, this.notes = '',
-    this.alternatives = const []
+    this.alternatives = const [],required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+    this.alternativeGroupId,
   });
 
   DietPlanItemModel copyWith({List<FoodItemAlternative>? alternatives, double? quantity}) => DietPlanItemModel(
       id: id, foodItemId: foodItemId, foodItemName: foodItemName,
       quantity: quantity ?? this.quantity, unit: unit, notes: notes,
-      alternatives: alternatives ?? this.alternatives
+      alternatives: alternatives ?? this.alternatives,
+      calories: this.calories,
+      protein: this.protein,
+      carbs: this.carbs,
+      // 🎯 FIX: Was assigning this.calories to fat
+      fat: this.fat
   );
 
   // TO FIREBASE
@@ -78,7 +108,13 @@ class DietPlanItemModel {
     'alternatives': {
       for (var alt in alternatives) alt.id: alt.toFirestore()
     },
+    // Optional: Save macros if needed at root level
+    'calories': calories,
+    'protein': protein,
+    'carbs': carbs,
+    'fat': fat,
   };
+
   // FROM FIREBASE
   factory DietPlanItemModel.fromFirestore(Map<String, dynamic> data, String itemId) {
     final alternativesData = data['alternatives'] as Map<String, dynamic>? ?? {};
@@ -94,6 +130,11 @@ class DietPlanItemModel {
       unit: data['unit'] as String? ?? '',
       notes: data['notes'] as String? ?? '',
       alternatives: alternativesList,
+      // 🎯 FIX: Safely handle nulls and correct field mapping
+      calories: (data['calories'] as num?)?.toDouble() ?? 0.0,
+      protein: (data['protein'] as num?)?.toDouble() ?? 0.0,
+      carbs: (data['carbs'] as num?)?.toDouble() ?? 0.0,
+      fat: (data['fat'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -127,6 +168,7 @@ class DietPlanMealModel {
     },
     'order' : order
   };
+
   // FROM FIREBASE
   factory DietPlanMealModel.fromFirestore(Map<String, dynamic> data, String mealId) {
     final itemsData = data['items'] as Map<String, dynamic>? ?? {};
@@ -167,16 +209,11 @@ class MasterDayPlanModel {
     },
   };
 
-  // 🎯 NEW: Factory for parsing embedded Map data
-  // lib/master/model/diet_plan_item_model.dart
-
   factory MasterDayPlanModel.fromMap(Map<String, dynamic> data, String id) {
-    // 🎯 FIX: Check if we are parsing a nested 'dayPlan' or the object itself
     final Map<String, dynamic> source = data.containsKey('dayPlan')
         ? (data['dayPlan'] as Map<String, dynamic>? ?? {})
         : data;
 
-    // 🎯 SAFE ACCESS: Ensure meals is never null before mapping
     final mealsData = source['meals'];
     List<DietPlanMealModel> mealsList = [];
 
@@ -200,16 +237,16 @@ class MasterDayPlanModel {
   // EXISTING: Factory for parsing DocumentSnapshot
   factory MasterDayPlanModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
-    // Reuse the fromMap logic
     return MasterDayPlanModel.fromMap(data, doc.id);
   }
 }
+
 class MasterDietPlanModel {
   final String id;
   final String name;
   final String description;
   final List<String> dietPlanCategoryIds;
-  final List<MasterDayPlanModel> days; // <-- Holds ALL days (1 or 7)
+  final List<MasterDayPlanModel> days;
   final bool isActive;
   final Timestamp? createdAt;
 
@@ -242,7 +279,6 @@ class MasterDietPlanModel {
   );
 
   Map<String, dynamic> toFirestore() {
-    // 🎯 FIX 1: Check if we need to save the full list of days (for weekly plans)
     final bool isMultiDay = days.length > 1;
 
     final Map<String, dynamic> data = {
@@ -255,18 +291,14 @@ class MasterDietPlanModel {
       'isActive' : isActive
     };
 
-    // Save Structure Adaptively:
     if (isMultiDay) {
-      // 🎯 FIX 2: Save all 7 days in a simple list structure for later retrieval
       data['dayPlanType'] = 'weekly';
       data['daysList'] = days.map((day) => {
         'dayName': day.dayName,
         'id': day.id,
-        // Serialize meals into a list of maps
         'meals': day.meals.map((meal) => meal.toFirestore()).toList(),
       }).toList();
     } else {
-      // Old structure for single day compatibility (saving only the first/fixed day)
       data['dayPlanType'] = 'single';
       data['dayPlan'] = days.isNotEmpty
           ? days.first.toFirestore()
@@ -284,22 +316,19 @@ class MasterDietPlanModel {
     List<MasterDayPlanModel> loadedDays = [];
 
     if (dayPlanType == 'weekly' && data['daysList'] is List) {
-      // 🎯 FIX 3: Load 7-day structure from the list
       loadedDays = (data['daysList'] as List)
           .map((dayMap) {
-        // Map the serialized list of meals back to DietPlanMealModel
         final mealsData = dayMap['meals'] as List<dynamic>? ?? [];
         final mealsList = mealsData.map((mealMap) => DietPlanMealModel.fromFirestore(Map<String, dynamic>.from(mealMap), mealMap['id'] ?? mealMap['mealNameId'] ?? 'm_id')).toList();
 
         return MasterDayPlanModel(
-            id: dayMap['id'] ?? 'd_id',
-            dayName: dayMap['dayName'] ?? 'Unknown Day',
-            meals: mealsList,
+          id: dayMap['id'] ?? 'd_id',
+          dayName: dayMap['dayName'] ?? 'Unknown Day',
+          meals: mealsList,
         );
       }).toList();
 
     } else {
-      // Load old single-day structure
       final dayPlan = MasterDayPlanModel.fromFirestore(doc);
       loadedDays = [dayPlan];
     }
@@ -309,7 +338,7 @@ class MasterDietPlanModel {
       name: data['name'] as String? ?? 'Untitled Plan',
       description: data['description'] as String? ?? '',
       dietPlanCategoryIds: List<String>.from(data['dietPlanCategoryIds'] as List? ?? []),
-      days: loadedDays, // 🎯 Load the full list
+      days: loadedDays,
       isActive: data['isActive'] ?? true,
       createdAt: data['createdAt'] as Timestamp?,
     );

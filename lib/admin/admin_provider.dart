@@ -1,39 +1,48 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Keep this import for Type definition
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
 import 'package:nutricare_client_management/admin/admin_profile_service.dart';
-import 'package:nutricare_client_management/admin/database_provider.dart'; // 🎯 Import Database Provider
-import 'package:nutricare_client_management/admin/meeting_service_old.dart';
-import 'package:nutricare_client_management/admin/staff_management_service.dart';
+import 'package:nutricare_client_management/admin/admin_session_provider.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 
-// =============================================================================
-// 1. SERVICE PROVIDERS (Dependency Injection)
-// =============================================================================
-
-
-
-// 🎯 UPDATED: Inject Dynamic DB & Auth
+// Service Injection
 final adminProfileServiceProvider = Provider<AdminProfileService>((ref) {
-  final db = ref.watch(firestoreProvider); // Connects to Tenant DB
-  final auth = ref.watch(authProvider);    // Connects to Tenant Auth
+  final db = ref.watch(firestoreProvider);
+  final auth = ref.watch(authProvider);
   return AdminProfileService(db, auth);
 });
 
-// =============================================================================
-// 2. DATA PROVIDERS (State)
-// =============================================================================
-
-// 🎯 2.1 CURRENT ADMIN PROFILE
+// 🎯 THE FIXED PROVIDER
 final currentAdminProvider = FutureProvider<AdminProfileModel?>((ref) async {
-  // 🎯 FIX: Watch the Dynamic Auth Provider to check login status
   final auth = ref.watch(authProvider);
   final user = auth.currentUser;
 
   if (user == null) return null;
 
-  // Use the services which is already connected to the correct DB
+  // 1. CHECK SESSION: Is this the Super Admin?
+  final session = ref.read(adminSessionProvider);
+
+  if (session?.isSuperAdmin == true) {
+    // 🚀 GENERATE VIRTUAL PROFILE (No DB Call needed)
+    return AdminProfileModel(
+      id: user.uid,
+      email: user.email ?? 'superadmin@nutricare.com',
+      firstName: 'System',
+      lastName: 'Super Admin',
+      mobile: '',
+      employeeId: 'SA-000',
+      role: AdminRole.superAdmin, // 🔑 This gives "God Mode" access
+      designation: 'Platform Owner',
+      isActive: true,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      createdBy: 'system',
+      lastModifiedBy: 'system',
+      permissions: [], // hasAccess('any') returns true for superAdmin anyway
+    );
+  }
+
+  // 2. NORMAL STAFF: Fetch from DB
   final service = ref.watch(adminProfileServiceProvider);
   return service.fetchAdminProfile();
 });
-
-// 🎯 2.2 ALL STAFF STREAM

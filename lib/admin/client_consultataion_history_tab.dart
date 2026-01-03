@@ -9,15 +9,22 @@ import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 
-// Helper class for subscription details
+// 🎯 ENHANCED: Holds Package Name & Status
 class ClientSubscriptionInfo {
+  final String? packageName;
+  final String status; // 'Active', 'Expired', 'None'
   final int interval;
   final DateTime? expiryDate;
 
-  ClientSubscriptionInfo({required this.interval, this.expiryDate});
+  ClientSubscriptionInfo({
+    this.packageName,
+    required this.status,
+    required this.interval,
+    this.expiryDate
+  });
 }
 
-// 🎯 FIX: Changed to StreamProvider for Real-Time Updates
+// StreamProvider for Real-Time Updates
 final clientSubscriptionInfoStreamProvider = StreamProvider.family<ClientSubscriptionInfo, String>((ref, clientId) {
   final firestore = ref.watch(firestoreProvider);
 
@@ -26,20 +33,18 @@ final clientSubscriptionInfoStreamProvider = StreamProvider.family<ClientSubscri
     collectionPath = MasterCollectionMapper.getPath(TransactionEntity.entity_patientSubscription);
   } catch (_) {}
 
-  // 1. Listen to ALL subscriptions for this client (Sort in Dart to avoid index errors)
   return firestore.collection(collectionPath)
       .where('clientId', isEqualTo: clientId)
       .snapshots()
-      .asyncMap((snapshot) async { // Use asyncMap to allow fetching package details if needed
+      .asyncMap((snapshot) async {
 
     if (snapshot.docs.isEmpty) {
-      debugPrint("🔍 No subscriptions found for client: $clientId");
-      return ClientSubscriptionInfo(interval: 7, expiryDate: null);
+      return ClientSubscriptionInfo(status: 'None', interval: 7);
     }
 
     final docs = snapshot.docs;
 
-    // 2. Sort by End Date Descending (Latest first)
+    // Sort by End Date Descending (Latest first)
     docs.sort((a, b) {
       DateTime? dateA = _parseDate(a.data()['endDate']);
       DateTime? dateB = _parseDate(b.data()['endDate']);
@@ -48,33 +53,34 @@ final clientSubscriptionInfoStreamProvider = StreamProvider.family<ClientSubscri
       return dateB.compareTo(dateA);
     });
 
-    // 3. Find the first "Valid" subscription (EndDate > Now)
-    // We prioritize 'active' status, but fallback to just date validity if status is missing/wrong
+    // Find the first "Relevant" subscription (Active or Latest Expired)
     QueryDocumentSnapshot? bestSub;
+    if (docs.isNotEmpty) bestSub = docs.first;
 
     try {
-      bestSub = docs.firstWhere((doc) {
+      final activeSub = docs.firstWhere((doc) {
         final d = doc.data() as Map<String, dynamic>;
         final DateTime? end = _parseDate(d['endDate']);
-        final String status = (d['status'] ?? '').toString().toLowerCase();
-
-        // Logic: Must have a future date AND (status is active OR just created)
         return end != null && end.isAfter(DateTime.now().subtract(const Duration(days: 1)));
       });
-    } catch (_) {
-      // If no valid sub found, bestSub remains null
-    }
+      bestSub = activeSub;
+    } catch (_) {}
 
     if (bestSub == null) {
-      debugPrint("⚠️ Found subscriptions, but none are currently valid.");
-      return ClientSubscriptionInfo(interval: 7, expiryDate: null);
+      return ClientSubscriptionInfo(status: 'None', interval: 7);
     }
 
     final subData = bestSub.data() as Map<String, dynamic>;
+
     final DateTime? expiryDate = _parseDate(subData['endDate']);
     final String? packageId = subData['packageId'];
+    final String? packageName = subData['packageName'];
 
-    // 4. Fetch Interval from Master Package (if available)
+    String status = 'Expired';
+    if (expiryDate != null && expiryDate.isAfter(DateTime.now().subtract(const Duration(days: 1)))) {
+      status = 'Active';
+    }
+
     int interval = 7;
     if (packageId != null) {
       try {
@@ -88,11 +94,15 @@ final clientSubscriptionInfoStreamProvider = StreamProvider.family<ClientSubscri
       }
     }
 
-    return ClientSubscriptionInfo(interval: interval, expiryDate: expiryDate);
+    return ClientSubscriptionInfo(
+        packageName: packageName,
+        status: status,
+        interval: interval,
+        expiryDate: expiryDate
+    );
   });
 });
 
-// Helper to safely parse dates
 DateTime? _parseDate(dynamic raw) {
   if (raw == null) return null;
   if (raw is Timestamp) return raw.toDate();
@@ -108,30 +118,12 @@ class ClientConsultationHistoryTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionService = ref.watch(consultationServiceProvider);
-
-    // 🎯 FIX: Watch the StreamProvider
     final subInfoAsync = ref.watch(clientSubscriptionInfoStreamProvider(client.id));
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _startNewConsultation(context),
-              icon: const Icon(Icons.add_circle_outline),
-              label: const Text("Start New Consultation"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
-              ),
-            ),
-          ),
-        ),
+        // 🎯 REMOVED: "Start New Consultation" Button (Clean History View)
+        const SizedBox(height: 16),
 
         Expanded(
           child: StreamBuilder<List<ConsultationSessionModel>>(
@@ -145,37 +137,36 @@ class ClientConsultationHistoryTab extends ConsumerWidget {
                 return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
               }
 
-              final sessions = snapshot.data ?? [];
+              final allSessions = snapshot.data ?? [];
 
-              if (sessions.isEmpty) {
+              if (allSessions.isEmpty) {
                 return _buildEmptyState();
               }
 
+              // HIERARCHY LOGIC
+              final Map<String, List<ConsultationSessionModel>> childrenMap = {};
+              final List<ConsultationSessionModel> roots = [];
+              final Set<String> allIds = allSessions.map((e) => e.id).toSet();
+
+              for (var session in allSessions) {
+                if (session.parentId != null && allIds.contains(session.parentId)) {
+                  childrenMap.putIfAbsent(session.parentId!, () => []).add(session);
+                } else {
+                  roots.add(session);
+                }
+              }
+
+              roots.sort((a, b) => b.sessionDate.compareTo(a.sessionDate));
+
               return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: sessions.length,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: roots.length,
                 itemBuilder: (context, index) {
-                  final session = sessions[index];
+                  final root = roots[index];
+                  final children = childrenMap[root.id] ?? [];
+                  children.sort((a, b) => b.sessionDate.compareTo(a.sessionDate));
 
-                  final bool isComplete = session.status.toLowerCase() == 'complete' || session.status.toLowerCase() == 'closed';
-
-                  // Only Parent (Initial) sessions can have follow-ups added
-                  final bool isParentSession = session.consultationType != 'Followup';
-
-                  bool isEligibleForFollowUp = isComplete && isParentSession;
-
-                  // Get Info from Provider
-                  final info = subInfoAsync.value;
-                  int interval = info?.interval ?? 7;
-                  DateTime? subExpiry = info?.expiryDate;
-
-                  int daysSince = 0;
-                  if (isEligibleForFollowUp) {
-                    final lastDate = session.endTime?.toDate() ?? session.sessionDate.toDate();
-                    daysSince = DateTime.now().difference(lastDate).inDays;
-                  }
-
-                  return _buildSessionCard(context, session, isEligibleForFollowUp, daysSince, interval, subExpiry);
+                  return _buildConsultationThread(context, root, children, subInfoAsync.valueOrNull);
                 },
               );
             },
@@ -185,13 +176,69 @@ class ClientConsultationHistoryTab extends ConsumerWidget {
     );
   }
 
+  // 🎯 THREAD BUILDER
+  Widget _buildConsultationThread(
+      BuildContext context,
+      ConsultationSessionModel root,
+      List<ConsultationSessionModel> children,
+      ClientSubscriptionInfo? subInfo
+      ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSessionNode(context, root, subInfo, isChild: false),
+
+        if (children.isNotEmpty)
+          Stack(
+            children: [
+              Positioned(
+                  left: 20, top: 0, bottom: 20,
+                  child: Container(width: 2, color: Colors.grey.shade300)
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 0),
+                child: Column(
+                  children: children.map((child) =>
+                      Padding(
+                        padding: const EdgeInsets.only(left: 32, top: 12),
+                        child: _buildSessionNode(context, child, subInfo, isChild: true),
+                      )
+                  ).toList(),
+                ),
+              )
+            ],
+          ),
+
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildSessionNode(
+      BuildContext context,
+      ConsultationSessionModel session,
+      ClientSubscriptionInfo? subInfo,
+      {required bool isChild}
+      ) {
+    final bool isComplete = session.status.toLowerCase() == 'complete' || session.status.toLowerCase() == 'closed';
+    final bool isParentNode = !isChild && session.consultationType != 'Followup';
+    final bool isEligibleForFollowUp = isComplete && isParentNode;
+
+    return _buildSessionCard(
+        context,
+        session,
+        isEligibleForFollowUp,
+        subInfo,
+        isChild: isChild
+    );
+  }
+
   Widget _buildSessionCard(
       BuildContext context,
       ConsultationSessionModel session,
       bool isEligible,
-      int daysSince,
-      int interval,
-      DateTime? subExpiry
+      ClientSubscriptionInfo? subInfo,
+      {required bool isChild}
       ) {
     final dateStr = DateFormat('dd MMM yyyy').format(session.sessionDate.toDate());
     final isComplete = session.status.toLowerCase() == 'complete' || session.status.toLowerCase() == 'closed';
@@ -200,179 +247,136 @@ class ClientConsultationHistoryTab extends ConsumerWidget {
     IconData statusIcon = isComplete ? Icons.check_circle : Icons.sync;
     String statusText = session.status.toUpperCase();
 
-    // Dynamic Title
-    String titleText = (session.consultationType == 'Followup')
-        ? "Follow-up Consultation"
-        : "New Consultation";
+    String titleText = (session.consultationType == 'Followup' || isChild)
+        ? "Follow-up Visit"
+        : "Initial Consultation";
 
-    bool isDue = daysSince >= (interval - 2);
+    String? packageText;
+    Color packageColor = Colors.grey;
 
-    // LOGIC: Subscription Status Message
-    String? expiryMsg;
-    Color? expiryColor;
-
-    if (isEligible) {
-      if (subExpiry != null) {
-        final daysLeftInSub = subExpiry.difference(DateTime.now()).inDays;
-
-        if (daysLeftInSub < 0) {
-          expiryMsg = "Subscription Expired";
-          expiryColor = Colors.red;
-        } else if (daysLeftInSub <= 3) {
-          expiryMsg = "Plan ends in $daysLeftInSub days";
-          expiryColor = Colors.red;
-        } else if (daysLeftInSub <= 7) {
-          expiryMsg = "Plan valid: $daysLeftInSub days left";
-          expiryColor = Colors.orange.shade900;
-        } else {
-          expiryMsg = "Plan Active ($daysLeftInSub days)";
-          expiryColor = Colors.green.shade700;
-        }
+    if (isEligible && subInfo != null && subInfo.packageName != null) {
+      if (subInfo.status == 'Active') {
+        packageText = "${subInfo.packageName} • Active";
+        packageColor = Colors.green.shade700;
       } else {
-        expiryMsg = "No Active Subscription";
-        expiryColor = Colors.grey;
+        packageText = "${subInfo.packageName} • Expired";
+        packageColor = Colors.red.shade700;
       }
     }
+
+    int interval = subInfo?.interval ?? 7;
+    int daysSince = 0;
+    if (isEligible) {
+      final lastDate = session.endTime?.toDate() ?? session.sessionDate.toDate();
+      daysSince = DateTime.now().difference(lastDate).inDays;
+    }
+    bool isDue = daysSince >= (interval - 2);
+    int daysRemaining = interval - daysSince;
 
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          elevation: isEligible ? 4 : 2,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: (isEligible && isDue) ? const BorderSide(color: Colors.orange, width: 1.5) : BorderSide.none
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: isChild ? Colors.grey.shade200 : (isEligible && isDue ? Colors.orange.shade300 : Colors.indigo.shade100),
+                width: isChild ? 1 : 1.5
+            ),
+            boxShadow: isChild ? [] : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
           ),
-          clipBehavior: Clip.hardEdge,
           child: InkWell(
             onTap: () => _viewSessionDetails(context, session),
+            borderRadius: BorderRadius.circular(16),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: statusColor.withOpacity(0.1), shape: BoxShape.circle),
-                        child: Icon(Icons.medical_services_outlined, color: statusColor, size: 20),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                            color: isChild ? Colors.purple.shade50 : Colors.indigo.shade50,
+                            shape: BoxShape.circle
+                        ),
+                        child: Icon(
+                            isChild ? Icons.loop : Icons.flag_rounded,
+                            color: isChild ? Colors.purple : Colors.indigo,
+                            size: 18
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(titleText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(titleText, style: TextStyle(fontWeight: FontWeight.bold, fontSize: isChild ? 14 : 16)),
                             const SizedBox(height: 4),
-                            Text(dateStr, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                            Text(dateStr, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
                           ],
                         ),
                       ),
-
-                      if (isEligible)
-                        ElevatedButton(
-                          onPressed: () => _startFollowUp(context, session.id),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            elevation: 2,
-                          ),
-                          child: const Text("Start Follow-up"),
-                        )
-                      else
-                        const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                      const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                     ],
                   ),
 
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(statusIcon, size: 14, color: statusColor),
-                      const SizedBox(width: 6),
-                      Text(statusText, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: statusColor)),
+                  if (!isChild) ...[
+                    const SizedBox(height: 8),
+                    const Divider(height: 1, thickness: 0.5),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(statusIcon, size: 12, color: statusColor),
+                        const SizedBox(width: 4),
+                        Text(statusText, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: statusColor)),
 
-                      if (isEligible) ...[
                         const Spacer(),
-                        if (expiryMsg != null)
+
+                        if (packageText != null)
                           Container(
+                            margin: const EdgeInsets.only(right: 8),
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                                color: expiryColor!.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4)
+                                color: packageColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6)
                             ),
                             child: Text(
-                                expiryMsg,
-                                style: TextStyle(color: expiryColor, fontWeight: FontWeight.bold, fontSize: 11)
+                                packageText,
+                                style: TextStyle(color: packageColor, fontWeight: FontWeight.bold, fontSize: 10)
                             ),
-                          )
-                        else
-                          Text(
-                              isDue
-                                  ? "Due Now"
-                                  : "Next in ${(interval - daysSince)} days",
-                              style: TextStyle(color: isDue ? Colors.orange : Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)
                           ),
-                      ]
-                    ],
-                  ),
+
+                        if (isEligible)
+                          Text(
+                              isDue ? "Due Now" : "$daysRemaining days left",
+                              style: TextStyle(color: isDue ? Colors.orange : Colors.grey, fontWeight: FontWeight.bold, fontSize: 11)
+                          ),
+                      ],
+                    ),
+                  ]
                 ],
               ),
             ),
           ),
         ),
 
-        if (isEligible && isDue)
+        if (isEligible && isDue && !isChild)
           Positioned(
-            top: -10,
-            right: 20,
+            top: -8, right: 12,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.orange,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 2)],
               ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.notifications_active, size: 12, color: Colors.white),
-                  SizedBox(width: 6),
-                  Text("Follow-up Due", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
-                ],
-              ),
+              child: const Text("DUE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 9)),
             ),
           ),
       ],
-    );
-  }
-
-  void _startFollowUp(BuildContext context, String parentSessionId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ClientConsultationChecklistScreen(
-          client: client,
-          isFollowup: true,
-          parentSessionId: parentSessionId,
-        ),
-      ),
-    );
-  }
-
-  void _startNewConsultation(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ClientConsultationChecklistScreen(
-          client: client,
-          isFollowup: false,
-          forceNew: true,
-        ),
-      ),
     );
   }
 

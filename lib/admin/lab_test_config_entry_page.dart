@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:ui';
-import 'package:nutricare_client_management/admin/generic_clinical_master_entry_screen.dart';
 import 'package:nutricare_client_management/admin/lab_test_config_model.dart';
 import 'package:nutricare_client_management/admin/lab_test_config_service.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
@@ -17,20 +16,10 @@ const String labCategoryMasterEntity = entityLabTestCategory;
 
 
 // 🎯 FIXED PROVIDER: Using masterDataServiceProvider.fetchMasterList
-final labTestCategoriesProvider = FutureProvider.autoDispose<List<Map<String, String>>>((ref) async {
+final labTestCategoriesProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
   final service = ref.watch(masterDataServiceProvider);
-
-  // 1. Get the collection path using the mapper
   final collectionPath = MasterCollectionMapper.getPath(entityLabTestCategory);
-
-  // 2. Call the existing, correct method, which returns Map<name, id>
-  final Map<String, String> masterMap = await service.fetchMasterList(collectionPath);
-
-  // 3. Map the Map<name, id> into List<Map<String, String>> expected by the UI
-  return masterMap.entries.map((entry) => {
-    'name': entry.key,
-    'id': entry.value,
-  }).toList();
+  return await service.fetchMasterList(collectionPath);
 });
 
 
@@ -86,50 +75,29 @@ class _LabTestConfigEntryPageState extends ConsumerState<LabTestConfigEntryPage>
     super.dispose();
   }
 
-  // --- Category Selection Logic (MODIFIED to use GenericMultiSelectDialog) ---
+  // --- Category Selection Logic (REFACTORED) ---
 
-  void _openCategorySelectorDialog(List<Map<String, String>> categoriesData) async {
-    // 1. Prepare data structure for GenericMultiSelectDialog
-    final itemNameIdMap = { for (var item in categoriesData) item['name']!: item['id']! };
-    final itemNames = categoriesData.map((e) => e['name']!).toList();
-
-    // 2. Determine initial selection (should be a list of 0 or 1 item name)
-    final initialSelectedNames = _selectedCategory != null ? [_selectedCategory!] : <String>[];
-
-    // 3. Show the dialog, forcing single selection
+  void _openCategorySelectorDialog(Map<String, String> categoriesData) async {
     final result = await showModalBottomSheet<List<String>>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent, // Fix corners
       builder: (ctx) => GenericMultiSelectDialog(
         title: "Select Lab Category",
-        items: itemNames,
-        itemNameIdMap: itemNameIdMap,
-        initialSelectedItems: initialSelectedNames,
-        singleSelect: true, // 🎯 FORCE SINGLE SELECTION
-        onAddMaster: () {
-          // Close the bottom sheet and open the master entry screen
-          Navigator.pop(context);
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => GenericClinicalMasterEntryScreen(
-              entityName: labCategoryMasterEntity,
-            ),
-          )).then((_) {
-            // Invalidate the provider to refresh the category list
-            ref.invalidate(labTestCategoriesProvider);
-          });
-        },
+        items: categoriesData.keys.toList(),
+        itemNameIdMap: categoriesData,
+        initialSelectedItems: _selectedCategory != null ? [_selectedCategory!] : [],
+        singleSelect: true,
+
+        // 🎯 SMART ADD CONFIG
+        collectionPath: MasterCollectionMapper.getPath(labCategoryMasterEntity),
+        providerToRefresh: labTestCategoriesProvider,
       ),
     );
 
-    if (result != null && result.isNotEmpty) {
+    if (result != null) {
       setState(() {
-        // Since singleSelect is true, result contains at most one item name
-        _selectedCategory = result.first;
-      });
-    } else if (result != null && result.isEmpty) {
-      // If the user cleared the selection in the dialog
-      setState(() {
-        _selectedCategory = null;
+        _selectedCategory = result.isNotEmpty ? result.first : null;
       });
     }
   }
@@ -220,8 +188,8 @@ class _LabTestConfigEntryPageState extends ConsumerState<LabTestConfigEntryPage>
     );
   }
 
-  // MODIFIED: Widget for the category selector button (takes List<Map<String, String>> data)
-  Widget _buildCategorySelector(List<Map<String, String>> categories) {
+  // MODIFIED: Widget for the category selector button (takes Map data)
+  Widget _buildCategorySelector(Map<String, String> categories) {
     return GestureDetector(
       onTap: () => _openCategorySelectorDialog(categories),
       child: Container(
@@ -254,7 +222,6 @@ class _LabTestConfigEntryPageState extends ConsumerState<LabTestConfigEntryPage>
 
   @override
   Widget build(BuildContext context) {
-    // Watch the categories stream to get the current list of category data
     final categoriesAsync = ref.watch(labTestCategoriesProvider);
 
     return Scaffold(
@@ -265,7 +232,6 @@ class _LabTestConfigEntryPageState extends ConsumerState<LabTestConfigEntryPage>
           children: [
             _buildCustomHeader(context),
             Expanded(
-              // Render based on the list of String names
               child: categoriesAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (err, stack) => Center(child: Text("Error loading categories: $err")),

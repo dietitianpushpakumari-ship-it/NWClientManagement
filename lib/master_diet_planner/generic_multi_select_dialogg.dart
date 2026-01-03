@@ -1,40 +1,62 @@
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/database_provider.dart';
 
-class GenericMultiSelectDialog extends StatefulWidget {
+class GenericMultiSelectDialog extends ConsumerStatefulWidget {
   final String title;
   final List<String> items;
-  // 🎯 ADDED: Map of Name -> Document ID to correctly handle services data structure
   final Map<String, String> itemNameIdMap;
   final List<String> initialSelectedItems;
-  final VoidCallback onAddMaster;
   final bool singleSelect;
+
+  // 🎯 Option A: Direct Firestore Collection (Standard Masters)
+  final String? collectionPath;
+  final AutoDisposeFutureProvider<Map<String, String>>? providerToRefresh;
+
+  // 🎯 Option B: Custom Logic Callback (Special Cases like Staff)
+  final Future<void> Function(String)? onAddNewItem;
 
   const GenericMultiSelectDialog({
     Key? key,
     required this.title,
     required this.items,
-    required this.itemNameIdMap, // 🎯 REQUIRED in constructor
+    required this.itemNameIdMap,
     required this.initialSelectedItems,
-    required this.onAddMaster,
+    this.collectionPath,
+    this.providerToRefresh,
+    this.onAddNewItem, // 🎯 New Callback
     this.singleSelect = false,
   }) : super(key: key);
 
   @override
-  _GenericMultiSelectDialogState createState() => _GenericMultiSelectDialogState();
+  ConsumerState<GenericMultiSelectDialog> createState() => _GenericMultiSelectDialogState();
 }
 
-class _GenericMultiSelectDialogState extends State<GenericMultiSelectDialog> {
+class _GenericMultiSelectDialogState extends ConsumerState<GenericMultiSelectDialog> {
   late List<String> _selectedItems;
+  late List<String> _filteredItems;
   final TextEditingController _searchController = TextEditingController();
-  List<String> _filteredItems = [];
 
   @override
   void initState() {
     super.initState();
     _selectedItems = List.from(widget.initialSelectedItems);
-    _filteredItems = widget.items;
+    _filteredItems = List.from(widget.items);
     _searchController.addListener(_filterItems);
+  }
+
+  @override
+  void didUpdateWidget(covariant GenericMultiSelectDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Sync if parent list updates (e.g. Stream updates)
+    if (oldWidget.items != widget.items) {
+      setState(() {
+        final currentLocal = Set<String>.from(_filteredItems);
+        currentLocal.addAll(widget.items);
+        _filteredItems = currentLocal.toList();
+      });
+    }
   }
 
   @override
@@ -42,38 +64,14 @@ class _GenericMultiSelectDialogState extends State<GenericMultiSelectDialog> {
     _searchController.dispose();
     super.dispose();
   }
-  // lib/master_diet_planner/generic_multi_select_dialogg.dart
-
-// lib/master_diet_planner/generic_multi_select_dialogg.dart
-
-// 🎯 Change the build method to use a StreamBuilder or rebuild on item additions.
-// However, the easiest fix to your existing code is to ensure the list passed in is reactive.
-// lib/master_diet_planner/generic_multi_select_dialogg.dart
-
-  @override
-  void didUpdateWidget(covariant GenericMultiSelectDialog oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Re-filter the list if the source items changed
-    if (oldWidget.items != widget.items) {
-      _filterItems();
-    }
-  }
 
   void _filterItems() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      // 🎯 Always use widget.items as the source of truth
-      _filteredItems = widget.items
-          .where((item) => item.toLowerCase().contains(query))
-          .toList();
-    });
+    setState(() {});
   }
 
   void _handleSelection(String item, bool selected) {
     if (widget.singleSelect) {
-      setState(() {
-        _selectedItems = selected ? [item] : [];
-      });
+      setState(() => _selectedItems = selected ? [item] : []);
     } else {
       setState(() {
         if (selected) {
@@ -85,16 +83,94 @@ class _GenericMultiSelectDialogState extends State<GenericMultiSelectDialog> {
     }
   }
 
+  // 🎯 UNIFIED INTERNAL ADD LOGIC
+  void _showAddDialog() {
+    String newItem = '';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Add New ${widget.title.replaceAll("Select ", "")}'),
+        content: TextField(
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Name', hintText: 'Enter name'),
+          onChanged: (v) => newItem = v,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final val = newItem.trim();
+              if (val.isEmpty) return;
 
-  // lib/master_diet_planner/generic_multi_select_dialogg.dart
+              // 1. Duplicate Check
+              final exists = _filteredItems.any((k) => k.toLowerCase() == val.toLowerCase());
+              if (exists) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("'$val' already exists."), backgroundColor: Colors.orange)
+                );
+                return;
+              }
+
+              // 2. Formatting
+              final finalName = val.length > 1
+                  ? val[0].toUpperCase() + val.substring(1)
+                  : val.toUpperCase();
+
+              try {
+                // 3a. Option A: Direct Firestore Add
+                if (widget.collectionPath != null) {
+                  await ref.read(firestoreProvider).collection(widget.collectionPath!).add({
+                    'name': finalName,
+                    'isActive': true,
+                    'createdAt': FieldValue.serverTimestamp()
+                  });
+                  if (widget.providerToRefresh != null) {
+                    ref.invalidate(widget.providerToRefresh!);
+                  }
+                }
+                // 3b. Option B: Custom Callback
+                else if (widget.onAddNewItem != null) {
+                  await widget.onAddNewItem!(finalName);
+                }
+
+                if (mounted) {
+                  Navigator.pop(ctx); // Close Input Dialog
+
+                  // 4. Update Local UI immediately (Optimistic update)
+                  setState(() {
+                    if (!_filteredItems.contains(finalName)) {
+                      _filteredItems.insert(0, finalName);
+                    }
+                    if (widget.singleSelect) {
+                      _selectedItems = [finalName];
+                    } else {
+                      if (!_selectedItems.contains(finalName)) _selectedItems.add(finalName);
+                    }
+                  });
+                }
+              } catch (e) {
+                debugPrint("Error adding master: $e");
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
+                );
+              }
+            },
+            child: const Text('Add & Select'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Wrap the entire content in a Scaffold to provide Material context
+    final query = _searchController.text.toLowerCase();
+    final displayList = _filteredItems.where((i) => i.toLowerCase().contains(query)).toList();
+
     return Scaffold(
-      backgroundColor: Colors.transparent, // Keeps the underlying bottom sheet look
+      backgroundColor: Colors.transparent,
       body: Container(
-        height: MediaQuery.of(context).size.height * 0.9,
+        height: MediaQuery.of(context).size.height * 0.85,
         decoration: const BoxDecoration(
           color: Color(0xFFF8F9FE),
           borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
@@ -106,9 +182,12 @@ class _GenericMultiSelectDialogState extends State<GenericMultiSelectDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    widget.title + (widget.singleSelect ? ' (Single Select)' : ''),
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      widget.title + (widget.singleSelect ? ' (Single)' : ''),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -122,10 +201,10 @@ class _GenericMultiSelectDialogState extends State<GenericMultiSelectDialog> {
               child: Row(
                 children: [
                   Expanded(
-                    child: TextFormField( // 🎯 Now has the required Material ancestor
+                    child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
-                        labelText: 'Search ${widget.title.split(' ').last}',
+                        labelText: 'Search',
                         prefixIcon: const Icon(Icons.search),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
@@ -133,29 +212,32 @@ class _GenericMultiSelectDialogState extends State<GenericMultiSelectDialog> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle, color: Colors.green, size: 30),
-                    tooltip: 'Add New Master',
-                    onPressed: () {
-                     // Navigator.pop(context);
-                      widget.onAddMaster();
-                    },
-                  ),
+
+                  // 🎯 ENABLE ADD BUTTON if either method is provided
+                  if (widget.collectionPath != null || widget.onAddNewItem != null)
+                    IconButton(
+                      icon: const Icon(Icons.add_circle, color: Colors.indigo, size: 32),
+                      tooltip: 'Add New',
+                      onPressed: _showAddDialog,
+                    ),
                 ],
               ),
             ),
-            Expanded( // 🎯 Correctly constrains the ListView to prevent overflow
-              child: ListView.builder(
+            Expanded(
+              child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                itemCount: _filteredItems.length,
+                itemCount: displayList.length,
+                separatorBuilder: (c, i) => const Divider(height: 1),
                 itemBuilder: (context, index) {
-                  final item = _filteredItems[index];
+                  final item = displayList[index];
                   final isSelected = _selectedItems.contains(item);
                   return CheckboxListTile(
                     title: Text(item),
                     value: isSelected,
                     onChanged: (bool? selected) => _handleSelection(item, selected ?? false),
-                    activeColor: Theme.of(context).colorScheme.primary,
+                    activeColor: Colors.indigo,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    dense: true,
                   );
                 },
               ),
@@ -165,9 +247,11 @@ class _GenericMultiSelectDialogState extends State<GenericMultiSelectDialog> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: Colors.indigo,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Confirm Selection'),
+                child: Text('Done (${_selectedItems.length} selected)'),
                 onPressed: () => Navigator.pop(context, _selectedItems),
               ),
             ),

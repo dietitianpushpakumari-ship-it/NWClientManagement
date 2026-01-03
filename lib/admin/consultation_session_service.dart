@@ -80,11 +80,19 @@ class ConsultationSessionService {
     }
   }
 
-  Future<void> updateSessionLinks(String sessionId, {String? vitalsId, String? dietPlanId}) async {
+  // 🎯 UPDATED: Support updating Parent ID and Type
+  Future<void> updateSessionLinks(String sessionId, {
+    String? vitalsId,
+    String? dietPlanId,
+    String? parentId,
+    String? consultationType
+  }) async {
     try {
       final Map<String, dynamic> updates = {};
       if (vitalsId != null) updates['linkedVitalsId'] = vitalsId;
       if (dietPlanId != null) updates['linkedDietPlanId'] = dietPlanId;
+      if (parentId != null) updates['parentId'] = parentId;
+      if (consultationType != null) updates['consultationType'] = consultationType;
 
       if (updates.isNotEmpty) {
         await _collection.doc(sessionId).update(updates);
@@ -109,6 +117,23 @@ class ConsultationSessionService {
     return _collection
         .where('clientId', isEqualTo: clientId)
         .orderBy('startTime', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+  // 🎯 NEW: Stream Consultations for a specific Dietitian & Date
+  Stream<List<ConsultationSessionModel>> streamSessionsForDate({
+    required String dietitianId,
+    required DateTime date,
+  }) {
+    // Create Start and End timestamps for the day
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    return _collection
+        .where('dietitianId', isEqualTo: dietitianId)
+        .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+        .where('startTime', isLessThan: Timestamp.fromDate(endOfDay))
+        .orderBy('startTime', descending: false) // Sort by time (Morning first)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }

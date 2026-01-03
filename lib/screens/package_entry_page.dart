@@ -11,7 +11,7 @@ import 'package:nutricare_client_management/modules/package/service/package_Serv
 
 // WIDGETS
 import 'package:nutricare_client_management/master_diet_planner/generic_multi_select_dialogg.dart';
-import 'package:nutricare_client_management/admin/generic_clinical_master_entry_screen.dart';
+// import 'package:nutricare_client_management/admin/generic_clinical_master_entry_screen.dart'; // ❌ REMOVED (Not needed anymore)
 
 class PackageDurationOption {
   String? id;
@@ -55,6 +55,7 @@ class PackageDurationOption {
 
 // --- Providers ---
 final masterServiceProvider = masterDataServiceProvider;
+// 🎯 Use MasterCollectionMapper for paths
 final mapper = MasterCollectionMapper.getPath;
 
 final packageTypeMasterProvider = FutureProvider.autoDispose<Map<String, String>>((ref) async {
@@ -174,20 +175,41 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
     });
   }
 
-  // --- UI DIALOGS ---
-  void _openMultiSelectDialog({required AutoDisposeFutureProvider<Map<String, String>> provider, required List<String> currentKeys, required String title, required Function(List<String>) onResult, required String entityName, bool singleSelect = false}) async {
-    final masterDataAsync = ref.read(provider);
-    if (masterDataAsync.hasValue) {
-      final masterDataMap = masterDataAsync.value!;
-      final result = await showModalBottomSheet<List<String>>(
-        context: context, isScrollControlled: true,
-        builder: (ctx) => GenericMultiSelectDialog(title: title, items: masterDataMap.keys.toList(), itemNameIdMap: masterDataMap, initialSelectedItems: currentKeys, singleSelect: singleSelect, onAddMaster: () {
-          Navigator.pop(context);
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => GenericClinicalMasterEntryScreen(entityName: entityName))).then((_) { ref.invalidate(provider); });
-        }),
-      );
-      if (result != null) onResult(result);
-    }
+  // --- UI DIALOGS (REFACTORED for Smart Add) ---
+
+  void _openMultiSelectDialog({
+    required AutoDisposeFutureProvider<Map<String, String>> provider,
+    required List<String> currentKeys,
+    required String title,
+    required Function(List<String>) onResult,
+    required String entityName,
+    bool singleSelect = false
+  }) async {
+    // 1. Get current data (safe read)
+    final masterDataMap = ref.read(provider).value ?? {};
+
+    // 2. Resolve Path dynamically
+    final collectionPath = MasterCollectionMapper.getPath(entityName);
+
+    // 3. Open Smart Dialog
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent, // 🎯 Fixes corners
+      builder: (ctx) => GenericMultiSelectDialog(
+        title: title,
+        items: masterDataMap.keys.toList(),
+        itemNameIdMap: masterDataMap,
+        initialSelectedItems: currentKeys,
+        singleSelect: singleSelect,
+
+        // 🎯 SMART ADD CONFIG
+        collectionPath: collectionPath,
+        providerToRefresh: provider,
+      ),
+    );
+
+    if (result != null) onResult(result);
   }
 
   void _openPackageTypeSelector() {
@@ -202,7 +224,13 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
   }
 
   void _openTargetConditionSelector() {
-    _openMultiSelectDialog(provider: targetConditionMasterProvider, currentKeys: _selectedTargetConditions, title: "Target Health Conditions", entityName: MasterEntity.entity_packageTargetCondition, onResult: (r) => setState(() => _selectedTargetConditions = r));
+    _openMultiSelectDialog(
+        provider: targetConditionMasterProvider,
+        currentKeys: _selectedTargetConditions,
+        title: "Target Health Conditions",
+        entityName: MasterEntity.entity_packageTargetCondition,
+        onResult: (r) => setState(() => _selectedTargetConditions = r)
+    );
   }
 
   // 🎯 Auto-Assign Color based on Category
@@ -249,10 +277,7 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
       programFeatureIds: firstOption.featureNames,
       targetConditions: _selectedTargetConditions,
       isActive: _isActive,
-
-      // 🎯 Auto-calculated color
       colorCode: _getCategoryColorHex(_selectedCategory),
-
       followUpIntervalDays: firstOption.followUpIntervalDays,
       isTaxInclusive: _isTaxInclusive,
     );
@@ -277,10 +302,15 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.packageToEdit != null;
+
+    // Watch providers for loading state (Data is fetched, even if empty)
     final typeAsync = ref.watch(packageTypeMasterProvider);
     final inclusionAsync = ref.watch(packageInclusionMasterProvider);
     final featureAsync = ref.watch(programFeatureMasterProvider);
-    final targetConditionAsync = ref.watch(targetConditionMasterProvider);
+
+    // Safe Unwrap for Inclusions/Features Builder
+    final inclusionMap = inclusionAsync.value ?? {};
+    final featureMap = featureAsync.value ?? {};
 
     if (typeAsync.isLoading || inclusionAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
@@ -343,7 +373,7 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
 
                                 // DURATION & PRICING
                                 _buildSectionTitle("Duration, Pricing & Components"),
-                                _buildDurationOptionsEditor(inclusionAsync.value ?? {}, featureAsync.value ?? {}),
+                                _buildDurationOptionsEditor(inclusionMap, featureMap),
 
                                 // STATUS
                                 _buildSectionTitle("Status"),
@@ -479,20 +509,57 @@ class _PackageEntryPageState extends ConsumerState<PackageEntryPage> {
             ],
           ),
           const SizedBox(height: 16),
-          _buildVariantComponentSelector(title: "Inclusions", currentNames: option.inclusionNames, allMasterMap: allInclusions, entityName: MasterEntity.entity_packageInclusion, onUpdate: (newNames) => setState(() => option.inclusionNames = newNames)),
+          // 🎯 INCLUSION SELECTOR
+          _buildVariantComponentSelector(
+              title: "Inclusions",
+              currentNames: option.inclusionNames,
+              allMasterMap: allInclusions,
+              entityName: MasterEntity.entity_packageInclusion,
+              provider: packageInclusionMasterProvider,
+              onUpdate: (newNames) => setState(() => option.inclusionNames = newNames)
+          ),
           const SizedBox(height: 10),
-          _buildVariantComponentSelector(title: "Features", currentNames: option.featureNames, allMasterMap: allFeatures, entityName: MasterEntity.entity_packagefeature, onUpdate: (newNames) => setState(() => option.featureNames = newNames)),
+          // 🎯 FEATURE SELECTOR
+          _buildVariantComponentSelector(
+              title: "Features",
+              currentNames: option.featureNames,
+              allMasterMap: allFeatures,
+              entityName: MasterEntity.entity_packagefeature,
+              provider: programFeatureMasterProvider,
+              onUpdate: (newNames) => setState(() => option.featureNames = newNames)
+          ),
         ],
       ),
     );
   }
 
   // --- HELPERS ---
-  Widget _buildVariantComponentSelector({required String title, required List<String> currentNames, required Map<String, String> allMasterMap, required String entityName, required ValueChanged<List<String>> onUpdate}) {
+
+  // 🎯 Updated Helper to accept Provider for Smart Add
+  Widget _buildVariantComponentSelector({
+    required String title,
+    required List<String> currentNames,
+    required Map<String, String> allMasterMap,
+    required String entityName,
+    required AutoDisposeFutureProvider<Map<String, String>> provider,
+    required ValueChanged<List<String>> onUpdate
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)), TextButton(onPressed: () => _openMultiSelectDialog(provider: entityName == MasterEntity.entity_packageInclusion ? packageInclusionMasterProvider : programFeatureMasterProvider, currentKeys: currentNames, title: "Manage Package $title", entityName: entityName, onResult: onUpdate), child: Text(currentNames.isEmpty ? "Select" : "Edit (${currentNames.length})"))]),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          TextButton(
+              onPressed: () => _openMultiSelectDialog(
+                  provider: provider,
+                  currentKeys: currentNames,
+                  title: "Manage Package $title",
+                  entityName: entityName,
+                  onResult: onUpdate
+              ),
+              child: Text(currentNames.isEmpty ? "Select" : "Edit (${currentNames.length})")
+          )
+        ]),
         if (currentNames.isNotEmpty) Wrap(spacing: 8, runSpacing: 8, children: currentNames.map((name) => Chip(label: Text(name, style: const TextStyle(fontSize: 11)), backgroundColor: title == "Inclusions" ? Colors.orange.shade50 : Colors.blue.shade50, onDeleted: () => onUpdate(currentNames.where((n) => n != name).toList()), deleteIcon: const Icon(Icons.close, size: 18))).toList()),
       ],
     );

@@ -254,17 +254,33 @@ class ClientDietPlanService {
 
   Future<List<ClientDietPlanModel>> fetchAllActivePlans(String clientId) async {
     try {
-      QuerySnapshot<Object?> snapshot = await _firestore
-          .collection('clientDietPlans')
+      final snapshot = await _clientPlansCollection
           .where('clientId', isEqualTo: clientId)
           .where('isDeleted', isEqualTo: false)
           .where('isArchived', isEqualTo: false)
           .orderBy('name')
           .get();
-      return snapshot.docs
-          .map((doc) => ClientDietPlanModel.fromFirestore(doc))
-          .toList();
+
+      // 🎯 FIX: Directly return data()
+      return snapshot.docs.map((doc) => doc.data()).toList();
     } catch (e) {
+      logger.e("Error fetching active plans: $e");
+      return [];
+    }
+  }
+
+  Future<List<ClientDietPlanModel>> getPlansForHistory(String clientId) async {
+    try {
+      final snapshot = await _clientPlansCollection
+          .where('clientId', isEqualTo: clientId)
+          .where('isDeleted', isEqualTo: false) // Only exclude deleted
+          .orderBy('assignedDate', descending: true)
+          .get();
+
+      // 🎯 FIX: doc.data() is ALREADY ClientDietPlanModel. Do not call fromFirestore again.
+      return snapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      logger.e("Error fetching history plans: $e");
       return [];
     }
   }

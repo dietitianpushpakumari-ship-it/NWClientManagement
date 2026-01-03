@@ -6,10 +6,8 @@ import 'package:nutricare_client_management/master/model/master_constants.dart';
 import 'package:nutricare_client_management/admin/company_profile_master_screen.dart';
 import 'dart:ui';
 import 'package:nutricare_client_management/admin/master_data_uploader_screen.dart';
-import 'package:nutricare_client_management/master/screen/food_category_list_page.dart';
 import 'package:nutricare_client_management/master/screen/food_item_list_page.dart';
 import 'package:nutricare_client_management/master/screen/master_meal_name_list_page.dart';
-import 'package:nutricare_client_management/master/screen/serving_unit_list_page.dart';
 
 import 'package:nutricare_client_management/modules/master/screen/master_diet_plan_list_screen.dart';
 import 'package:nutricare_client_management/screens/package_list_page.dart';
@@ -309,16 +307,16 @@ class MasterSetupPage extends StatelessWidget {
       targetScreen = const MasterDietPlanListScreen();
     }else if (entity == MasterEntity.entity_MealNames) {
       targetScreen = const MasterMealNameListPage();
-    } else if (entity == MasterEntity.entity_ServingUnits) {
+    } /*else if (entity == MasterEntity.entity_ServingUnits) {
       targetScreen = const ServingUnitListPage();
-    }
+    }*/
 
     // --- 3. FOOD MASTERS ---
     else if (entity == MasterEntity.entity_FoodItem) {
       targetScreen = const FoodItemListPage();
-    } else if (entity == MasterEntity.entity_FoodCategory) {
+    }/* else if (entity == MasterEntity.entity_FoodCategory) {
       targetScreen = const FoodCategoryListPage();
-    }
+    }*/
 
     // --- 4. CLINICAL MASTERS (Dedicated Screens) ---
     else if (entity == 'NAV_LAB_CONFIG') {

@@ -1,6 +1,7 @@
 //import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutricare_client_management/admin/labvital/clinical_model.dart';
+import 'package:nutricare_client_management/modules/medical/models/prescription_model.dart';
 
 class VitalsModel {
   final String id;
@@ -25,31 +26,31 @@ class VitalsModel {
   final double? spO2Percentage;
 
   // --- Clinical & Lab ---
-  final Map<String, double> labResults;
-  final String? notes;
-  final List<String> labReportUrls;
+
 
   // --- History & Profile (UPDATED FIELDS) ---
-  final Map<String, String> medicalHistory;
-  final List<String> diagnosis;
-  final String? complaints;
-  final Map<String, String> prescribedMedications;
+
   final List<String> foodAllergies;
   final String? restrictedDiet;
-  final String? existingMedication;
+
 
   // 🎯 CHANGE: GI Details changed to Map<String, String>
   final Map<String, String>? giDetails;
 
   // 🎯 CHANGE: Water Intake changed to Map<String, String>
   final Map<String, String>? waterIntake;
-
+  final Map<String, double> labResults;
   // 🎯 CHANGE: Caffeine Intake changed to Map<String, String>
+  final Map<String, String> medicalHistory;
+  final Map<String, String> prescribedMedications;
   final Map<String, String>? caffeineIntake;
   final Map<String, String>? clinicalComplaints; // Complaint: Detail/Severity
   final Map<String, String>? nutritionDiagnoses; // Diagnosis: Etiology/Related Factor
   final Map<String, String>? clinicalNotes;
-
+  final Map<String, String>? clinicalGuidelines;
+// 🎯 NEW FIELDS FOR ASSESSMENT
+  final List<PrescribedMedicine> medications; // New Rx (List of Objects)
+  final List<String> labTestOrders;
   // 🎯 NEW: Behavioral/Status
   final int? stressLevel;
   final String? sleepQuality;
@@ -61,8 +62,6 @@ class VitalsModel {
   final String? activityType;
   final Map<String, String>? otherLifestyleHabits;
 
-  // --- Metadata ---
-  final List<String> assignedDietPlanIds;
   final bool isFirstConsultation;
 
 
@@ -71,8 +70,8 @@ class VitalsModel {
     required this.clientId,
     required this.date,
     required this.heightCm,
-    required this.bmi,
-    required this.idealBodyWeightKg,
+     this.bmi = 0,
+     this.idealBodyWeightKg =0,
     required this.weightKg,
     required this.bodyFatPercentage,
     this.waistCm,
@@ -84,35 +83,25 @@ class VitalsModel {
     this.heartRate,
     this.spO2Percentage,
     this.prescribedMedications = const {},
+    this.medications = const [],
+    this.labTestOrders = const [],
 
     this.labResults = const {},
-    this.notes,
-    this.labReportUrls = const [],
 
     this.medicalHistory = const {},
-    this.diagnosis = const [],
-    this.complaints,
-    this.existingMedication,
     this.foodAllergies = const [],
     this.restrictedDiet,
-
-    // 🎯 INITIALIZATION UPDATED
+    this.clinicalGuidelines,
     this.giDetails,
     this.waterIntake,
     this.caffeineIntake,
-
     this.stressLevel,
     this.sleepQuality,
     this.menstrualStatus,
-
-    // Lifestyle
     this.foodHabit,
     this.activityType,
     this.otherLifestyleHabits,
-
-    this.assignedDietPlanIds = const [],
     required this.isFirstConsultation,
-    // 🎯 NEW PARAMETERS
     this.clinicalComplaints,
     this.nutritionDiagnoses,
     this.clinicalNotes,
@@ -162,13 +151,7 @@ class VitalsModel {
         (map['labResults'] as Map<String, dynamic>? ?? {})
             .map((k, v) => MapEntry(k, (v as num).toDouble())),
       ),
-      notes: map['notes'] as String?,
-      labReportUrls: List<String>.from(map['labReportUrls'] ?? []),
       sessionId: map['sessionId'],
-
-      diagnosis: List<String>.from(map['diagnosis'] ?? []),
-      complaints: map['complaints'],
-      existingMedication: map['existingMedication'],
       foodAllergies: List<String>.from(map['foodAllergies'] ?? []),
       restrictedDiet: map['restrictedDiet'],
 
@@ -180,22 +163,16 @@ class VitalsModel {
       // Lifestyle
       foodHabit: map['foodHabit'],
       activityType: map['activityType'],
-
-      // Metadata
-      assignedDietPlanIds: List<String>.from(map['assignedDietPlanIds'] ?? []),
       isFirstConsultation: map['isFirstConsultation'] ?? false,
-      // 🎯 NEW JSON MAPPING (Casting to Map<String, String>)
-
-
-
       medicalHistory: castToMap(map['medicalHistory']), // Fixes the mismatch
       clinicalComplaints: castToMap(map['clinicalComplaints']),
       nutritionDiagnoses: castToMap(map['nutritionDiagnoses']),
       clinicalNotes: castToMap(map['clinicalNotes']),
-
-
-      // 🎯 FIX: Cast all history components explicitly as Map<String, String>
-  //    medicalHistory: Map<String, String>.from(map['medicalHistory'] ?? {}),
+      clinicalGuidelines: map['clinicalGuidelines'] != null ? Map<String, String>.from(map['clinicalGuidelines']) : null,
+      medications: (map['medications'] as List<dynamic>?)
+          ?.map((x) => PrescribedMedicine.fromMap(x as Map<String, dynamic>))
+          .toList() ?? [],
+      labTestOrders: List<String>.from(map['labTests'] ?? []),
       prescribedMedications: Map<String, String>.from(map['prescribedMedications'] ?? {}),
       giDetails: Map<String, String>.from(map['giDetails'] ?? {}),
       caffeineIntake: Map<String, String>.from(map['caffeineIntake'] ?? {}),
@@ -208,8 +185,6 @@ class VitalsModel {
     return {
       'clientId': clientId,
       'date': Timestamp.fromDate(date),
-
-      // Anthro
       'heightCm': heightCm,
       'weightKg': weightKg,
       'bmi': bmi,
@@ -227,17 +202,13 @@ class VitalsModel {
 
       // Clinical
       'labResults': labResults,
-      'notes': notes,
-      'labReportUrls': labReportUrls,
 
       // History & Profile Fields
       'medicalHistory': medicalHistory,
-      'diagnosis': diagnosis,
-      'complaints': complaints,
-      'existingMedication': existingMedication,
       'foodAllergies': foodAllergies,
       'restrictedDiet': restrictedDiet,
       'prescribedMedications': prescribedMedications,
+      'clinicalGuidelines': clinicalGuidelines,
 
       // 🎯 UPDATED TO MAP
       'giDetails': giDetails,
@@ -254,14 +225,60 @@ class VitalsModel {
       'activityType': activityType,
       'otherLifestyleHabits': otherLifestyleHabits,
       'sessionId': sessionId,
-
-      // Metadata
-      'assignedDietPlanIds': assignedDietPlanIds,
       'isFirstConsultation': isFirstConsultation,
       // 🎯 NEW JSON MAPPING
       'clinicalComplaints': clinicalComplaints,
       'nutritionDiagnoses': nutritionDiagnoses,
       'clinicalNotes': clinicalNotes,
+
+      'medications': medications.map((x) => x.toMap()).toList(),
+      'labTests': labTestOrders,
     };
+  }
+  VitalsModel copyWith({
+    String? id,
+    String? clientId,
+    String? sessionId,
+    DateTime? date,
+    double? weightKg,
+    double? heightCm,
+    double? bmi,
+    double? bodyFatPercentage,
+    int? bloodPressureSystolic,
+    int? bloodPressureDiastolic,
+    int? heartRate,
+    int? spo2,
+    double? temperature,
+    Map<String, String>? clinicalComplaints,
+    Map<String, String>? nutritionDiagnoses,
+    Map<String, String>? clinicalNotes,
+    List<PrescribedMedicine>? medications,
+    List<String>? labTestOrders,
+    bool? isFirstConsultation,
+    Map<String, String>? clinicalGuidelines,
+    Map<String, String>? medicalHistory
+    // Add other fields if your model has them (e.g., stressLevel, sleepQuality)
+  }) {
+    return VitalsModel(
+      id: id ?? this.id,
+      clientId: clientId ?? this.clientId,
+      sessionId: sessionId ?? this.sessionId,
+      date: date ?? this.date,
+      weightKg: weightKg ?? this.weightKg,
+      heightCm: heightCm ?? this.heightCm,
+      bmi: bmi ?? this.bmi,
+      bodyFatPercentage: bodyFatPercentage ?? this.bodyFatPercentage,
+      bloodPressureSystolic: bloodPressureSystolic ?? this.bloodPressureSystolic,
+      bloodPressureDiastolic: bloodPressureDiastolic ?? this.bloodPressureDiastolic,
+      heartRate: heartRate ?? this.heartRate,
+      clinicalComplaints: clinicalComplaints ?? this.clinicalComplaints,
+      nutritionDiagnoses: nutritionDiagnoses ?? this.nutritionDiagnoses,
+      clinicalNotes: clinicalNotes ?? this.clinicalNotes,
+      medications: medications ?? this.medications,
+      labTestOrders: labTestOrders ?? this.labTestOrders,
+      isFirstConsultation: isFirstConsultation ?? this.isFirstConsultation, idealBodyWeightKg: 0,
+      clinicalGuidelines: clinicalGuidelines ?? this.clinicalGuidelines,
+        medicalHistory: medicalHistory ?? this.medicalHistory
+    );
   }
 }

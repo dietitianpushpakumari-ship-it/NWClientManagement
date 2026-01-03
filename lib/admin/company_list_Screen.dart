@@ -15,7 +15,7 @@ class CompanyListScreen extends StatefulWidget {
 class _CompanyListScreenState extends State<CompanyListScreen> {
   final TenantOnboardingService _service = TenantOnboardingService();
   String _searchQuery = "";
-  TenantStatus? _filterStatus;
+  String? _filterStatus; // 'active', 'suspended', or null (All)
 
   @override
   Widget build(BuildContext context) {
@@ -59,9 +59,8 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
                   child: Row(
                     children: [
                       _buildFilterChip("All", null),
-                      _buildFilterChip("Active", TenantStatus.active),
-                      _buildFilterChip("Pending", TenantStatus.pending),
-                      _buildFilterChip("Suspended", TenantStatus.suspended),
+                      _buildFilterChip("Active", "active"),
+                      _buildFilterChip("Suspended", "suspended"),
                     ],
                   ),
                 ),
@@ -108,9 +107,8 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
   }
 
   Widget _buildCompanyCard(TenantModel tenant) {
-    final isPending = tenant.status == TenantStatus.pending;
-    final isActive = tenant.status == TenantStatus.active;
-    Color statusColor = isActive ? Colors.green : (isPending ? Colors.orange : Colors.red);
+    final bool isActive = tenant.status == 'active';
+    final Color statusColor = isActive ? Colors.green : Colors.red;
 
     return Card(
       elevation: 0,
@@ -118,17 +116,10 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
       child: InkWell(
         onTap: () {
-          if (tenant.status == TenantStatus.active) {
-            // 🟢 ACTIVE: Go to Dashboard
-            Navigator.push(context, MaterialPageRoute(
-              builder: (_) => CompanyDetailScreen(tenant: tenant),
-            ));
-          } else {
-            // 🟠 PENDING: Go to Edit/Onboard Screen
-            Navigator.push(context, MaterialPageRoute(
-              builder: (_) => AddCompanyScreen(draftTenant: tenant),
-            ));
-          }
+          // Always go to Detail Screen
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => CompanyDetailScreen(tenant: tenant),
+          ));
         },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
@@ -159,7 +150,7 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                    child: Text(tenant.status.name.toUpperCase(), style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10)),
+                    child: Text(tenant.status.toUpperCase(), style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10)),
                   ),
                 ],
               ),
@@ -168,12 +159,11 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
                 children: [
                   _buildInfo(Icons.person, tenant.ownerName),
                   const SizedBox(width: 16),
-                  _buildInfo(Icons.calendar_today, tenant.invitedAt != null ? DateFormat('MMM d, y').format(tenant.invitedAt!) : "Draft"),
+                  _buildInfo(Icons.calendar_today, tenant.invitedAt != null
+                      ? DateFormat('MMM d, y').format(tenant.invitedAt!)
+                      : "Unknown"),
                   const Spacer(),
-                  if(isPending)
-                    const Text("Tap to Finish Setup", style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.bold))
-                  else
-                    const Icon(Icons.edit_outlined, size: 16, color: Colors.grey)
+                  const Icon(Icons.chevron_right, size: 18, color: Colors.grey)
                 ],
               )
             ],
@@ -187,7 +177,7 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
     return Row(children: [Icon(icon, size: 14, color: Colors.grey), const SizedBox(width: 4), Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))]);
   }
 
-  Widget _buildFilterChip(String label, TenantStatus? status) {
+  Widget _buildFilterChip(String label, String? status) {
     final isSelected = _filterStatus == status;
     return Padding(
       padding: const EdgeInsets.only(right: 8),

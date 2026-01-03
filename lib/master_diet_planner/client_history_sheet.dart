@@ -264,7 +264,7 @@ class _ClientHistorySheetState extends ConsumerState<ClientHistorySheet> {
         items: masterDataMap.keys.toList(), // 🎯 Pass List of Names (Keys)
         itemNameIdMap: masterDataMap, // 🎯 Pass the map for full functionality
         initialSelectedItems: currentKeys,
-        onAddMaster: onAddMaster,
+        onAddNewItem: null,
         singleSelect: singleSelect,
       ),
     );

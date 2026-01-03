@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
-import 'package:nutricare_client_management/admin/plan_report_view_screen.dart';
+import 'package:nutricare_client_management/admin/plan_report_view_screen.dart'; // Imports habitMasterProvider
 import 'package:nutricare_client_management/modules/client/model/client_diet_plan_model.dart';
+import 'package:nutricare_client_management/master/model/diet_plan_item_model.dart';
 
 class DietPlanComparisonScreen extends ConsumerStatefulWidget {
   final ClientDietPlanModel oldPlan;
@@ -26,38 +27,19 @@ class _DietPlanComparisonScreenState extends ConsumerState<DietPlanComparisonScr
 
   @override
   Widget build(BuildContext context) {
-    // 1. Fetch Masters
-    final investigationsAsync = ref.watch(investigationMasterProvider);
-    final guidelinesAsync = ref.watch(guidelineMasterProvider);
-    final supplementsAsync = ref.watch(supplementMasterProvider);
+    // 1. Fetch Masters (Only Habits are in Diet Plan now)
+    final habitsAsync = ref.watch(habitMasterProvider);
 
-    // 2. Convert to Maps
-    final Map<String, String> investigationsMaster = investigationsAsync.maybeWhen(
+    final Map<String, String> habitsMaster = habitsAsync.maybeWhen(
       data: (list) => {for (var item in list) item.id: item.name},
       orElse: () => {},
     );
 
-    final Map<String, String> guidelinesMaster = guidelinesAsync.maybeWhen(
-      data: (list) => {for (var item in list) item.id: item.name},
-      orElse: () => {},
-    );
+    // 2. Resolve Data
+    final oldHabits = _resolveNames(widget.oldPlan.assignedHabitIds, habitsMaster);
+    final newHabits = _resolveNames(widget.activePlan.assignedHabitIds, habitsMaster);
 
-    final Map<String, String> supplementsMaster = supplementsAsync.maybeWhen(
-      data: (list) => {for (var item in list) item.id: item.name},
-      orElse: () => {},
-    );
-
-    // 3. Resolve Data
-    final oldLabs = _resolveNames((widget.oldPlan.investigationIds as List?) ?? [], investigationsMaster);
-    final newLabs = _resolveNames((widget.activePlan.investigationIds as List?) ?? [], investigationsMaster);
-
-    final oldGuidelines = _resolveNames((widget.oldPlan.guidelineIds as List?) ?? [], guidelinesMaster);
-    final newGuidelines = _resolveNames((widget.activePlan.guidelineIds as List?) ?? [], guidelinesMaster);
-
-    final oldSupplements = _resolveMapToNames(widget.oldPlan.suplimentIdsMap, supplementsMaster);
-    final newSupplements = _resolveMapToNames(widget.activePlan.suplimentIdsMap, supplementsMaster);
-
-    // 🎯 NEW: Get Multi-Day Comparisons
+    // 3. Get Meal Comparisons
     final mealComparisons = _getMealComparisons(widget.oldPlan, widget.activePlan);
 
     return Scaffold(
@@ -76,22 +58,20 @@ class _DietPlanComparisonScreenState extends ConsumerState<DietPlanComparisonScr
             _buildComparisonHeader(),
             const SizedBox(height: 32),
 
-            _buildSectionHeader("INVESTIGATIONS & GUIDELINES"),
-            _buildDualListComparison("Investigations", oldLabs, newLabs, Icons.biotech),
-            const SizedBox(height: 16),
-            _buildDualListComparison("Guidelines", oldGuidelines, newGuidelines, Icons.gavel_rounded, color: Colors.blueGrey),
+            // 🎯 NEW: Goals Comparison
+            _buildSectionHeader("TARGETS & LIFESTYLE GOALS"),
+            _buildGoalsTable(),
 
             const SizedBox(height: 32),
-            _buildSectionHeader("SUPPLEMENTATION STRATEGY"),
-            _buildDualListComparison("Supplements", oldSupplements, newSupplements, Icons.vaccines_outlined, color: Colors.teal),
+            _buildSectionHeader("ASSIGNED HABITS"),
+            _buildDualListComparison("Habits", oldHabits, newHabits, Icons.check_circle_outline, color: Colors.teal),
 
             const SizedBox(height: 32),
             _buildSectionHeader("NUTRITION SCHEDULE SHIFTS"),
             _buildFoodPlanAdjustmentNotice(),
 
-            const SizedBox(height: 32),
-            _buildSectionHeader("MEAL PLAN ADJUSTMENTS"),
-            // 🎯 NEW: Enhanced Table Builder
+            const SizedBox(height: 20),
+            // 🎯 Meal Table
             _buildMealComparisonTable(mealComparisons),
             const SizedBox(height: 50),
           ],
@@ -100,37 +80,43 @@ class _DietPlanComparisonScreenState extends ConsumerState<DietPlanComparisonScr
     );
   }
 
-  // --- 🎯 CORE LOGIC UPDATES ---
+  // --- 🎯 LOGIC ---
+
+  List<String> _resolveNames(List<String> ids, Map<String, String> masterData) {
+    return ids.map((id) => masterData[id] ?? "Unknown Habit").toList();
+  }
 
   List<Map<String, String>> _getMealComparisons(ClientDietPlanModel oldPlan, ClientDietPlanModel activePlan) {
     List<Map<String, String>> comparisons = [];
 
-    // Loop through every day in the ACTIVE (New) plan
     for (int i = 0; i < activePlan.days.length; i++) {
       final activeDay = activePlan.days[i];
 
-      // 🎯 Smart Match Logic:
-      // If Old Plan has 7 days, match index (Mon vs Mon).
-      // If Old Plan has 1 day (Fixed), compare that 1 day against ALL new days.
-      dynamic oldDay;
+      // Smart Match: Match index, or fallback to first day if old plan was single-day
+      MasterDayPlanModel? oldDay;
       if (i < oldPlan.days.length) {
         oldDay = oldPlan.days[i];
       } else if (oldPlan.days.length == 1) {
-        oldDay = oldPlan.days.first; // Fallback to "Fixed Day" base
+        oldDay = oldPlan.days.first;
       }
 
       if (oldDay == null) continue;
 
       for (var activeMeal in activeDay.meals) {
-        final oldMeal = (oldDay.meals as List).firstWhereOrNull((m) => m.mealName == activeMeal.mealName);
+        final oldMeal = IterableExtension(oldDay.meals).firstWhereOrNull((m) => m.mealName == activeMeal.mealName);
 
-        String oldItems = oldMeal?.items.map((i) => "${i.foodItemName} (${i.quantity}${i.unit})").join(", ") ?? "Not prescribed";
-        String newItems = activeMeal.items.map((i) => "${i.foodItemName} (${i.quantity}${i.unit})").join(", ");
+        // Format Items string
+        String _formatItems(List<DietPlanItemModel> items) {
+          if (items.isEmpty) return "Skipped";
+          return items.map((i) => "${i.foodItemName} (${i.quantity.toStringAsFixed(0)}${i.unit})").join(", ");
+        }
 
-        // Only add if there is a change
+        String oldItems = oldMeal != null ? _formatItems(oldMeal.items) : "Not Prescribed";
+        String newItems = _formatItems(activeMeal.items);
+
         if (oldItems != newItems) {
           comparisons.add({
-            'day': activeDay.dayName, // 🎯 Track the Day Name
+            'day': activeDay.dayName,
             'meal': activeMeal.mealName,
             'old': oldItems,
             'new': newItems,
@@ -139,6 +125,39 @@ class _DietPlanComparisonScreenState extends ConsumerState<DietPlanComparisonScr
       }
     }
     return comparisons;
+  }
+
+  // --- 🎯 WIDGETS ---
+
+  Widget _buildGoalsTable() {
+    return Table(
+      border: TableBorder.all(color: Colors.grey.shade200),
+      children: [
+        TableRow(
+          decoration: BoxDecoration(color: Colors.grey.shade100),
+          children: [
+            _cell("METRIC", isBold: true),
+            _cell("PREVIOUS", isBold: true),
+            _cell("CURRENT", isBold: true),
+          ],
+        ),
+        _buildGoalRow("Target Weight", "${widget.oldPlan.targetWeightKg ?? '-'} kg", "${widget.activePlan.targetWeightKg ?? '-'} kg"),
+        _buildGoalRow("Water Intake", "${widget.oldPlan.dailyWaterGoal} L", "${widget.activePlan.dailyWaterGoal} L"),
+        _buildGoalRow("Sleep Goal", "${widget.oldPlan.dailySleepGoal} hrs", "${widget.activePlan.dailySleepGoal} hrs"),
+        _buildGoalRow("Step Count", "${widget.oldPlan.dailyStepGoal}", "${widget.activePlan.dailyStepGoal}"),
+      ],
+    );
+  }
+
+  TableRow _buildGoalRow(String label, String oldVal, String newVal) {
+    bool isChanged = oldVal != newVal;
+    return TableRow(
+      children: [
+        _cell(label, isBold: true, color: Colors.indigo),
+        _cell(oldVal, color: Colors.grey.shade600),
+        _cell(newVal, color: isChanged ? Colors.green.shade800 : Colors.black87, isBold: isChanged),
+      ],
+    );
   }
 
   Widget _buildMealComparisonTable(List<Map<String, String>> comparisons) {
@@ -153,7 +172,6 @@ class _DietPlanComparisonScreenState extends ConsumerState<DietPlanComparisonScr
     List<TableRow> rows = [];
     String? currentDay;
 
-    // Header Row
     rows.add(
       TableRow(
         decoration: BoxDecoration(color: Colors.indigo.shade50),
@@ -166,7 +184,6 @@ class _DietPlanComparisonScreenState extends ConsumerState<DietPlanComparisonScr
     );
 
     for (var comp in comparisons) {
-      // 🎯 Add Section Header if Day Changes
       if (comp['day'] != currentDay) {
         currentDay = comp['day'];
         rows.add(
@@ -187,7 +204,6 @@ class _DietPlanComparisonScreenState extends ConsumerState<DietPlanComparisonScr
         );
       }
 
-      // Data Row
       rows.add(
         TableRow(
           children: [
@@ -209,8 +225,6 @@ class _DietPlanComparisonScreenState extends ConsumerState<DietPlanComparisonScr
       children: rows,
     );
   }
-
-  // --- UI Helpers (Kept Same) ---
 
   Widget _buildDualListComparison(String title, List<String> oldList, List<String> newList, IconData icon, {Color color = Colors.indigo}) {
     return Row(
@@ -288,18 +302,6 @@ class _DietPlanComparisonScreenState extends ConsumerState<DietPlanComparisonScr
       decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12)),
       child: Row(children: const [Icon(Icons.restaurant_menu, color: Colors.indigo, size: 18), SizedBox(width: 12), Expanded(child: Text("Detailed food item swaps are mapped in the Nutrition Schedule for each session.", style: TextStyle(fontSize: 10, color: Colors.indigo)))]),
     );
-  }
-
-  List<String> _resolveMapToNames(Map<String, String> idMap, Map<String, String> masterData) {
-    return idMap.entries.map((entry) {
-      final String name = masterData[entry.key] ?? entry.key;
-      final String dosage = entry.value;
-      return "$name ($dosage)";
-    }).toList();
-  }
-
-  List<String> _resolveNames(List<dynamic> ids, Map<String, String> masterData) {
-    return ids.map((id) => masterData[id.toString()] ?? id.toString()).toList();
   }
 
   static Widget _cell(String text, {bool isBold = false, Color? color, bool isNew = false}) {

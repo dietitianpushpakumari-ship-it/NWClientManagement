@@ -1,12 +1,17 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart';
+import 'package:nutricare_client_management/admin/lab_report_scanner_service.dart';
 import 'package:nutricare_client_management/admin/lab_test_config_model.dart';
 import 'package:nutricare_client_management/admin/lab_test_config_service.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/helper/lab_vitals_data.dart';
+import 'package:nutricare_client_management/image_compressor.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/admin/consultation_session_service.dart';
 import 'package:collection/collection.dart';
@@ -37,7 +42,7 @@ class VitalsEntryScreen extends ConsumerStatefulWidget {
 
 class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
   bool _isLoading = false;
-
+  bool _isScanning = false;
   late TextEditingController _weightController;
   late TextEditingController _heightController;
   late TextEditingController _sysController;
@@ -49,7 +54,7 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
 
   final Map<String, TextEditingController> _labControllers = {};
   bool _isLabControllersInitialized = false;
-
+  List<LabTestConfigModel> _allAvailableTests = [];
   double _bmiValue = 0.0;
   double _fatValue = 0.0;
   bool isCm = true;
@@ -84,6 +89,7 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
   }
 
   void _initializeLabControllers(List<LabTestConfigModel> tests) {
+    _allAvailableTests = tests;
     for (var test in tests) {
       final existingValue = widget.vitalToEdit?.labResults?[test.id];
       _labControllers[test.id] = TextEditingController(
@@ -103,7 +109,50 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
     _labControllers.forEach((_, c) => c.dispose());
     super.dispose();
   }
+  Future<void> _pickAndScanReport() async {
+    if (_allAvailableTests.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lab tests not loaded yet.")));
+      return;
+    }
 
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+      if (image == null) return;
+
+      setState(() => _isScanning = true);
+
+      // 1. Compress Image (Optional but recommended for API limits)
+      File fileToScan = File(image.path);
+      File? compressed = await ImageCompressor.compressAndGetFile(fileToScan);
+      if (compressed != null) fileToScan = compressed;
+
+      // 2. Call AI Service
+      final scanner = LabReportScannerService();
+      final results = await scanner.extractLabData(fileToScan, _allAvailableTests);
+
+      if (results.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No matching data found in image.")));
+      } else {
+        // 3. Populate Controllers
+        int foundCount = 0;
+        results.forEach((testId, value) {
+          if (_labControllers.containsKey(testId)) {
+            _labControllers[testId]?.text = value.toString();
+            foundCount++;
+          }
+        });
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Auto-filled $foundCount values from report!")));
+      }
+
+    } catch (e) {
+      debugPrint("Scan Error: $e");
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to scan report.")));
+    } finally {
+      if (mounted) setState(() => _isScanning = false);
+    }
+  }
   // --- UI COMPONENTS ---
 
   @override
@@ -111,7 +160,7 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
     return SafeArea(
       child: Scaffold(
         // 🎯 FIX 1: Disable scaffold resize because parent BottomSheet handles padding
-        resizeToAvoidBottomInset: false,
+        resizeToAvoidBottomInset: true,
         backgroundColor: const Color(0xFFF6F8FB),
         body: Column(
           children: [
@@ -125,33 +174,36 @@ class _VitalsEntryScreenState extends ConsumerState<VitalsEntryScreen> {
                     _buildSectionHeader("Body Composition"),
                     _buildAnthroGrid(),
                     const SizedBox(height: 32),
-      
+
                     _buildSectionHeader("Clinical Vitals"),
                     _buildClinicalContainer(),
                     const SizedBox(height: 32),
-      
+
+                    // Updated Header for Lab Results
+                    //_buildLabHeaderWithScan(),
+
                     _buildSectionHeader("Biochemical Lab Results"),
                     ref.watch(allLabTestsStreamProvider).when(
                       data: (tests) => _buildLabResultsSection(tests),
                       loading: () => const CircularProgressIndicator(),
                       error: (err, stack) => Text("Error: $err"),
                     ),
-      
+
                     const SizedBox(height: 40),
-      
+
                     // 🎯 FIX 2: Button moved INSIDE the scroll view
                     // This ensures it doesn't float over the keyboard and block fields
                     if (!widget.isReadOnly)
                       _buildBottomSaveBar(),
-      
-                    const SizedBox(height: 40), // Bottom cushion
+
+                    SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 40),
                   ],
                 ),
               ),
             ),
           ],
         ),
-        // 🎯 FIX 3: Removed bottomNavigationBar to prevent it from sitting on keyboard
+        // 🎯 FIX 3: Removed bottomNavigationBar to preavent it from sitting on keyboard
       ),
     );
   }

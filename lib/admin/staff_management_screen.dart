@@ -2,13 +2,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // 🎯 Import
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/admin/staff_management_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'admin_profile_model.dart';
-import 'dietitian_onboarding_screen.dart'; // 🎯 Import
+import 'dietitian_onboarding_screen.dart';
 
 class StaffManagementScreen extends ConsumerStatefulWidget {
   const StaffManagementScreen({super.key});
@@ -39,6 +39,9 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
   }
 
   void _showContactOptions(AdminProfileModel staff) {
+    // 🎯 FIX: Robust Image Check
+    final bool hasPhoto = staff.photoUrl.trim().isNotEmpty;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -56,8 +59,9 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundImage: staff.photoUrl.isNotEmpty ? NetworkImage(staff.photoUrl) : null,
-                  child: staff.photoUrl.isEmpty ? Text(staff.firstName[0]) : null,
+                  // 🎯 FIX: Use trimmed URL and check
+                  backgroundImage: hasPhoto ? NetworkImage(staff.photoUrl.trim()) : null,
+                  child: !hasPhoto ? Text(staff.firstName.isNotEmpty ? staff.firstName[0] : 'S') : null,
                 ),
                 const SizedBox(width: 16),
                 Column(
@@ -71,23 +75,18 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
             ),
             const SizedBox(height: 24),
 
-            // 1. WhatsApp (Primary)
             ListTile(
               leading: const CircleAvatar(backgroundColor: Colors.green, child: Icon(FontAwesomeIcons.whatsapp, color: Colors.white, size: 20)),
               title: Text(staff.mobile),
               subtitle: const Text("WhatsApp"),
               onTap: () => _launch("https://wa.me/${staff.mobile}"),
             ),
-
-            // 2. Call Primary
             ListTile(
               leading: const CircleAvatar(backgroundColor: Colors.blue, child: Icon(Icons.call, color: Colors.white, size: 20)),
               title: Text(staff.mobile),
               subtitle: const Text("Call Primary"),
               onTap: () => _launch("tel:${staff.mobile}"),
             ),
-
-            // 3. Call Alternate (If exists)
             if (staff.alternateMobile.isNotEmpty)
               ListTile(
                 leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.phone_android, color: Colors.white, size: 20)),
@@ -95,8 +94,6 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
                 subtitle: const Text("Call Alternative"),
                 onTap: () => _launch("tel:${staff.alternateMobile}"),
               ),
-
-            // 4. Email
             if (staff.email.isNotEmpty)
               ListTile(
                 leading: const CircleAvatar(backgroundColor: Colors.redAccent, child: Icon(Icons.email, color: Colors.white, size: 20)),
@@ -261,6 +258,9 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
 
   Widget _buildStaffCard(AdminProfileModel staff) {
     final bool isActive = staff.isActive;
+    // 🎯 FIX: Check trimmed photoUrl
+    final bool hasPhoto = staff.photoUrl.trim().isNotEmpty;
+
     return Container(
       decoration: BoxDecoration(color: isActive ? Colors.white : Colors.grey.shade50, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5))], border: !isActive ? Border.all(color: Colors.grey.shade300) : null),
       child: Padding(
@@ -269,18 +269,20 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
           children: [
             Stack(children: [
               Container(padding: const EdgeInsets.all(3), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: isActive ? Colors.indigo.withOpacity(0.2) : Colors.grey, width: 2)),
-                  child: CircleAvatar(radius: 28, backgroundImage: staff.photoUrl.isNotEmpty ? NetworkImage(staff.photoUrl) : null,
-                      backgroundColor: isActive ? Colors.indigo.shade50 : Colors.grey.shade200,
-                      child: staff.photoUrl.isEmpty
-                          ? Text(
-                        staff.firstName.isNotEmpty ? staff.firstName[0].toUpperCase() : 'S',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isActive ? Colors.indigo : Colors.grey,
-                        ),
-                      )
-                          : null,
-                         )),
+                  child: CircleAvatar(radius: 28,
+                    // 🎯 FIX: Robust NetworkImage usage
+                    backgroundImage: hasPhoto ? NetworkImage(staff.photoUrl.trim()) : null,
+                    backgroundColor: isActive ? Colors.indigo.shade50 : Colors.grey.shade200,
+                    child: !hasPhoto
+                        ? Text(
+                      staff.firstName.isNotEmpty ? staff.firstName[0].toUpperCase() : 'S',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isActive ? Colors.indigo : Colors.grey,
+                      ),
+                    )
+                        : null,
+                  )),
               if (isActive) Positioned(bottom: 2, right: 2, child: Container(width: 14, height: 14, decoration: BoxDecoration(color: Colors.green, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)))),
             ]),
             const SizedBox(width: 16),
@@ -294,7 +296,6 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
               ]),
             ),
             Column(children: [
-              // 🎯 Contact Button
               IconButton(icon: const Icon(Icons.call, color: Colors.green), onPressed: () => _showContactOptions(staff)),
 
               PopupMenuButton<String>(

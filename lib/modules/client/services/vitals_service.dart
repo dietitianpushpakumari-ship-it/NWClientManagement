@@ -142,4 +142,24 @@ class VitalsService {
       throw Exception("Failed to update history data: $e");
     }
   }
+  // ... existing code ...
+
+  // 🎯 NEW: Get Vitals by Session ID (High Priority for Clinical Reports)
+  Future<VitalsModel?> getVitalsBySessionId(String sessionId) async {
+    try {
+      final snapshot = await _vitalsCollection
+          .where('sessionId', isEqualTo: sessionId)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        return VitalsModel.fromFirestore(snapshot.docs.first);
+      }
+    } catch (e) {
+      print("Error fetching vitals by session ID: $e");
+    }
+    return null;
+  }
+
+// ... existing code ...
 }

@@ -276,4 +276,39 @@ class PackagePaymentService {
       });
     });
   }
+  // 🎯 NEW: Calculate total pending dues for a specific client across ALL packages
+  Future<double> getClientPendingAmount(String clientId) async {
+    double totalPending = 0.0;
+
+    try {
+      // 1. Fetch all subscriptions for the client
+      final assignmentsSnapshot = await _assignmentCollection()
+          .where('clientId', isEqualTo: clientId)
+          .get();
+
+      for (var doc in assignmentsSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        // Handle field name variations (bookedAmount vs price)
+        final double bookedAmount = (data['bookedAmount'] as num?)?.toDouble() ??
+            (data['price'] as num?)?.toDouble() ?? 0.0;
+
+        // 2. Calculate collected amount for this package
+        final double collected = await getCollectedAmountForAssignment(doc.id);
+
+        final double pending = bookedAmount - collected;
+
+        // Only add positive dues (ignore overpaid packages)
+        if (pending > 1.0) { // Tolerance for floating point errors
+          totalPending += pending;
+        }
+      }
+    } catch (e) {
+      // Ensure you have a logger defined or use debugPrint
+      debugPrint("Error calculating pending amount for client $clientId: $e");
+    }
+
+    return totalPending;
+  }
+
 }

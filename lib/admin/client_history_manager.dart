@@ -1,308 +1,580 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:nutricare_client_management/admin/consultation_summary_page.dart';
+
+// 🎯 IMPORTS
 import 'package:nutricare_client_management/admin/database_provider.dart';
 import 'package:nutricare_client_management/master/model/master_constants.dart';
-import 'package:nutricare_client_management/master_diet_planner/client_history_sheet.dart';
-import 'package:nutricare_client_management/master_diet_planner/complex_input_widgets.dart';
 import 'package:nutricare_client_management/master_diet_planner/generic_multi_select_dialogg.dart';
 import 'package:nutricare_client_management/modules/client/model/client_model.dart';
 import 'package:nutricare_client_management/modules/client/model/vitals_model.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 
+// ==============================================================================
+// 1. DATA PROVIDERS
+// ==============================================================================
+final medicalConditionProvider =
+    FutureProvider.autoDispose<Map<String, String>>((ref) async {
+      final service = ref.watch(masterDataServiceProvider);
+      return await service.fetchMasterList(
+        MasterCollectionMapper.getPath(MasterEntity.entity_disease),
+      );
+    });
+
+final giDetailsProvider = FutureProvider.autoDispose<Map<String, String>>((
+  ref,
+) async {
+  final service = ref.watch(masterDataServiceProvider);
+  return await service.fetchMasterList(
+    MasterCollectionMapper.getPath(MasterEntity.entity_giSymptom),
+  );
+});
+
+final caffeineProvider = FutureProvider.autoDispose<Map<String, String>>((
+  ref,
+) async {
+  final service = ref.watch(masterDataServiceProvider);
+  return await service.fetchMasterList(
+    MasterCollectionMapper.getPath(MasterEntity.entity_caffeineSource),
+  );
+});
+
+final activityProvider = FutureProvider.autoDispose<Map<String, String>>((
+  ref,
+) async {
+  final service = ref.watch(masterDataServiceProvider);
+  return await service.fetchMasterList(
+    MasterCollectionMapper.getPath(MasterEntity.entity_LifestyleHabit),
+  );
+});
+
+final allergyProvider = FutureProvider.autoDispose<Map<String, String>>((
+  ref,
+) async {
+  final service = ref.watch(masterDataServiceProvider);
+  return await service.fetchMasterList(
+    MasterCollectionMapper.getPath(MasterEntity.entity_allergy),
+  );
+});
+
+final medicineMasterProvider = FutureProvider.autoDispose<Map<String, String>>((
+  ref,
+) async {
+  final service = ref.watch(masterDataServiceProvider);
+  return await service.fetchMasterList(
+    MasterCollectionMapper.getPath(MasterEntity.entity_supplement),
+  );
+});
+
+final menstrualStatusProvider = FutureProvider.autoDispose<Map<String, String>>(
+  (ref) async {
+    final service = ref.watch(masterDataServiceProvider);
+    return await service.fetchMasterList(
+      MasterCollectionMapper.getPath(MasterEntity.entity_MenstrualStatus),
+    );
+  },
+);
+
+// 🎯 NEW: Food Habit Provider
+final foodHabitProvider = FutureProvider.autoDispose<Map<String, String>>((
+  ref,
+) async {
+  final service = ref.watch(masterDataServiceProvider);
+  // Uses 'master_food_habits' collection
+  return await service.fetchMasterList(
+    MasterCollectionMapper.getPath(MasterEntity.entity_foodHabitsOptions),
+  );
+});
+
+// ==============================================================================
+// 2. SCREEN WIDGET
+// ==============================================================================
 class ClientHistoryManager extends ConsumerStatefulWidget {
   final ClientModel client;
+  final String sessionId;
   final VitalsModel? latestVitals;
-  final Function(bool) onSaveComplete;
-  final String? sessionId;
   final bool isReadOnly;
-  final bool isFollowup; // 🎯 NEW
+  final bool isFollowup;
+  final Function(bool) onSaveComplete;
 
   const ClientHistoryManager({
     super.key,
     required this.client,
+    required this.sessionId,
     this.latestVitals,
     required this.onSaveComplete,
-    this.sessionId,
     this.isReadOnly = false,
-    this.isFollowup = false, // Default false
+    this.isFollowup = false,
   });
 
   @override
-  ConsumerState<ClientHistoryManager> createState() => _ClientHistoryManagerState();
+  ConsumerState<ClientHistoryManager> createState() =>
+      _ClientHistoryManagerState();
 }
 
 class _ClientHistoryManagerState extends ConsumerState<ClientHistoryManager> {
   final _formKey = GlobalKey<FormState>();
-  bool _isSaving = false;
+  bool _isLoading = false;
 
-  VitalsModel? _previousHistoryVitals;
-  bool _isLoadingHistory = true;
-  String? _historyFetchError;
-  bool _dataWasCopied = false;
-
+  // --- 1. COMPLEX MAPS ---
   late Map<String, String> _medicalHistory;
-  late Map<String, String> _medications;
+  late Map<String, String> _existingMeds;
   late Map<String, String> _giDetails;
   late Map<String, String> _caffeineIntake;
-  late Map<String, String> _habits;
-  late Map<String, String> _waterIntake;
-  List<String> _selectedAllergies = [];
-  String? _foodHabit;
-  String? _activityType;
-  String? _sleepQuality;
+  late Map<String, String> _activityHabits;
+  List<String> _foodAllergies = [];
+
+  // --- 2. SINGLE VALUES ---
   int _stressLevel = 5;
-  String? _menstrualStatus;
+  String _sleepQuality = 'Fair';
+  String _activityType = 'Sedentary';
+  String _foodHabit = 'Non-Vegetarian';
+  String _waterIntake = '2-3 Liters';
+  String _menstrualStatus = 'Regular';
+  String _restrictedDiet = '';
+
+  final TextEditingController _manualMedController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _initializeData();
-    _fetchPreviousHistory();
   }
 
   void _initializeData() {
-    // 🎯 IF latestVitals passed as NULL (New Consultation), this creates empty maps.
     final v = widget.latestVitals;
+
     _medicalHistory = Map<String, String>.from(v?.medicalHistory ?? {});
-    _medications = Map<String, String>.from(v?.prescribedMedications ?? {});
+    _existingMeds = Map<String, String>.from(v?.prescribedMedications ?? {});
     _giDetails = Map<String, String>.from(v?.giDetails ?? {});
     _caffeineIntake = Map<String, String>.from(v?.caffeineIntake ?? {});
-    _habits = Map<String, String>.from(v?.otherLifestyleHabits ?? {});
-    _waterIntake = Map<String, String>.from(v?.waterIntake ?? {});
-    _selectedAllergies = List<String>.from(v?.foodAllergies ?? []);
-    _foodHabit = v?.foodHabit;
-    _activityType = v?.activityType;
-    _sleepQuality = v?.sleepQuality;
+    _activityHabits = Map<String, String>.from(v?.otherLifestyleHabits ?? {});
+    _foodAllergies = List<String>.from(v?.foodAllergies ?? []);
+
     _stressLevel = v?.stressLevel ?? 5;
-    _menstrualStatus = v?.menstrualStatus;
-  }
+    _sleepQuality = v?.sleepQuality ?? 'Fair';
+    _activityType = v?.activityType ?? 'Sedentary';
+    _foodHabit = v?.foodHabit ?? 'Non-Vegetarian';
 
-  Future<void> _fetchPreviousHistory() async {
-    try {
-      final firestore = ref.read(firestoreProvider);
-      Query query = firestore.collection('vitals')
-          .where('clientId', isEqualTo: widget.client.id)
-          .orderBy('date', descending: true)
-          .limit(5);
+    _menstrualStatus = v?.menstrualStatus ?? 'Regular';
+    _restrictedDiet = v?.restrictedDiet ?? '';
 
-      final snapshot = await query.get();
-
-      if (snapshot.docs.isNotEmpty) {
-        VitalsModel? foundPrev;
-        for (var doc in snapshot.docs) {
-          if ((widget.latestVitals?.id != null && widget.latestVitals!.id == doc.id) ||
-              (widget.sessionId != null && doc['sessionId'] == widget.sessionId)) {
-            continue;
-          }
-          foundPrev = VitalsModel.fromFirestore(doc);
-          break;
-        }
-
-        if (foundPrev != null && mounted) {
-          setState(() {
-            _previousHistoryVitals = foundPrev;
-            // 🎯 ONLY AUTO-COPY IF FOLLOW-UP
-            if (widget.isFollowup) {
-              _autoFillIfEmpty();
-            }
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) setState(() => _historyFetchError = "Could not load history.");
-    } finally {
-      if (mounted) setState(() => _isLoadingHistory = false);
-    }
-  }
-
-  // 🎯 MANUAL COPY FUNCTION
-  void _autoFillIfEmpty() {
-    final p = _previousHistoryVitals;
-    if (p == null) return;
-
-    setState(() {
-      if (_medicalHistory.isEmpty) _medicalHistory = Map.from(p.medicalHistory ?? {});
-      if (_medications.isEmpty) _medications = Map.from(p.prescribedMedications ?? {});
-      if (_giDetails.isEmpty) _giDetails = Map.from(p.giDetails ?? {});
-      if (_caffeineIntake.isEmpty) _caffeineIntake = Map.from(p.caffeineIntake ?? {});
-      if (_habits.isEmpty) _habits = Map.from(p.otherLifestyleHabits ?? {});
-      if (_waterIntake.isEmpty) _waterIntake = Map.from(p.waterIntake ?? {});
-      if (_selectedAllergies.isEmpty) _selectedAllergies = List.from(p.foodAllergies ?? []);
-
-      _foodHabit ??= p.foodHabit;
-      _activityType ??= p.activityType;
-      _sleepQuality ??= p.sleepQuality;
-      _menstrualStatus ??= p.menstrualStatus;
-
-      _dataWasCopied = true;
-    });
-  }
-
-  void _updateEntry(String section, String key, String value) {
-    if (widget.isReadOnly) return;
-    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.idle) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _updateEntry(section, key, value));
-      return;
-    }
-    setState(() {
-      switch (section) {
-        case 'medical': _medicalHistory[key] = value; break;
-        case 'medication': _medications[key] = value; break;
-        case 'gi': _giDetails[key] = value; break;
-        case 'caffeine': _caffeineIntake[key] = value; break;
-        case 'habit': _habits[key] = value; break;
-        case 'water': _waterIntake[key] = value; break;
-      }
-    });
-  }
-
-  void _openSelection({required String title, required Map<String, String> masterData, required Map<String, String> currentMap, required String defaultValue, bool singleSelect = false, String? currentSingleValue, Function(String)? onSingleResult}) async {
-    if (widget.isReadOnly) return;
-    final result = await showModalBottomSheet<List<String>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => GenericMultiSelectDialog(
-        title: title,
-        items: masterData.keys.toList(),
-        itemNameIdMap: masterData,
-        initialSelectedItems: singleSelect ? (currentSingleValue != null && currentSingleValue.isNotEmpty ? [currentSingleValue] : []) : currentMap.keys.toList(),
-        onAddMaster: () {},
-        singleSelect: singleSelect,
-      ),
-    );
-
-    if (result != null) {
-      setState(() {
-        if (singleSelect && onSingleResult != null) {
-          onSingleResult(result.isNotEmpty ? result.first : '');
-        } else if (!singleSelect) {
-          for (var key in result) {
-            if (!currentMap.containsKey(key)) currentMap[key] = defaultValue;
-          }
-          currentMap.removeWhere((k, v) => !result.contains(k));
-        }
-      });
+    if (v?.waterIntake != null && v!.waterIntake!.isNotEmpty) {
+      _waterIntake = v.waterIntake!.values.first;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final diseases = ref.watch(diseaseMasterProvider).value ?? {};
-    final medsMaster = ref.watch(supplimentMasterProvider).value ?? {};
-    final giMaster = ref.watch(giMasterProvider).value ?? {};
-    final habitsMaster = ref.watch(lifeStyleHabitMasterProvider).value ?? {};
-    final cafMaster = ref.watch(caffeineMasterProvider).value ?? {};
-    final waterMaster = ref.watch(waterIntakeMasterProvider).value ?? {};
-    final allergyMaster = ref.watch(allergiesMasterProvider).value ?? {};
-    final foodMaster = ref.watch(foodHabitMasterProvider).value ?? {};
-    final activityMaster = ref.watch(activityMasterProvider).value ?? {};
-    final sleepMaster = ref.watch(sleepMasterProvider).value ?? {};
-    final menstrualMaster = ref.watch(menstrualMasterProvider).value ?? {};
+    // Watch Providers
+    final medicalAsync = ref.watch(medicalConditionProvider);
+    final giAsync = ref.watch(giDetailsProvider);
+    final caffeineAsync = ref.watch(caffeineProvider);
+    final activityAsync = ref.watch(activityProvider);
+    final allergyAsync = ref.watch(allergyProvider);
+    final medMasterAsync = ref.watch(medicineMasterProvider);
+    final menstrualAsync = ref.watch(menstrualStatusProvider);
+    final foodHabitAsync = ref.watch(foodHabitProvider); // 🎯 Watch Food Habit
+
+    if (medicalAsync.isLoading ||
+        giAsync.isLoading ||
+        caffeineAsync.isLoading ||
+        activityAsync.isLoading ||
+        allergyAsync.isLoading ||
+        medMasterAsync.isLoading ||
+        menstrualAsync.isLoading ||
+        foodHabitAsync.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final medicalMaster = medicalAsync.value ?? {};
+    final giMaster = giAsync.value ?? {};
+    final caffeineMaster = caffeineAsync.value ?? {};
+    final activityMaster = activityAsync.value ?? {};
+    final allergyMaster = allergyAsync.value ?? {};
+    final medMaster = medMasterAsync.value ?? {};
+
+    final menstrualMaster = menstrualAsync.value ?? {};
+    final List<String> menstrualOptions = menstrualMaster.isNotEmpty
+        ? menstrualMaster.keys.toList()
+        : [
+            "Regular",
+            "Irregular",
+            "Menopause",
+            "PCOS/PCOD",
+            "Pregnant",
+            "None/Male",
+          ];
+
+    // 🎯 Prepare Food Habit Options (Master + Fallback)
+    final foodHabitMaster = foodHabitAsync.value ?? {};
+    final List<String> foodHabitOptions = foodHabitMaster.isNotEmpty
+        ? foodHabitMaster.keys.toList()
+        : ["Vegetarian", "Non-Vegetarian", "Eggetarian", "Vegan", "Jain"];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FF),
       body: CustomScrollView(
         slivers: [
-          _buildUltraHeader(),
-
-          if (_historyFetchError != null)
-            SliverToBoxAdapter(
-              child: Container(margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)), child: Row(children: [const Icon(Icons.warning, color: Colors.red), const SizedBox(width: 8), Expanded(child: Text(_historyFetchError!, style: const TextStyle(color: Colors.red)))])),
+          SliverAppBar(
+            expandedHeight: 80,
+            pinned: true,
+            backgroundColor: Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: () => Navigator.pop(context),
             ),
-
-          if (_previousHistoryVitals != null)
-            SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.withOpacity(0.3))),
-                child: Row(
-                  children: [
-                    const Icon(Icons.history_edu, color: Colors.blue),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _dataWasCopied
-                                ? "Data copied from ${DateFormat('dd MMM').format(_previousHistoryVitals!.date)}"
-                                : "Previous history found (${DateFormat('dd MMM').format(_previousHistoryVitals!.date)})",
-                            style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
-                          ),
-                          // 🎯 SHOW "Tap Copy" hint if not copied and editable
-                          if (!_dataWasCopied && !widget.isReadOnly)
-                            const Text("Tap 'Copy' to fill this form", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                        ],
-                      ),
-                    ),
-                    // 🎯 MANUAL COPY BUTTON
-                    if (!_dataWasCopied && !widget.isReadOnly)
-                      TextButton.icon(
-                        icon: const Icon(Icons.copy, size: 14),
-                        label: const Text("Copy"),
-                        onPressed: _autoFillIfEmpty,
-                        style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                      ),
-                    TextButton(onPressed: _showComparisonSheet, child: const Text("Compare"))
-                  ],
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsets.only(left: 50, bottom: 16),
+              title: Text(
+                widget.isFollowup ? "Update History" : "History & Lifestyle",
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
               ),
             ),
+            actions: [
+              IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ConsultationSummaryPage(
+                        clientId: widget.client.id,
+                        clientName: widget.client.name,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.history, color: Colors.indigo),
+                tooltip: "View History Timeline",
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
 
           SliverToBoxAdapter(
-            child: Form(
-              key: _formKey,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
                 child: Column(
                   children: [
-                    _buildPremiumCard("Diet & Hydration", Icons.restaurant, Colors.orange, [
-                      _buildPickerTile("Food Habit", _foodHabit ?? "Select", () => _openSelection(title: "Food Habit", masterData: foodMaster, currentMap: {}, defaultValue: '', singleSelect: true, currentSingleValue: _foodHabit, onSingleResult: (v) => _foodHabit = v)),
-                      _buildPickerTile("Water Intake", _waterIntake.keys.isEmpty ? "Select" : _waterIntake.keys.first, () => _openSelection(title: "Water Intake", masterData: waterMaster, currentMap: _waterIntake, defaultValue: "Selected", singleSelect: true, currentSingleValue: _waterIntake.keys.isEmpty ? null : _waterIntake.keys.first, onSingleResult: (v) { setState(() { _waterIntake.clear(); if (v.isNotEmpty) _waterIntake[v] = "Selected"; }); })),
-                      const SizedBox(height: 12),
-                      const Text("Food Allergies", style: TextStyle(fontWeight: FontWeight.bold)),
-                      Wrap(spacing: 8, children: _selectedAllergies.map((a) => Chip(label: Text(a), onDeleted: widget.isReadOnly ? null : () => setState(() => _selectedAllergies.remove(a)))).toList()),
-                      _buildAddAction("Select Allergies", () async {
-                        final res = await showModalBottomSheet<List<String>>(context: context, isScrollControlled: true, builder: (ctx) => GenericMultiSelectDialog(title: "Allergies", items: allergyMaster.keys.toList(), itemNameIdMap: allergyMaster, initialSelectedItems: _selectedAllergies, onAddMaster: () {}));
-                        if (res != null) setState(() => _selectedAllergies = res);
-                      }),
-                    ]),
-                    _buildPremiumCard("Clinical History", Icons.health_and_safety, Colors.blue, [
-                      _buildAddAction("Select Medical Conditions", () => _openSelection(title: "Conditions", masterData: diseases, currentMap: _medicalHistory, defaultValue: "Not specified")),
-                      ..._medicalHistory.keys.map((k) => MedicalDurationInput(key: ValueKey('med_$k'), condition: k, initialDetail: _medicalHistory[k]!, onChanged: (m) => _updateEntry('medical', k, m[k]!), onDelete: widget.isReadOnly ? null : () => setState(() => _medicalHistory.remove(k)))),
-                      const Divider(height: 32),
-                      _buildAddAction("Select Medications", () => _openSelection(title: "Medications", masterData: medsMaster, currentMap: _medications, defaultValue: "Not specified, Once a Day")),
-                      ..._medications.keys.map((k) => MedicationDosageInput(key: ValueKey('supp_$k'), medication: k, initialDetail: _medications[k]!, onChanged: (m) => _updateEntry('medication', k, m[k]!), onDelete: widget.isReadOnly ? null : () => setState(() => _medications.remove(k)))),
-                      const Divider(height: 32),
-                      _buildAddAction("Select GI Details", () => _openSelection(title: "GI Symptoms", masterData: giMaster, currentMap: _giDetails, defaultValue: "Not specified")),
-                      ..._giDetails.keys.map((k) => GIDetailInput(key: ValueKey('gi_$k'), detail: k, initialDetail: _giDetails[k]!, onChanged: (m) => _updateEntry('gi', k, m[k]!), onDelete: widget.isReadOnly ? null : () => setState(() => _giDetails.remove(k)))),
-                    ]),
-                    _buildPremiumCard("Lifestyle & Habits", Icons.psychology, Colors.purple, [
-                      _buildPickerTile("Activity Level", _activityType ?? "Select", () => _openSelection(title: "Activity Level", masterData: activityMaster, currentMap: {}, defaultValue: '', singleSelect: true, currentSingleValue: _activityType, onSingleResult: (v) => _activityType = v)),
-                      _buildPickerTile("Sleep Quality", _sleepQuality ?? "Select", () => _openSelection(title: "Sleep Quality", masterData: sleepMaster, currentMap: {}, defaultValue: '', singleSelect: true, currentSingleValue: _sleepQuality, onSingleResult: (v) => _sleepQuality = v)),
-                      const SizedBox(height: 12),
-                      Text("Stress Level: $_stressLevel/10", style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Slider(value: _stressLevel.toDouble(), min: 1, max: 10, divisions: 9, label: "$_stressLevel", onChanged: widget.isReadOnly ? null : (v) => setState(() => _stressLevel = v.toInt())),
-                      const Divider(height: 32),
-                      _buildAddAction("Manage Habits", () => _openSelection(title: "Habits", masterData: habitsMaster, currentMap: _habits, defaultValue: "1|Day")),
-                      ..._habits.keys.map((k) => HabitFrequencyInput(key: ValueKey('hab_$k'), habit: k, initialDetail: _habits[k]!, onChanged: (m) => _updateEntry('habit', k, m[k]!), onDelete: widget.isReadOnly ? null : () => setState(() => _habits.remove(k)))),
-                      const Divider(height: 32),
-                      _buildAddAction("Caffeine Sources", () => _openSelection(title: "Caffeine", masterData: cafMaster, currentMap: _caffeineIntake, defaultValue: "1 per Day")),
-                      ..._caffeineIntake.keys.map((k) => CaffeineInput(key: ValueKey('caf_$k'), source: k, initialDetail: _caffeineIntake[k]!, onChanged: (m) => _updateEntry('caffeine', k, m[k]!), onDelete: widget.isReadOnly ? null : () => setState(() => _caffeineIntake.remove(k)))),
-                    ]),
-                    if (widget.client.gender != 'Male')
-                      _buildPremiumCard("Women's Health", Icons.female, Colors.pink, [
-                        _buildPickerTile("Menstrual Status", _menstrualStatus ?? "Select", () => _openSelection(title: "Menstrual Status", masterData: menstrualMaster, currentMap: {}, defaultValue: '', singleSelect: true, currentSingleValue: _menstrualStatus, onSingleResult: (v) => _menstrualStatus = v)),
-                      ]),
+                    // 1. BEHAVIORAL
+                    _buildSectionContainer(
+                      title: "Behavioral & Lifestyle",
+                      icon: Icons.psychology,
+                      color: Colors.purple,
+                      children: [
+                        _buildDropdownRow(
+                          "Activity Level",
+                          _activityType,
+                          [
+                            "Sedentary",
+                            "Lightly Active",
+                            "Moderately Active",
+                            "Very Active",
+                            "Super Active",
+                          ],
+                          (v) => setState(() => _activityType = v!),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildDropdownRow(
+                          "Sleep Quality",
+                          _sleepQuality,
+                          [
+                            "Poor (<5h)",
+                            "Fair (6-7h)",
+                            "Good (7-8h)",
+                            "Excellent (>8h)",
+                          ],
+                          (v) => setState(() => _sleepQuality = v!),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildDropdownRow(
+                          "Women's Health (Menstrual)",
+                          _menstrualStatus,
+                          menstrualOptions,
+                          (v) => setState(() => _menstrualStatus = v!),
+                        ),
+                        const SizedBox(height: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  "Stress Level",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  "$_stressLevel/10",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.purple,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Slider(
+                              value: _stressLevel.toDouble(),
+                              min: 1,
+                              max: 10,
+                              divisions: 9,
+                              activeColor: Colors.purple,
+                              label: _stressLevel.toString(),
+                              onChanged: (v) =>
+                                  setState(() => _stressLevel = v.toInt()),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
 
-                    const SizedBox(height: 40),
-                    if (!widget.isReadOnly) _buildSaveButton(),
+                    // 2. DIET & ALLERGIES
+                    _buildSectionContainer(
+                      title: "Dietary Preferences",
+                      icon: Icons.restaurant_menu,
+                      color: Colors.teal,
+                      children: [
+                        // 🎯 UPDATED: Use dynamic options for Food Habit
+                        _buildDropdownRow(
+                          "Food Habit",
+                          _foodHabit,
+                          foodHabitOptions,
+                          (v) => setState(() => _foodHabit = v!),
+                        ),
+
+                        const SizedBox(height: 16),
+                        _buildDropdownRow(
+                          "Water Intake",
+                          _waterIntake,
+                          [
+                            "< 1 Liter",
+                            "1-2 Liters",
+                            "2-3 Liters",
+                            "3-4 Liters",
+                            "> 4 Liters",
+                          ],
+                          (v) => setState(() => _waterIntake = v!),
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          initialValue: _restrictedDiet,
+                          decoration: const InputDecoration(
+                            labelText: "Restricted Diet (Optional)",
+                            hintText: "e.g. Gluten Free, Keto, Low Carb",
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (v) => _restrictedDiet = v,
+                        ),
+                        const SizedBox(height: 24),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "Food Allergies",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => _openMasterSelection(
+                                title: "Select Allergies",
+                                masterData: allergyMaster,
+                                selectedItems: _foodAllergies,
+                                provider: allergyProvider,
+                                collectionPath: MasterCollectionMapper.getPath(
+                                  MasterEntity.entity_allergy,
+                                ),
+                                onConfirm: (result) =>
+                                    setState(() => _foodAllergies = result),
+                              ),
+                              icon: const Icon(Icons.playlist_add, size: 18),
+                              label: const Text("Select"),
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            if (_foodAllergies.isEmpty)
+                              const Text(
+                                "None selected",
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ..._foodAllergies.map(
+                              (a) => Chip(
+                                label: Text(a),
+                                onDeleted: widget.isReadOnly
+                                    ? null
+                                    : () => setState(
+                                        () => _foodAllergies.remove(a),
+                                      ),
+                                backgroundColor: Colors.teal.shade50,
+                                labelStyle: TextStyle(
+                                  color: Colors.teal.shade900,
+                                ),
+                                deleteIconColor: Colors.teal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    // 3. MEDICAL
+                    _buildSectionCard(
+                      title: "Medical Conditions",
+                      icon: Icons.monitor_heart,
+                      color: Colors.redAccent,
+                      dataMap: _medicalHistory,
+                      masterData: medicalMaster,
+                      providerToRefresh: medicalConditionProvider,
+                      collectionPath: MasterCollectionMapper.getPath(
+                        MasterEntity.entity_disease,
+                      ),
+                      placeholder: "Tap to set duration",
+                      dialogTitle: "Select Conditions",
+                      onUpdate: (key, val) => _medicalHistory[key] = val,
+                      onDelete: (key) => _medicalHistory.remove(key),
+                      onTapItem: (key, val) => _openMedicalConfigSheet(
+                        key,
+                        val,
+                        (v) => setState(() => _medicalHistory[key] = v),
+                      ),
+                    ),
+
+                    // 4. MEDICATIONS
+                    _buildSectionCard(
+                      title: "Existing Medications",
+                      icon: Icons.medication,
+                      color: Colors.blue,
+                      dataMap: _existingMeds,
+                      masterData: medMaster,
+                      providerToRefresh: medicineMasterProvider,
+                      collectionPath: MasterCollectionMapper.getPath(
+                        MasterEntity.entity_supplement,
+                      ),
+                      placeholder: "Tap to set dosage & freq",
+                      dialogTitle: "Select Medications",
+                      isManualAddEnabled: true,
+                      onUpdate: (key, val) => _existingMeds[key] = val,
+                      onDelete: (key) => _existingMeds.remove(key),
+                      onTapItem: (key, val) => _openExistingMedConfigSheet(
+                        key,
+                        val,
+                        (v) => setState(() => _existingMeds[key] = v),
+                      ),
+                    ),
+
+                    // 5. GI
+                    _buildSectionCard(
+                      title: "GI / Digestive Health",
+                      icon: Icons.spa,
+                      color: Colors.green,
+                      dataMap: _giDetails,
+                      masterData: giMaster,
+                      providerToRefresh: giDetailsProvider,
+                      collectionPath: MasterCollectionMapper.getPath(
+                        MasterEntity.entity_giSymptom,
+                      ),
+                      placeholder: "Tap to set severity",
+                      dialogTitle: "Select GI Symptoms",
+                      onUpdate: (key, val) => _giDetails[key] = val,
+                      onDelete: (key) => _giDetails.remove(key),
+                      onTapItem: (key, val) => _openGIConfigSheet(
+                        key,
+                        val,
+                        (v) => setState(() => _giDetails[key] = v),
+                      ),
+                    ),
+
+                    // 6. CAFFEINE
+                    _buildSectionCard(
+                      title: "Caffeine Sources",
+                      icon: Icons.coffee,
+                      color: Colors.brown,
+                      dataMap: _caffeineIntake,
+                      masterData: caffeineMaster,
+                      providerToRefresh: caffeineProvider,
+                      collectionPath: MasterCollectionMapper.getPath(
+                        MasterEntity.entity_caffeineSource,
+                      ),
+                      placeholder: "Tap to set quantity",
+                      dialogTitle: "Select Sources",
+                      onUpdate: (key, val) => _caffeineIntake[key] = val,
+                      onDelete: (key) => _caffeineIntake.remove(key),
+                      onTapItem: (key, val) => _openHabitConfigSheet(
+                        key,
+                        val,
+                        (v) => setState(() => _caffeineIntake[key] = v),
+                        isCaffeine: true,
+                      ),
+                    ),
+
+                    // 7. ACTIVITY
+                    _buildSectionCard(
+                      title: "Physical Activity Details",
+                      icon: Icons.directions_run,
+                      color: Colors.orange,
+                      dataMap: _activityHabits,
+                      masterData: activityMaster,
+                      providerToRefresh: activityProvider,
+                      collectionPath: MasterCollectionMapper.getPath(
+                        MasterEntity.entity_LifestyleHabit,
+                      ),
+                      placeholder: "Tap to set duration",
+                      dialogTitle: "Select Activities",
+                      onUpdate: (key, val) => _activityHabits[key] = val,
+                      onDelete: (key) => _activityHabits.remove(key),
+                      onTapItem: (key, val) => _openHabitConfigSheet(
+                        key,
+                        val,
+                        (v) => setState(() => _activityHabits[key] = v),
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
+                    if (!widget.isReadOnly)
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _saveHistory,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigoAccent,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(double.infinity, 56),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            : const Text(
+                                "SAVE HISTORY",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                      ),
                     const SizedBox(height: 50),
                   ],
                 ),
@@ -314,57 +586,882 @@ class _ClientHistoryManagerState extends ConsumerState<ClientHistoryManager> {
     );
   }
 
-  void _showComparisonSheet() {
-    if (_previousHistoryVitals == null) return;
-    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (context) => Container(height: MediaQuery.of(context).size.height * 0.7, decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(25))), padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("History Comparison", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 16), Expanded(child: ListView(children: [_buildCompareRow("Medical", _medicalHistory, _previousHistoryVitals!.medicalHistory ?? {}), _buildCompareRow("Medications", _medications, _previousHistoryVitals!.prescribedMedications ?? {}), _buildCompareRow("Habits", _habits, _previousHistoryVitals!.otherLifestyleHabits ?? {}), const Divider(), _buildCompareText("Food Habit", _foodHabit, _previousHistoryVitals!.foodHabit), _buildCompareText("Activity", _activityType, _previousHistoryVitals!.activityType), _buildCompareText("Sleep", _sleepQuality, _previousHistoryVitals!.sleepQuality)]))])));
+  // ===========================================================================
+  // 🧩 UNIFIED SELECTION HELPER
+  // ===========================================================================
+  void _openMasterSelection({
+    required String title,
+    required Map<String, String> masterData,
+    required List<String> selectedItems,
+    required AutoDisposeFutureProvider<Map<String, String>> provider,
+    required String collectionPath,
+    required Function(List<String>) onConfirm,
+  }) async {
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => GenericMultiSelectDialog(
+        title: title,
+        items: masterData.keys.toList(),
+        itemNameIdMap: masterData,
+        initialSelectedItems: selectedItems,
+        collectionPath: collectionPath,
+        providerToRefresh: provider,
+      ),
+    );
+
+    if (result != null) {
+      onConfirm(result);
+    }
   }
 
-  Widget _buildCompareRow(String title, Map current, Map previous) { return Padding(padding: const EdgeInsets.only(bottom: 16.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)), Row(children: [Expanded(child: _buildInfoBox("Current", current.keys.join(", "))), const SizedBox(width: 10), Expanded(child: _buildInfoBox("Previous", previous.keys.join(", "), isOld: true))])])); }
-  Widget _buildCompareText(String title, String? current, String? previous) { return Padding(padding: const EdgeInsets.only(bottom: 12.0), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w600)), Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(current ?? "-", style: const TextStyle(fontWeight: FontWeight.bold)), if (current != previous) Text("Was: ${previous ?? '-'}", style: const TextStyle(fontSize: 11, color: Colors.grey, decoration: TextDecoration.lineThrough))])])); }
-  Widget _buildInfoBox(String label, String content, {bool isOld = false}) { return Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: isOld ? Colors.grey[100] : Colors.blue[50], borderRadius: BorderRadius.circular(8)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: TextStyle(fontSize: 10, color: isOld ? Colors.grey : Colors.blue)), Text(content.isEmpty ? "-" : content, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))])); }
-  Widget _buildUltraHeader() => SliverAppBar(expandedHeight: 100, pinned: true, automaticallyImplyLeading: false, backgroundColor: Colors.white, flexibleSpace: FlexibleSpaceBar(titlePadding: const EdgeInsets.only(left: 20, bottom: 16, right: 20), title: Row(children: [GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.arrow_back_ios, size: 20, color: Colors.black)), const SizedBox(width: 12), const Expanded(child: Text("Comprehensive History", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18))), IconButton(icon: const Icon(Icons.manage_search, color: Colors.blueAccent), onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (context) => ConsultationSummaryPage(clientId: widget.client.id, clientName: widget.client.name))); })])));
-  Widget _buildPremiumCard(String t, IconData i, Color c, List<Widget> ch) => Container(margin: const EdgeInsets.only(bottom: 24), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: c.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 8))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(i, color: c, size: 22), const SizedBox(width: 12), Text(t, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold))]), const Divider(height: 32), ...ch]));
-  Widget _buildPickerTile(String l, String v, VoidCallback t) => ListTile(contentPadding: EdgeInsets.zero, title: Text(l, style: const TextStyle(fontSize: 13, color: Colors.grey)), subtitle: Text(v, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)), trailing: widget.isReadOnly ? null : const Icon(Icons.chevron_right), onTap: widget.isReadOnly ? null : t);
-  Widget _buildAddAction(String l, VoidCallback t) => widget.isReadOnly ? const SizedBox.shrink() : TextButton.icon(onPressed: t, icon: const Icon(Icons.add_circle_outline, size: 18), label: Text(l));
-  Widget _buildSaveButton() => ElevatedButton(onPressed: _isSaving ? null : _save, style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 56), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: _isSaving ? const CircularProgressIndicator(color: Colors.white) : const Text("SAVE ALL 12 ATTRIBUTES", style: TextStyle(fontWeight: FontWeight.bold)));
+  // ===========================================================================
+  // 🎨 UI HELPERS
+  // ===========================================================================
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required Map<String, String> dataMap,
+    required Map<String, String> masterData,
+    required String placeholder,
+    required String dialogTitle,
+    required AutoDisposeFutureProvider<Map<String, String>> providerToRefresh,
+    required String collectionPath,
+    required Function(String, String) onUpdate,
+    required Function(String) onDelete,
+    required Function(String, String) onTapItem,
+    bool isManualAddEnabled = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 32),
+          if (!widget.isReadOnly)
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: () => _openMasterSelection(
+                      title: dialogTitle,
+                      masterData: masterData,
+                      selectedItems: dataMap.keys.toList(),
+                      provider: providerToRefresh,
+                      collectionPath: collectionPath,
+                      onConfirm: (result) {
+                        setState(() {
+                          dataMap.removeWhere(
+                            (key, value) => !result.contains(key),
+                          );
+                          for (var item in result) {
+                            if (!dataMap.containsKey(item))
+                              dataMap[item] = "Not specified";
+                          }
+                        });
+                      },
+                    ),
+                    icon: const Icon(Icons.playlist_add, size: 20),
+                    label: const Text("Select from List"),
+                    style: TextButton.styleFrom(
+                      foregroundColor: color,
+                      alignment: Alignment.centerLeft,
+                    ),
+                  ),
+                ),
+                if (isManualAddEnabled)
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => _openManualAddSheet(
+                        title,
+                        (val) => setState(() => dataMap[val] = "Not specified"),
+                      ),
+                      icon: const Icon(Icons.add, size: 20),
+                      label: const Text("Manual Add"),
+                      style: TextButton.styleFrom(
+                        foregroundColor: color,
+                        alignment: Alignment.centerRight,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          const SizedBox(height: 12),
+          if (dataMap.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
+                "No items recorded.",
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ...dataMap.entries.map(
+            (entry) => _buildDetailTile(
+              title: entry.key,
+              detail: entry.value,
+              placeholder: placeholder,
+              color: color,
+              onTap: () => onTapItem(entry.key, entry.value),
+              onDelete: () => setState(() => onDelete(entry.key)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Future<void> _save() async {
-    if (widget.isReadOnly) return;
-    setState(() => _isSaving = true);
-    try {
-      await ref.read(vitalsServiceProvider).updateHistoryData(
-        clientId: widget.client.id,
-        updateData: {
-          'medicalHistory': _medicalHistory,
-          'prescribedMedications': _medications,
-          'giDetails': _giDetails,
-          'caffeineIntake': _caffeineIntake,
-          'otherLifestyleHabits': _habits,
-          'waterIntake': _waterIntake,
-          'foodAllergies': _selectedAllergies,
-          'foodHabit': _foodHabit,
-          'activityType': _activityType,
-          'sleepQuality': _sleepQuality,
-          'stressLevel': _stressLevel,
-          'menstrualStatus': _menstrualStatus,
-          'sessionId': widget.sessionId,
-        },
-      );
-
-      // 識 UPDATE SESSION STATUS
-      if (widget.sessionId != null) {
-        final firestore = ref.read(firestoreProvider);
-        await firestore.collection('consultation_sessions').doc(widget.sessionId).update({
-          'steps.history': true,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      }
-      widget.onSaveComplete(true);
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+  // [SHEETS & HELPERS UNCHANGED]
+  void _openMedicalConfigSheet(
+    String name,
+    String currentVal,
+    Function(String) onSave,
+  ) {
+    String durationVal = '';
+    String unit = 'Years';
+    final parts = currentVal.split(' ');
+    if (parts.length >= 2 && double.tryParse(parts[0]) != null) {
+      durationVal = parts[0];
+      unit = parts.sublist(1).join(' ');
     }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (c, st) => Container(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Details: $name",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: TextFormField(
+                      initialValue: durationVal,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: "Duration",
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (v) => durationVal = v,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: DropdownButtonFormField<String>(
+                      value: ["Days", "Weeks", "Months", "Years"].contains(unit)
+                          ? unit
+                          : "Years",
+                      decoration: const InputDecoration(
+                        labelText: "Unit",
+                        border: OutlineInputBorder(),
+                      ),
+                      items: ["Days", "Weeks", "Months", "Years"]
+                          .map(
+                            (e) => DropdownMenuItem(value: e, child: Text(e)),
+                          )
+                          .toList(),
+                      onChanged: (v) => st(() => unit = v!),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    onSave("$durationVal $unit");
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: const Text("SAVE DETAILS"),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openExistingMedConfigSheet(
+    String name,
+    String currentVal,
+    Function(String) onSave,
+  ) {
+    String dosage = '';
+    String freq = '1-0-1';
+    String durationVal = '';
+    String unit = 'Years';
+    if (currentVal.contains('•')) {
+      final parts = currentVal.split('•');
+      if (parts.isNotEmpty) dosage = parts[0].replaceAll('mg', '').trim();
+      if (parts.length > 1) freq = parts[1].trim();
+      if (parts.length > 2) {
+        final dParts = parts[2].trim().split(' ');
+        if (dParts.isNotEmpty) durationVal = dParts[0];
+        if (dParts.length > 1) unit = dParts[1];
+      }
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (c, st) => Container(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Medication: $name",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: dosage,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: "Dosage (mg)",
+                        suffixText: "mg",
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (v) => dosage = v,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Frequency",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: ["1-0-1", "1-0-0", "0-0-1", "1-1-1", "SOS"]
+                      .map(
+                        (f) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(f),
+                            selected: freq == f,
+                            onSelected: (v) => st(() => freq = f),
+                            selectedColor: Colors.blue.shade100,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: TextFormField(
+                      initialValue: durationVal,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: "Duration",
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (v) => durationVal = v,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: DropdownButtonFormField<String>(
+                      value: ["Days", "Weeks", "Months", "Years"].contains(unit)
+                          ? unit
+                          : "Years",
+                      decoration: const InputDecoration(
+                        labelText: "Unit",
+                        border: OutlineInputBorder(),
+                      ),
+                      items: ["Days", "Weeks", "Months", "Years"]
+                          .map(
+                            (e) => DropdownMenuItem(value: e, child: Text(e)),
+                          )
+                          .toList(),
+                      onChanged: (v) => st(() => unit = v!),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    onSave("${dosage}mg • $freq • $durationVal $unit");
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: const Text("SAVE DETAILS"),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openGIConfigSheet(
+    String name,
+    String currentVal,
+    Function(String) onSave,
+  ) {
+    String durationVal = '';
+    String unit = 'Months';
+    String freq = 'Daily';
+    String severity = 'Moderate';
+    String note = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (c, st) => Container(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Symptom: $name",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: TextFormField(
+                      initialValue: durationVal,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: "Duration",
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (v) => durationVal = v,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: DropdownButtonFormField<String>(
+                      value: unit,
+                      decoration: const InputDecoration(
+                        labelText: "Unit",
+                        border: OutlineInputBorder(),
+                      ),
+                      items: ["Days", "Weeks", "Months", "Years"]
+                          .map(
+                            (e) => DropdownMenuItem(value: e, child: Text(e)),
+                          )
+                          .toList(),
+                      onChanged: (v) => st(() => unit = v!),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: severity,
+                decoration: const InputDecoration(
+                  labelText: "Severity",
+                  border: OutlineInputBorder(),
+                ),
+                items: ["Mild", "Moderate", "Severe"]
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
+                onChanged: (v) => st(() => severity = v!),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                decoration: const InputDecoration(
+                  labelText: "Frequency",
+                  hintText: "e.g. Daily, After meals",
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (v) => freq = v,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                decoration: const InputDecoration(
+                  labelText: "Special Note (Optional)",
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+                onChanged: (v) => note = v,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    String result = "$severity • $freq • $durationVal $unit";
+                    if (note.isNotEmpty) result += " • Note: $note";
+                    onSave(result);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: const Text("SAVE DETAILS"),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openHabitConfigSheet(
+    String name,
+    String currentVal,
+    Function(String) onSave, {
+    bool isCaffeine = false,
+  }) {
+    String durationVal = '';
+    String unit = 'Years';
+    String freq = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (c, st) => Container(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                decoration: InputDecoration(
+                  labelText: isCaffeine ? "Quantity per Day" : "Frequency",
+                  hintText: isCaffeine ? "e.g. 2 Cups" : "e.g. Daily, 3x/Week",
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (v) => freq = v,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: TextFormField(
+                      initialValue: durationVal,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: "Duration",
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (v) => durationVal = v,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: DropdownButtonFormField<String>(
+                      value: unit,
+                      decoration: const InputDecoration(
+                        labelText: "Unit",
+                        border: OutlineInputBorder(),
+                      ),
+                      items: ["Days", "Weeks", "Months", "Years"]
+                          .map(
+                            (e) => DropdownMenuItem(value: e, child: Text(e)),
+                          )
+                          .toList(),
+                      onChanged: (v) => st(() => unit = v!),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    onSave("$freq • $durationVal $unit");
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: const Text("SAVE DETAILS"),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openManualAddSheet(String title, Function(String) onAdd) {
+    _manualMedController.clear();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Add $title"),
+        content: TextField(
+          controller: _manualMedController,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: "Type name here..."),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (_manualMedController.text.isNotEmpty) {
+                onAdd(_manualMedController.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text("Add"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionContainer({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<Widget> children,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 32),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownRow(
+    String label,
+    String value,
+    List<String> items,
+    Function(String?) onChanged,
+  ) {
+    return DropdownButtonFormField<String>(
+      value: items.contains(value) ? value : items.first,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      items: items
+          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+          .toList(),
+      onChanged: widget.isReadOnly ? null : onChanged,
+    );
+  }
+
+  // 🎯 SAVE LOGIC
+  Future<void> _saveHistory() async {
+    setState(() => _isLoading = true);
+    try {
+      final updateData = {
+        'medicalHistory': _medicalHistory,
+        'prescribedMedications': _existingMeds,
+        'giDetails': _giDetails,
+        'caffeineIntake': _caffeineIntake,
+        'otherLifestyleHabits': _activityHabits,
+        'activityType': _activityType,
+        'sleepQuality': _sleepQuality,
+        'stressLevel': _stressLevel,
+        'foodHabit': _foodHabit,
+        'waterIntake': {'value': _waterIntake},
+        'foodAllergies': _foodAllergies,
+        'menstrualStatus': _menstrualStatus,
+        'restrictedDiet': _restrictedDiet,
+
+        'sessionId': widget.sessionId,
+      };
+
+      await ref
+          .read(vitalsServiceProvider)
+          .updateHistoryData(
+            clientId: widget.client.id,
+            updateData: updateData,
+            existingVitals: widget.latestVitals,
+          );
+      await ref
+          .read(firestoreProvider)
+          .collection('consultation_sessions')
+          .doc(widget.sessionId)
+          .update({
+            'steps.history': true,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+      widget.onSaveComplete(true);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+
+
+  Widget _buildDetailTile({
+    required String title,
+    required String detail,
+    required String placeholder,
+    required Color color,
+    required VoidCallback onTap,
+    required VoidCallback onDelete,
+  }) {
+    // 1. Content Widget
+    Widget content = GestureDetector(
+      onTap: widget.isReadOnly ? null : onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.05),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.edit, color: color, size: 16),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    (detail != 'Not specified' && detail.isNotEmpty)
+                        ? detail
+                        : placeholder,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color:
+                      (detail != 'Not specified' && detail.isNotEmpty)
+                          ? Colors.black87
+                          : Colors.grey,
+                      fontStyle:
+                      (detail != 'Not specified' && detail.isNotEmpty)
+                          ? FontStyle.normal
+                          : FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!widget.isReadOnly)
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.grey, size: 18),
+                onPressed: onDelete,
+              ),
+          ],
+        ),
+      ),
+    );
+
+    // 2. Return plain content if ReadOnly
+    if (widget.isReadOnly) return content;
+
+    // 3. Return Dismissible for Swipe Actions
+    return Dismissible(
+      key: Key(title),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: Colors.red.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.delete, color: Colors.red),
+      ),
+      onDismissed: (direction) => onDelete(),
+      child: content,
+    );
   }
 }

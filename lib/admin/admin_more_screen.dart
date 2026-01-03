@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nutricare_client_management/admin/admin_account_page.dart';
+import 'package:nutricare_client_management/admin/admin_session_provider.dart';
 import 'package:nutricare_client_management/admin/configuration/company_module_settings_screen.dart';
 import 'package:nutricare_client_management/admin/configuration/role_policy_manager_Screen.dart';
 import 'package:nutricare_client_management/admin/staff_management_screen.dart';
@@ -26,41 +27,28 @@ class _AdminMoreScreenState extends ConsumerState<AdminMoreScreen> {
   bool _isLoadingConfig = false;
 
   // 🛠️ Helper: Resolve Tenant ID for the current user
-  Future<Map<String, String>?> _resolveTenantContext() async {
-    // 1. Check if Super Admin context is active (Impersonation)
-    final superAdminConfig = ref.read(currentTenantConfigProvider);
-    if (superAdminConfig != null) {
-      return {'id': superAdminConfig.id, 'name': superAdminConfig.name};
+// 🎯 NEW HELPER: Get Tenant Context from Session
+  Future<Map<String, String>> _resolveTenantContext() async {
+    // 1. Get Session
+    final session = ref.read(adminSessionProvider);
+
+    if (session == null || session.tenantId == null) {
+      throw "No active session found. Please log in again.";
     }
 
-    // 2. Fetch Tenant ID for actual logged-in admin
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.email == null) throw "User not authenticated";
+    final String tenantId = session.tenantId!;
 
-    // Check User Directory
-    final dirDoc = await FirebaseFirestore.instance.collection('user_directory').doc(user.email).get();
-
-    if (!dirDoc.exists) {
-      // Fallback: Check if they are a staff member in 'admins' collection
-      final staffDoc = await FirebaseFirestore.instance.collection('admins').doc(user.uid).get();
-      if(staffDoc.exists) {
-        // Assuming staff doc has tenant_id, or we handle staff logic differently.
-        // For now, let's assume only Owners/Clinic Admins access this menu.
-        throw "Access Restricted: Staff configuration not found.";
-      }
-      throw "Admin record not found.";
+    // 2. Fetch Company Name (Optional, for UI)
+    // We could cache this in the session to avoid this read, but this is safe for now.
+    try {
+      final doc = await FirebaseFirestore.instance.collection('tenants').doc(tenantId).get();
+      final name = doc.data()?['name'] ?? 'Company Settings';
+      return {'id': tenantId, 'name': name};
+    } catch (e) {
+      // Fallback if tenant doc read fails (e.g. permission issue)
+      return {'id': tenantId, 'name': 'Settings'};
     }
-
-    final tenantId = dirDoc.data()?['tenant_id'] ?? '';
-    if (tenantId.isEmpty) throw "Tenant ID missing for this user";
-
-    // Fetch Company Name for UI
-    final tenantDoc = await FirebaseFirestore.instance.collection('tenants').doc(tenantId).get();
-    final companyName = tenantDoc.data()?['name'] ?? 'Company Settings';
-
-    return {'id': tenantId, 'name': companyName};
   }
-
   // 🎯 Navigate to Module Settings
   Future<void> _navigateToModuleConfig() async {
     setState(() => _isLoadingConfig = true);

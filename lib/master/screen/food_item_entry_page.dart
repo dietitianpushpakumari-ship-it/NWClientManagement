@@ -1,17 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/ai_translation_service.dart';
+import 'package:nutricare_client_management/admin/generic_master_model.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/core/localization/language_config.dart';
-import 'package:nutricare_client_management/master/model/ServingUnit.dart';
-import 'package:nutricare_client_management/master/model/food_category.dart';
 import 'package:nutricare_client_management/master/model/food_item.dart';
-
-import 'package:nutricare_client_management/meal_planner/service/Dependancy_service.dart';
 import 'package:nutricare_client_management/modules/master/service/food_item_service.dart';
-// ❌ REMOVED: import 'package:provider/provider.dart';
 
 class FoodItemEntryPage extends ConsumerStatefulWidget {
   final FoodItem? itemToEdit;
@@ -40,15 +35,12 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
   bool _isTranslating = false;
 
   // Services
-  // 🎯 FIX 1: Change to nullable and remove 'late' keyword
   Future<List<dynamic>>? _dependenciesFuture;
   final AiTranslationService _translationService = AiTranslationService();
 
   @override
   void initState() {
     super.initState();
-    // ❌ FIX: Removed ref.watch and Future.wait from here.
-
     _initializeLocalizedControllers();
 
     if (widget.itemToEdit != null) {
@@ -62,20 +54,18 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
     }
   }
 
-  // 🎯 FIX 2: Move Future initialization here, guarded by null check
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_dependenciesFuture == null) {
-      // 🎯 Now safely read the provider using ref.read()
-      final _dependencyService = ref.read(dependencyServiceProvider);
+      final foodCategoryService = ref.read(foodCategoryProvider);
+      final serviceUnitService = ref.read(serviceUnitMasterServiceProvider);
       _dependenciesFuture = Future.wait([
-        _dependencyService.fetchAllActiveFoodCategories(),
-        _dependencyService.fetchAllActiveServingUnits(),
+        foodCategoryService.fetchActiveItems(),
+        serviceUnitService.fetchActiveItems(),
       ]);
     }
   }
-
 
   void _initializeLocalizedControllers() {
     for (var code in supportedLanguageCodes) {
@@ -143,7 +133,7 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
       return;
     }
     setState(() => _isLoading = true);
-    // 🎯 FIX 3: Get FoodItemService via ref.read()
+
     final service = ref.read(foodItemServiceProvider);
 
     final Map<String, String> localizedNames = {};
@@ -164,13 +154,16 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
       carbsG: parseDouble(_carbsController),
       fatG: parseDouble(_fatController),
       createdDate: widget.itemToEdit?.createdDate,
+      // 🎯 CRITICAL FIX: Was 'true' (deleted), now 'false' (active)
+      isDeleted: false,
     );
 
     try {
       await service.save(itemToSave);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Food Item Saved!')));
-        Navigator.of(context).pop();
+        // Return the saved item to the previous screen
+        Navigator.of(context).pop(itemToSave);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -190,7 +183,7 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
         body: Stack(
           children: [
             Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.1), blurRadius: 80, spreadRadius: 30)]))),
-      
+
             Column(
               children: [
                 _buildHeader(
@@ -204,23 +197,29 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
                       )
                     ]
                 ),
-      
+
                 Expanded(
-                  // 🎯 FIX 4: Ensure FutureBuilder uses the initialized future safely
                   child: FutureBuilder<List<dynamic>>(
                     future: _dependenciesFuture,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                       if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-      
-                      // Check for null data list before casting
-                      if (snapshot.data == null || snapshot.data!.length < 2) {
-                        return const Center(child: Text('Error: Failed to load all master data dependencies.'));
+
+                      if (snapshot.data == null || snapshot.data!.isEmpty) {
+                        return const Center(child: Text('Error: Failed to load master data.'));
                       }
-      
-                      final categories = snapshot.data![0] as List<FoodCategory>;
-                      final units = snapshot.data![1] as List<ServingUnit>;
-      
+
+                      final categories = snapshot.data![0] as List<GenericMasterModel>;
+                      final units = snapshot.data![1] as List<GenericMasterModel>;
+
+                      // Validate Dropdowns
+                      if (_selectedCategoryId != null && !categories.any((c) => c.id == _selectedCategoryId)) {
+                        _selectedCategoryId = null;
+                      }
+                      if (_selectedServingUnitId != null && !units.any((u) => u.id == _selectedServingUnitId)) {
+                        _selectedServingUnitId = null;
+                      }
+
                       return SingleChildScrollView(
                         padding: const EdgeInsets.all(20),
                         child: Form(
@@ -280,7 +279,7 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
                                             value: _selectedServingUnitId,
                                             isExpanded: true,
                                             decoration: _inputDec("Unit", Icons.scale),
-                                            items: units.map((u) => DropdownMenuItem(value: u.id, child: Text(u.abbreviation))).toList(),
+                                            items: units.map((u) => DropdownMenuItem(value: u.id, child: Text(u.name))).toList(),
                                             onChanged: (v) => setState(() => _selectedServingUnitId = v),
                                           ),
                                         ),
@@ -289,7 +288,6 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
                                   ],
                                 ),
                               ),
-      
                               _buildPremiumCard(
                                 title: "Nutrition Facts",
                                 icon: Icons.pie_chart_outline,
@@ -316,7 +314,6 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
                                   ],
                                 ),
                               ),
-      
                               _buildPremiumCard(
                                 title: "Localization",
                                 icon: Icons.translate,
@@ -344,8 +341,7 @@ class _FoodItemEntryPageState extends ConsumerState<FoodItemEntryPage> {
     );
   }
 
-  // --- HELPERS ---
-
+  // ... Helpers match your existing code ...
   Widget _buildHeader(String title, {List<Widget>? actions}) {
     return ClipRRect(
       child: BackdropFilter(

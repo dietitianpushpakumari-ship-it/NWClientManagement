@@ -1,13 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nutricare_client_management/admin/generic_master_model.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
 import 'package:nutricare_client_management/master/model/diet_plan_item_model.dart';
-import 'package:nutricare_client_management/master/model/diet_plan_category.dart';
 import 'package:nutricare_client_management/master_diet_planner/diet_plan_cycle_selector_screen.dart';
 import 'package:nutricare_client_management/modules/master/screen/master_diet_plan_entry_page.dart';
-import 'package:nutricare_client_management/modules/master/service/master_diet_plan_service.dart';
-import 'package:nutricare_client_management/modules/master/service/diet_plan_category_service.dart';
 
 
 // NEW ENUM for segregation
@@ -25,7 +23,7 @@ class _MasterDietPlanListScreenState extends ConsumerState<MasterDietPlanListScr
   List<String> _selectedCategoryIds = [];
   String? _selectedCategoryName;
 
-  late Future<List<DietPlanCategory>> _categoriesFuture;
+  late Future<List<GenericMasterModel>> _categoriesFuture;
 
   PlanType _selectedPlanType = PlanType.all;
 
@@ -35,7 +33,7 @@ class _MasterDietPlanListScreenState extends ConsumerState<MasterDietPlanListScr
   @override
   void initState() {
     super.initState();
-    _categoriesFuture = ref.read(dietPlanCategoryServiceProvider).fetchAllActiveCategories();
+    _categoriesFuture = ref.read(dietPlanCategoryServiceProvider).fetchActiveItems();
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text.toLowerCase();
@@ -93,7 +91,7 @@ class _MasterDietPlanListScreenState extends ConsumerState<MasterDietPlanListScr
   }
 
   // 🎯 FIX: Logic to open Category Filter Bottom Sheet with stable Set management
-  void _openCategoryFilterSheet(List<DietPlanCategory> categories) async {
+  void _openCategoryFilterSheet(List<GenericMasterModel> categories) async {
     // 🎯 FIX 1: Initialize the local set from the current global state (List to Set)
     // This variable must be final and not part of the modal's internal state.
     final Set<String> initialSelectedSet = Set.from(_selectedCategoryIds);
@@ -370,7 +368,7 @@ class _MasterDietPlanListScreenState extends ConsumerState<MasterDietPlanListScr
 
   // MODIFIED: Filter Section -> Now buttons/segmented control
   Widget _buildFilterSection() {
-    return FutureBuilder<List<DietPlanCategory>>(
+    return FutureBuilder<List<GenericMasterModel>>(
       future: _categoriesFuture,
       builder: (context, snapshot) {
         final categories = snapshot.data ?? [];

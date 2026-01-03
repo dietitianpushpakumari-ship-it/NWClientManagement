@@ -1,74 +1,62 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nutricare_client_management/admin/database_provider.dart';
-import 'package:nutricare_client_management/admin/tenant_model.dart';
-
+import 'package:nutricare_client_management/admin/admin_session_provider.dart';
 final adminAuthServiceProvider = Provider((ref) => AdminAuthService(ref));
 
 class AdminAuthService {
   final Ref _ref;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
   AdminAuthService(this._ref);
 
-  // 🎯 1. LOOKUP TENANT (ID Validation)
-  // This remains the same: finds the tenant ID based on the email.
-  Future<TenantModel?> resolveTenant(String email) async {
-    final cleanEmail = email.trim().toLowerCase();
-
-    // Always check the MASTER DB (Default App) for directory
-    final masterDb = FirebaseFirestore.instanceFor(app: Firebase.app());
-
+  // 1. SIGN IN & BUILD SESSION
+  Future<void> login({required String email, required String password}) async {
     try {
-      // A. Check Directory
-      final userDoc = await masterDb.collection('user_directory').doc(cleanEmail).get();
+      // A. Auth with Firebase
+      UserCredential cred = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
 
-      if (userDoc.exists) {
-        final tenantId = userDoc.data()?['tenant_id'];
+      final user = cred.user;
+      if (user == null) throw Exception("Authentication failed");
 
-        // Special: If Super Admin on Live DB (No specific tenant)
-        if (tenantId == 'live' || tenantId == null) return null;
+      // B. Fetch Profile from Central Directory
+      DocumentSnapshot doc = await _db.collection('user_directory').doc(user.uid).get();
 
-        // B. Fetch Clinic Config
-        final tenantDoc = await masterDb.collection('tenants').doc(tenantId).get();
-        if (tenantDoc.exists) {
-          return TenantModel.fromMap(tenantDoc.id, tenantDoc.data()!);
-        }
+      if (!doc.exists) {
+        await _auth.signOut();
+        throw Exception("User not found in directory. Contact Super Admin.");
       }
+
+      final data = doc.data() as Map<String, dynamic>;
+
+      // C. Create Session Object
+      final session = AdminSession(
+        uid: user.uid,
+        email: email,
+        role: data['role'] ?? 'staff', // e.g., 'superAdmin' or 'clinicAdmin'
+        tenantId: data['tenantId'],    // 🔑 THE MOST IMPORTANT FIELD
+      );
+
+      // D. Save to Global State
+      _ref.read(adminSessionProvider.notifier).state = session;
+
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found' || e.code == 'wrong-password') {
+        throw Exception("Invalid credentials.");
+      }
+      throw Exception(e.message);
     } catch (e) {
-      print("Tenant Lookup Failed: $e");
+      throw Exception("Login Error: $e");
     }
-    return null; // Default to Live/Super Admin
   }
 
-  // 🎯 2. LOGIN (Validates ID setup, then validates Password)
-  Future<User?> signIn(String email, String password) async {
-    // 🎯 STEP 1: VALIDATE ID SETUP (Ensure Firebase App instance is ready)
-    // We wait for the dynamic Firebase App creation/selection to complete.
-    // This ensures the current Auth Provider is pointing to the correct project ID.
-    try {
-      await _ref.read(firebaseAppProvider.future);
-    } catch (e) {
-      // If the tenant ID was resolved but app creation failed (bad config), throw ID validation error
-      throw Exception("Authentication setup failed. Tenant configuration error. $e");
-    }
-
-    // Now read the authProvider, which is guaranteed to be pointing to the correct tenant app
-    final auth = _ref.read(authProvider);
-
-    // 🎯 STEP 2: VALIDATE PASSWORD
-    try {
-      final cred = await auth.signInWithEmailAndPassword(email: email, password: password);
-      return cred.user;
-    } on FirebaseAuthException catch (e) {
-      // Handle Firebase Auth specific errors cleanly
-      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        throw Exception("Invalid email or password.");
-      }
-      // Re-throw any other error
-      throw Exception("Login Failed: ${e.message ?? e.toString()}");
-    } catch (e) {
-      throw Exception("Login Failed: ${e.toString()}");
-    }
+  // 2. LOGOUT
+  Future<void> logout() async {
+    await _auth.signOut();
+    _ref.read(adminSessionProvider.notifier).state = null;
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/admin_profile_model.dart';
 import 'package:nutricare_client_management/admin/admin_provider.dart';
 import 'package:nutricare_client_management/admin/admin_dahboard_provider.dart';
+import 'package:nutricare_client_management/admin/daily_consultation_queue_screen.dart';
 import 'package:nutricare_client_management/admin/database_provider.dart';
 
 // 識 SCREENS
@@ -23,6 +24,8 @@ import 'package:nutricare_client_management/admin/admin_account_page.dart';
 // 🎯 NEW IMPORT
 import 'package:nutricare_client_management/admin/system_config_screen.dart';
 
+import 'admin_session_provider.dart';
+
 class AdminDashboardHomeScreen extends ConsumerWidget {
   const AdminDashboardHomeScreen({super.key});
 
@@ -33,7 +36,7 @@ class AdminDashboardHomeScreen extends ConsumerWidget {
     final adminAsync = ref.watch(currentAdminProvider);
 
     // 識 1. GET CURRENT TENANT CONTEXT
-    final currentTenant = ref.watch(currentTenantConfigProvider);
+    final currentTenant = ref.watch(adminSessionProvider);
 
     final primaryColor = isGlobalView ? Colors.deepPurple : Colors.teal;
 
@@ -58,7 +61,7 @@ class AdminDashboardHomeScreen extends ConsumerWidget {
                 if (admin == null) return const Center(child: Text("Profile not found"));
 
                 // 識 2. STRICT PERMISSION LOGIC
-                final bool isSuperAdmin = admin.role == AdminRole.superAdmin && currentTenant == null;
+                final bool isSuperAdmin = admin.role == AdminRole.superAdmin ;
                 final bool isClinicAdmin = admin.role == AdminRole.clinicAdmin;
                 final bool canSwitch = isSuperAdmin || isClinicAdmin || admin.permissions.contains('view_financials');
 
@@ -202,6 +205,7 @@ class AdminDashboardHomeScreen extends ConsumerWidget {
         childAspectRatio: 1.1,
         children: [
 
+
           if (isSuperAdmin) ...[
             _buildBentoAction(
               context, "Add Clinic", "Onboard Tenant", Icons.domain_add_rounded, Colors.blueAccent,
@@ -213,6 +217,15 @@ class AdminDashboardHomeScreen extends ConsumerWidget {
             ),
           ],
 
+          if (isSuperAdmin || isClinicAdmin || can('onboard_client'))
+            _buildBentoAction(
+              context,
+              "Today's Queue",
+              "Manage daily visits",
+              Icons.calendar_view_day_rounded,
+              Colors.orange,
+                  () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyConsultationQueueScreen())),
+            ),
           if (isSuperAdmin || isClinicAdmin || can('onboard_client'))
             _buildBentoAction(
               context, "Onboard", "New Client", Icons.person_add_alt_1_rounded, Colors.indigo,

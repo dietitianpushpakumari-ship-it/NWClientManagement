@@ -8,20 +8,11 @@ class ClientDietPlanModel {
   final String masterPlanId;
   final String name;
   final String description;
-  final List<String> guidelineIds;
   final List<MasterDayPlanModel> days;
   final bool isActive;
   final bool isArchived;
   final bool isDeleted;
   final String? revisedFromPlanId;
-  final List<String> diagnosisIds;
-  final String? linkedVitalsId;
-  final int? followUpDays;
-  final String clinicalNotes;
-  final String complaints;
-  final String instructions;
-  final List<String> investigationIds;
-  final Map<String, String> suplimentIdsMap;
   final bool isProvisional;
   final bool isFreezed;
   final bool isReadyToDeliver;
@@ -37,6 +28,8 @@ class ClientDietPlanModel {
   final Timestamp? assignedDate; //
   final double? targetWeightKg;
   final String? sessionId;
+  final double? targetCalories;
+  final String? dietType;
 
   const ClientDietPlanModel({
     this.id = '',
@@ -44,20 +37,11 @@ class ClientDietPlanModel {
     this.masterPlanId = '',
     this.name = '',
     this.description = '',
-    this.guidelineIds = const [],
     this.days = const [],
     this.isActive = true,
     this.isArchived = false,
     this.isDeleted = false,
     this.revisedFromPlanId,
-    this.diagnosisIds = const [],
-    this.linkedVitalsId = '',
-    this.followUpDays = 0,
-    this.clinicalNotes = '',
-    this.complaints = '',
-    this.instructions = '',
-    this.investigationIds = const [],
-    this.suplimentIdsMap = const {},
     this.isProvisional = false,
     this.isFreezed = false,
     this.isReadyToDeliver = false,
@@ -72,6 +56,8 @@ class ClientDietPlanModel {
     this.assignedDate,
     this.targetWeightKg,
     this.sessionId,
+    this.targetCalories,
+    this.dietType,
   });
 
   // For creating an editable copy
@@ -88,7 +74,6 @@ class ClientDietPlanModel {
       masterPlanId: masterPlan.id,
       name: masterPlan.name,
       description: masterPlan.description,
-      guidelineIds: guidelineIds,
       days: masterPlan.days,
 
       // 🎯 Use Timestamp for consistency with your fromMap/toMap logic
@@ -108,7 +93,6 @@ class ClientDietPlanModel {
       'masterPlanId': masterPlanId,
       'name': name,
       'description': description,
-      'guidelineIds': guidelineIds,
 
       // 🎯 If days is a list of objects with their own toFirestore
       'dayPlan': days.isNotEmpty ? (days.first is Map ? days.first : days.first.toFirestore()) : null,
@@ -125,18 +109,7 @@ class ClientDietPlanModel {
       'isProvisional': isProvisional,
       'isFreezed': isFreezed,
       'isReadyToDeliver': isReadyToDeliver,
-
       'revisedFromPlanId': revisedFromPlanId,
-      'linkedVitalsId': linkedVitalsId,
-      'diagnosisIds': diagnosisIds,
-      'investigationIds': investigationIds,
-
-      'followUpDays': followUpDays,
-      'clinicalNotes': clinicalNotes,
-      'complaints': complaints,
-      'instructions': instructions,
-      'suplimentIdsMap': suplimentIdsMap,
-
       // 🎯 Goals & Metrics
       'dailyWaterGoal': dailyWaterGoal,
       'dailySleepGoal': dailySleepGoal,
@@ -145,6 +118,8 @@ class ClientDietPlanModel {
       'dailyMindfulnessMinutes': dailyMindfulnessMinutes,
       'assignedHabitIds': assignedHabitIds,
       'sessionId':sessionId,
+      'targetCalories': targetCalories ,
+      'dietType': dietType
     };
   }
   factory ClientDietPlanModel.fromFirestore(DocumentSnapshot doc) {
@@ -167,7 +142,6 @@ class ClientDietPlanModel {
       masterPlanId: data['masterPlanId'] ?? '',
       name: data['name'] ?? 'Untitled Plan',
       description: data['description'] ?? '',
-      guidelineIds: List<String>.from(data['guidelineIds'] ?? []),
       days: parsedDays,
 
       // 🎯 FIX: Keep as Timestamp to match model definition
@@ -183,14 +157,6 @@ class ClientDietPlanModel {
       isReadyToDeliver: data['isReadyToDeliver'] ?? false,
 
       revisedFromPlanId: data['revisedFromPlanId'],
-      diagnosisIds: List<String>.from(data['diagnosisIds'] ?? []),
-      linkedVitalsId: data['linkedVitalsId'],
-      followUpDays: data['followUpDays'] ?? 0,
-      clinicalNotes: data['clinicalNotes'] ?? '',
-      complaints: data['complaints'] ?? '',
-      instructions: data['instructions'] ?? '',
-      investigationIds: List<String>.from(data['investigationIds'] ?? []),
-      suplimentIdsMap: Map<String, String>.from(data['suplimentIdsMap'] ?? {}),
 
       // 🎯 Goals & Metrics
       targetWeightKg: (data['targetWeightKg'] as num?)?.toDouble(),
@@ -199,7 +165,9 @@ class ClientDietPlanModel {
       dailyStepGoal: (data['dailyStepGoal'] as num?)?.toInt() ?? 5000,
       dailyMindfulnessMinutes: (data['dailyMindfulnessMinutes'] as num?)?.toInt() ?? 10,
       assignedHabitIds: List<String>.from(data['assignedHabitIds'] ?? []),
-      sessionId: data['sessionId']
+      sessionId: data['sessionId'],
+        targetCalories: data['targetCalories'] ,
+        dietType: data['dietType']
     );
   }
   Map<String, dynamic> toMap() {
@@ -209,9 +177,6 @@ class ClientDietPlanModel {
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'assignedDate': assignedDate ?? FieldValue.serverTimestamp(),
-      'suplimentIdsMap': suplimentIdsMap,
-      'diagnosisIds': diagnosisIds,
-      'guidelineIds': guidelineIds,
       'dailyWaterGoal': dailyWaterGoal,
       'dailyStepGoal': dailyStepGoal,
       'dailySleepGoal': dailySleepGoal,
@@ -219,7 +184,9 @@ class ClientDietPlanModel {
       'isProvisional': isProvisional,
       'isDeleted': isDeleted,
       'sessionId':sessionId,
-      'days': days.map((day) => day.toFirestore()).toList(), // Ensure your day models also have toMap() if they are objects
+      'days': days.map((day) => day.toFirestore()).toList(),
+      'targetCalories': targetCalories ,
+      'dietType': dietType
     };
   }
 
@@ -241,16 +208,15 @@ class ClientDietPlanModel {
       createdAt: map['createdAt'] as Timestamp?,
       updatedAt: map['updatedAt'] as Timestamp?,
       assignedDate: map['assignedDate'] as Timestamp?,
-      suplimentIdsMap: Map<String, String>.from(map['suplimentIdsMap'] ?? {}),
-      diagnosisIds: List<String>.from(map['diagnosisIds'] ?? []),
-      guidelineIds: List<String>.from(map['guidelineIds'] ?? []),
       dailyWaterGoal: (map['dailyWaterGoal'] as num?)?.toDouble() ?? 3.0,
       dailyStepGoal: (map['dailyStepGoal'] as num?)?.toInt() ?? 5000,
       dailySleepGoal: (map['dailySleepGoal'] as num?)?.toDouble() ?? 7.0,
       targetWeightKg: (map['targetWeightKg'] as num?)?.toDouble(),
       isProvisional: map['isProvisional'] ?? true,
       days: parsedDays,
-      sessionId: map['sessionId']
+      sessionId: map['sessionId'],
+      targetCalories: (map['targetCalories'] as num?)?.toDouble(),
+      dietType: map['dietType'] ?? '',
     );
   }
   // Required for the Duplication feature
@@ -264,10 +230,6 @@ class ClientDietPlanModel {
     Timestamp? createdAt,
     Timestamp? updatedAt,
     List<MasterDayPlanModel>? days,
-    Map<String, String>? suplimentIdsMap,
-    List<String>? diagnosisIds,
-    List<String>? guidelineIds,
-    List<String>? investigationIds,
     List<String>? assignedHabitIds,
     double? targetWeightKg,
     double? dailyWaterGoal,
@@ -281,12 +243,10 @@ class ClientDietPlanModel {
     bool? isFreezed,
     bool? isReadyToDeliver,
     String? revisedFromPlanId,
-    String? linkedVitalsId,
-    String? clinicalNotes,
-    String? complaints,
-    String? instructions,
     int? followUpDays,
-    String? sessionId
+    String? sessionId,
+    double? targetCalories,
+    String? dietType,
   }) {
     return ClientDietPlanModel(
       id: id ?? this.id,
@@ -298,10 +258,6 @@ class ClientDietPlanModel {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       days: days ?? this.days,
-      suplimentIdsMap: suplimentIdsMap ?? this.suplimentIdsMap,
-      diagnosisIds: diagnosisIds ?? this.diagnosisIds,
-      guidelineIds: guidelineIds ?? this.guidelineIds,
-      investigationIds: investigationIds ?? this.investigationIds,
       assignedHabitIds: assignedHabitIds ?? this.assignedHabitIds,
       targetWeightKg: targetWeightKg ?? this.targetWeightKg,
       dailyWaterGoal: dailyWaterGoal ?? this.dailyWaterGoal,
@@ -315,12 +271,9 @@ class ClientDietPlanModel {
       isFreezed: isFreezed ?? this.isFreezed,
       isReadyToDeliver: isReadyToDeliver ?? this.isReadyToDeliver,
       revisedFromPlanId: revisedFromPlanId ?? this.revisedFromPlanId,
-      linkedVitalsId: linkedVitalsId ?? this.linkedVitalsId,
-      clinicalNotes: clinicalNotes ?? this.clinicalNotes,
-      complaints: complaints ?? this.complaints,
-      instructions: instructions ?? this.instructions,
-      followUpDays: followUpDays ?? this.followUpDays,
-      sessionId: sessionId ?? this.sessionId
+      sessionId: sessionId ?? this.sessionId,
+      targetCalories: targetCalories ?? this.targetCalories,
+      dietType: dietType ?? this.dietType,
     );
   }
 }

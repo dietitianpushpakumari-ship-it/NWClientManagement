@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nutricare_client_management/admin/habit_master_model.dart';
-import 'package:nutricare_client_management/admin/habit_master_service.dart';
+import 'package:nutricare_client_management/admin/generic_master_model.dart';
 import 'package:nutricare_client_management/admin/labvital/global_service_provider.dart';
+import 'package:nutricare_client_management/admin/master_enum.dart';
+
 
 class PremiumHabitSelectSheet extends ConsumerStatefulWidget {
   final List<String> initialSelectedIds;
@@ -23,12 +24,22 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
     _selectedIds = Set.from(widget.initialSelectedIds);
   }
 
-  void _showAddEditDialog({HabitMasterModel? habit}) {
-    final _service = ref.read(habitMasterServiceProvider);
+  void _showAddEditDialog({GenericMasterModel? habit}) {
+    final service = ref.read(habitMasterServiceProvider);
+
     final titleCtrl = TextEditingController(text: habit?.name ?? '');
     final descCtrl = TextEditingController(text: habit?.description ?? '');
-    String selectedIcon = habit?.iconCode ?? 'check';
-    HabitCategory selectedCat = habit?.category ?? HabitCategory.morning;
+
+    // 🎯 FIX 1: Map 'code' (DB) to 'selectedIcon' (UI)
+    String selectedIcon = habit?.iconCode.isNotEmpty == true ? habit!.iconCode : 'check';
+
+    // 🎯 FIX 2: Map String Category (DB) to Enum (UI)
+    HabitCategory selectedCat = HabitCategory.morning; // Default
+    if (habit != null && habit.category.isNotEmpty) {
+      try {
+        selectedCat = HabitCategory.values.firstWhere((e) => e.name == habit.category);
+      } catch (_) {}
+    }
 
     final Map<String, IconData> iconOptions = {
       'sunny': Icons.wb_sunny, 'water': Icons.water_drop, 'book': Icons.menu_book,
@@ -55,7 +66,11 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
                 DropdownButtonFormField<HabitCategory>(
                   value: selectedCat,
                   decoration: const InputDecoration(border: OutlineInputBorder()),
-                  items: HabitCategory.values.map((c) => DropdownMenuItem(value: c, child: Text(c.name.toUpperCase()))).toList(),
+                  items: HabitCategory.values.map((c) => DropdownMenuItem(
+                      value: c,
+                      // 🎯 FIX 3: Use the .label extension for nice display names
+                      child: Text(c.label)
+                  )).toList(),
                   onChanged: (v) => setState(() => selectedCat = v!),
                 ),
                 const SizedBox(height: 12),
@@ -82,12 +97,14 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
               style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
               onPressed: () {
                 if (titleCtrl.text.isNotEmpty) {
-                  _service.save(HabitMasterModel(
+                  // 🎯 FIX 4: Save using correct field names (code, category as String)
+                  service.save(GenericMasterModel(
                     id: habit?.id ?? '',
                     name: titleCtrl.text.trim(),
                     description: descCtrl.text.trim(),
-                    iconCode: selectedIcon,
-                    category: selectedCat,
+                    iconCode: selectedIcon,          // Map icon to 'code'
+                    category: selectedCat.name,  // Map Enum to String
+                    isActive: true,
                   ));
                   Navigator.pop(ctx);
                 }
@@ -100,8 +117,8 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
     );
   }
 
-  void _confirmDelete(HabitMasterModel habit) {
-    final _service = ref.read(habitMasterServiceProvider);
+  void _confirmDelete(GenericMasterModel habit) {
+    final service = ref.read(habitMasterServiceProvider);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -109,8 +126,8 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () { _service.delete(habit.id); Navigator.pop(ctx); },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () { service.delete(habit.id); Navigator.pop(ctx); },
             child: const Text("Delete"),
           )
         ],
@@ -120,7 +137,8 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
 
   @override
   Widget build(BuildContext context) {
-    final _service = ref.read(habitMasterServiceProvider);
+    final service = ref.read(habitMasterServiceProvider);
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -142,8 +160,8 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
           ),
           const Divider(),
           Expanded(
-            child: StreamBuilder<List<HabitMasterModel>>(
-              stream: _service.streamActiveHabits(),
+            child: StreamBuilder<List<GenericMasterModel>>(
+              stream: service.streamActiveItems(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                 final habits = snapshot.data!;
@@ -155,19 +173,30 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
                   itemBuilder: (context, index) {
                     final habit = habits[index];
                     final isSelected = _selectedIds.contains(habit.id);
+
+                    // 🎯 FIX 5: Convert String category back to Enum for display (optional)
+                    String displayCat = habit.category.toUpperCase();
+                    try {
+                      displayCat = HabitCategory.values.firstWhere((e) => e.name == habit.category).label;
+                    } catch(_){}
+
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(vertical: 4),
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(color: isSelected ? Colors.green.shade50 : Colors.grey.shade100, shape: BoxShape.circle),
+                        // 🎯 FIX 6: Use correct getter from new model
                         child: Icon(habit.iconData, color: isSelected ? Colors.green : Colors.grey),
                       ),
                       title: Text(habit.name, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.black : Colors.grey.shade700)),
-                     // subtitle: Text(habit.category.name.toUpperCase(), style:  TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary)),
+                      subtitle: Text(displayCat, style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary)),
                       trailing: PopupMenuButton(
                         icon: const Icon(Icons.more_vert, size: 18),
                         onSelected: (v) => v == 'edit' ? _showAddEditDialog(habit: habit) : _confirmDelete(habit),
-                        itemBuilder: (c) => [const PopupMenuItem(value: 'edit', child: Text("Edit")), const PopupMenuItem(value: 'del', child: Text("Delete", style: TextStyle(color: Colors.red)))],
+                        itemBuilder: (c) => [
+                          const PopupMenuItem(value: 'edit', child: Text("Edit")),
+                          const PopupMenuItem(value: 'del', child: Text("Delete", style: TextStyle(color: Colors.red)))
+                        ],
                       ),
                       onTap: () => setState(() => isSelected ? _selectedIds.remove(habit.id) : _selectedIds.add(habit.id)),
                     );
@@ -178,7 +207,7 @@ class _PremiumHabitSelectSheetState extends ConsumerState<PremiumHabitSelectShee
           ),
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, -5))]),
+            decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]),
             child: SizedBox(width: double.infinity, child: ElevatedButton(
               onPressed: () => Navigator.pop(context, _selectedIds.toList()),
               style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),

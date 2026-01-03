@@ -1,18 +1,15 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nutricare_client_management/admin/admin_dashboard_home_screen.dart';
 import 'package:nutricare_client_management/admin/admin_inbox_screen.dart';
 import 'package:nutricare_client_management/admin/admin_more_screen.dart';
+import 'package:nutricare_client_management/admin/admin_session_provider.dart';
 import 'package:nutricare_client_management/admin/all_meeting_screen.dart';
 import 'package:nutricare_client_management/admin/configuration/app_module_config.dart';
 import 'package:nutricare_client_management/admin/configuration/company_config_model.dart';
 import 'package:nutricare_client_management/admin/configuration/company_config_services.dart';
 import 'package:nutricare_client_management/admin/configuration/role_permission_model.dart';
 import 'package:nutricare_client_management/admin/configuration/role_permission_service.dart';
-import 'package:nutricare_client_management/admin/database_provider.dart'; // 🎯 Key Import
-
 
 enum UserRole { superAdmin, clinicAdmin, client }
 
@@ -25,101 +22,29 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
 
 class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   int _selectedIndex = 0;
-  String? _resolvedTenantId;
 
-  UserRole _currentUserRole = UserRole.client;
-  String _staffAppRole = 'guest';
-
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    // 🎯 Defer execution to safe phase so we can use ref.read()
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _resolveUserContext();
-    });
-  }
-
-  Future<void> _resolveUserContext() async {
-    try {
-      // 🎯 1. GET AUTH VIA PROVIDER (Correct Instance)
-      final auth = ref.read(authProvider);
-      final user = auth.currentUser;
-
-      if (user == null) {
-        print("❌ No user logged in (via Auth Provider)");
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-
-      String? tenantId;
-      UserRole userRole = UserRole.client;
-      String appRole = 'guest';
-
-      // 🎯 2. GET FIRESTORE VIA PROVIDER (Correct Database)
-      final firestore = ref.read(firestoreProvider);
-
-      // Check Super Admin Impersonation First
-      final config = ref.read(currentTenantConfigProvider);
-
-      if (config != null) {
-        tenantId = config.id;
-        userRole = UserRole.clinicAdmin;
-      } else {
-        // Normal Login: Check 'admins' collection
-        final adminDoc = await firestore.collection('admins').doc(user.uid).get();
-
-        if (adminDoc.exists) {
-          final data = adminDoc.data()!;
-          tenantId = data['tenantId'] ?? data['tenant_id'];
-
-          final roleStr = (data['role'] as String? ?? 'guest');
-
-          if (roleStr == 'clinicAdmin' || roleStr == 'owner') {
-            userRole = UserRole.clinicAdmin;
-            appRole = 'clinicAdmin';
-          } else {
-            userRole = UserRole.client; // Staff
-            appRole = roleStr; // e.g. 'dietitian'
-          }
-        } else {
-          print("⚠️ User document not found in 'admins' for UID: ${user.uid}");
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _resolvedTenantId = tenantId;
-          _currentUserRole = userRole;
-          _staffAppRole = appRole;
-          _isLoading = false;
-        });
-        print("✅ Resolved Context: Tenant=$tenantId, AccessLevel=$_currentUserRole, AppRole=$_staffAppRole");
-      }
-    } catch (e) {
-      print("Error resolving context: $e");
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // 🧩 Navigation Logic
-  _NavConfig _buildNavigationConfig(List<String> companyEnabledModules, List<String> roleAllowedModules) {
+  // 🧩 Navigation Logic (YOUR ORIGINAL LOGIC - PRESERVED)
+  _NavConfig _buildNavigationConfig({
+    required List<String> companyEnabledModules,
+    required List<String> roleAllowedModules,
+    required UserRole userRole,
+  }) {
     final List<Widget> pages = [];
     final List<BottomNavigationBarItem> items = [];
 
-    // 1. DASHBOARD
+    // 1. DASHBOARD (Always Visible)
     pages.add(const AdminDashboardHomeScreen());
     items.add(const BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'));
 
+    // Helper to check permission
     bool canAccess(AppModule module) {
-      // 1. Company Check
+      // A. Super Admin & Clinic Admin: "God Mode" (Always True)
+      if (userRole == UserRole.superAdmin || userRole == UserRole.clinicAdmin) return true;
+
+      // B. Tenant Check: Is it enabled for this clinic?
       if (!companyEnabledModules.contains(module.id)) return false;
 
-      // 2. Role Check (God Mode for Clinic Admin)
-      if (_currentUserRole == UserRole.clinicAdmin || _currentUserRole == UserRole.superAdmin) return true;
-
-      // 3. Staff Role Check
+      // C. Staff Check: Does this specific role have permission?
       return roleAllowedModules.contains(module.id);
     }
 
@@ -152,75 +77,103 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    // 🎯 1. GET SESSION
+    final session = ref.watch(adminSessionProvider);
+
+    if (session == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (_resolvedTenantId == null) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              const Text("Configuration Error", style: TextStyle(fontWeight: FontWeight.bold)),
-              const Text("Tenant ID not found. Contact support."),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => _resolveUserContext(),
-                child: const Text("Retry"),
-              )
-            ],
-          ),
-        ),
+    // 🎯 2. DETERMINE ROLE
+    UserRole currentUserRole = UserRole.client;
+    String staffAppRole = session.role;
+    String? tenantId = session.tenantId;
+
+    if (session.isSuperAdmin || session.role == 'superAdmin') {
+      currentUserRole = UserRole.superAdmin;
+    } else if (session.role == 'clinicAdmin' || session.role == 'owner') {
+      currentUserRole = UserRole.clinicAdmin;
+      staffAppRole = 'clinicAdmin';
+    }
+
+    // ==============================================================
+    // 👑 PATH A: SUPER ADMIN (Bypass DB Configs)
+    // ==============================================================
+    if (currentUserRole == UserRole.superAdmin) {
+      // Super Admin gets everything enabled by default
+      final navConfig = _buildNavigationConfig(
+        companyEnabledModules: AppModule.values.map((e) => e.id).toList(), // Enable All
+        roleAllowedModules: AppModule.values.map((e) => e.id).toList(),    // Enable All
+        userRole: UserRole.superAdmin,
       );
+      return _buildScaffold(navConfig);
+    }
+
+    // ==============================================================
+    // 🏥 PATH B: CLINIC USER (Fetch Configs from DB)
+    // ==============================================================
+
+    // Safety Check for Staff
+    if (tenantId == null) {
+      return const Scaffold(body: Center(child: Text("Error: Staff user has no Tenant ID")));
     }
 
     final configService = ref.watch(companyConfigServiceProvider);
     final permService = ref.watch(rolePermissionServiceProvider);
-    final tid = _resolvedTenantId!;
 
+    // Stream 1: Company Config
     return StreamBuilder<CompanyConfigModel>(
-      stream: configService.streamCompanyConfig(tid),
+      stream: configService.streamCompanyConfig(tenantId),
       builder: (context, companySnap) {
 
-        final roleToStream = (_currentUserRole == UserRole.client) ? _staffAppRole : 'admin_bypass';
+        final roleToStream = (currentUserRole == UserRole.client) ? staffAppRole : 'admin_bypass';
 
+        // Stream 2: Role Permissions
         return StreamBuilder<RolePermissionModel>(
-          stream: permService.streamPermissionForRole(tid, roleToStream),
+          stream: permService.streamPermissionForRole(tenantId, roleToStream),
           builder: (context, roleSnap) {
 
             if (companySnap.connectionState == ConnectionState.waiting) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
 
+            // Extract Data
             final companyModules = companySnap.data?.enabledModules ?? [];
             final roleModules = roleSnap.data?.moduleIds ?? [];
 
-            final navConfig = _buildNavigationConfig(companyModules, roleModules);
-
-            if (_selectedIndex >= navConfig.pages.length) {
-              _selectedIndex = 0;
-            }
-
-            return Scaffold(
-              body: navConfig.pages[_selectedIndex],
-              bottomNavigationBar: BottomNavigationBar(
-                items: navConfig.items,
-                currentIndex: _selectedIndex,
-                selectedItemColor: Theme.of(context).colorScheme.primary,
-                unselectedItemColor: Colors.grey,
-                type: BottomNavigationBarType.fixed,
-                showUnselectedLabels: true,
-                onTap: _onItemTapped,
-                elevation: 10,
-                backgroundColor: Colors.white,
-              ),
+            // Build Nav Config
+            final navConfig = _buildNavigationConfig(
+              companyEnabledModules: companyModules,
+              roleAllowedModules: roleModules,
+              userRole: currentUserRole,
             );
+
+            return _buildScaffold(navConfig);
           },
         );
       },
+    );
+  }
+
+  // Helper to build the final Scaffold
+  Widget _buildScaffold(_NavConfig navConfig) {
+    if (_selectedIndex >= navConfig.pages.length) {
+      _selectedIndex = 0;
+    }
+
+    return Scaffold(
+      body: navConfig.pages[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        items: navConfig.items,
+        currentIndex: _selectedIndex,
+        selectedItemColor: Theme.of(context).colorScheme.primary,
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        showUnselectedLabels: true,
+        onTap: _onItemTapped,
+        elevation: 10,
+        backgroundColor: Colors.white,
+      ),
     );
   }
 }

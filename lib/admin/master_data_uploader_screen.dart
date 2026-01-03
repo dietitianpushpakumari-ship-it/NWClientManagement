@@ -456,7 +456,7 @@ class BulkMasterUploaderService {
               'isDeleted': false,
               'createdAt': FieldValue.serverTimestamp(),
               'updatedAt': FieldValue.serverTimestamp(),
-              'isMasterTemplate': true, // Essential field for some complex masters
+         //    'isMasterTemplate': true, // Essential field for some complex masters
               // Note: Other required fields (e.g., calories, ICDCode) are intentionally missing here
             };
             await _firestore.collection(collectionPath).add(complexData);

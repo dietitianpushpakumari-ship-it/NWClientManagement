@@ -19,6 +19,12 @@ enum AppModule {
     description: 'Track pathology reports and vital signs.',
     icon: Icons.monitor_heart,
   ),
+  prescription(
+    id: 'write_prescription',
+    label: 'Rx Prescription',
+    description: 'Write medications, clinical notes & lab orders.',
+    icon: Icons.medication, // Make sure to import material.dart
+  ),
   appointments(
     id: 'appointments',
     label: 'Appointment Scheduler',
